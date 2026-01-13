@@ -3,7 +3,7 @@ import { BALANCE } from '../constants/game';
 
 const DEFAULT_CONFIG: IslandGeneratorConfig = {
   tileCount: BALANCE.tilesPerIsland,
-  minCompactness: 0.4,
+  minCompactness: 0.25, // Lower to allow peninsulas and odd shapes
   maxAttempts: 100,
 };
 
@@ -20,14 +20,21 @@ export function generateIsland(config: Partial<IslandGeneratorConfig> = {}): Isl
     const tiles = generateIslandShape(tileCount);
     const metrics = calculateMetrics(tiles);
     
+    // Accept islands that meet minimum compactness (ensures playability)
+    // but don't optimize for maximum compactness (allows interesting shapes)
     if (metrics.compactness >= minCompactness) {
-      if (!bestMetrics || metrics.compactness > bestMetrics.compactness) {
-        bestIsland = tiles;
-        bestMetrics = metrics;
-      }
-      
-      // Good enough, stop early
-      if (metrics.compactness >= 0.6) break;
+      // Accept first valid island to preserve variety
+      return {
+        id: `island-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        tiles,
+        boats: [],
+      };
+    }
+    
+    // Track best attempt as fallback
+    if (!bestMetrics || metrics.compactness > bestMetrics.compactness) {
+      bestIsland = tiles;
+      bestMetrics = metrics;
     }
   }
   
@@ -44,7 +51,8 @@ export function generateIsland(config: Partial<IslandGeneratorConfig> = {}): Isl
 }
 
 /**
- * Generate a contiguous island shape using random walk
+ * Generate a contiguous island shape with organic features
+ * Uses weighted random growth that allows peninsulas and irregular shapes
  */
 function generateIslandShape(targetTiles: number): Tile[] {
   const landPositions = new Set<string>();
@@ -61,10 +69,14 @@ function generateIslandShape(targetTiles: number): Tile[] {
     { x: 1, y: 0 },  // right
   ];
   
+  // Track growth direction for creating elongated features
+  let preferredDir = directions[Math.floor(Math.random() * 4)];
+  let directionStreak = 0;
+  
   // Grow island by adding adjacent tiles
   while (landPositions.size < targetTiles) {
     // Get all positions adjacent to current land
-    const candidates: Position[] = [];
+    const candidates: { pos: Position; adjacentCount: number; isPreferredDir: boolean }[] = [];
     
     for (const key of landPositions) {
       const [x, y] = key.split(',').map(Number);
@@ -79,30 +91,81 @@ function generateIslandShape(targetTiles: number): Tile[] {
           newPos.y >= 0 && newPos.y < 8 &&
           !landPositions.has(newKey)
         ) {
-          candidates.push(newPos);
+          // Count adjacent land tiles
+          let adjacentCount = 0;
+          for (const d of directions) {
+            if (landPositions.has(posKey({ x: newPos.x + d.x, y: newPos.y + d.y }))) {
+              adjacentCount++;
+            }
+          }
+          
+          const isPreferredDir = dir.x === preferredDir.x && dir.y === preferredDir.y;
+          candidates.push({ pos: newPos, adjacentCount, isPreferredDir });
         }
       }
     }
     
     if (candidates.length === 0) break;
     
-    // Weight candidates by adjacency count (prefer more connected tiles)
-    const weightedCandidates = candidates.map(pos => {
-      let adjacentLand = 0;
-      for (const dir of directions) {
-        if (landPositions.has(posKey({ x: pos.x + dir.x, y: pos.y + dir.y }))) {
-          adjacentLand++;
-        }
+    // Remove duplicates (same position from different source tiles)
+    const uniqueCandidates = new Map<string, typeof candidates[0]>();
+    for (const c of candidates) {
+      const key = posKey(c.pos);
+      if (!uniqueCandidates.has(key) || c.adjacentCount < uniqueCandidates.get(key)!.adjacentCount) {
+        uniqueCandidates.set(key, c);
       }
-      return { pos, weight: adjacentLand };
+    }
+    
+    const candidateList = Array.from(uniqueCandidates.values());
+    
+    // Weighted selection favoring variety
+    // - Low adjacency (1) = peninsula growth, interesting shapes
+    // - High adjacency (3-4) = filling gaps, compact areas
+    // - Preferred direction = creates elongated features
+    
+    const weights = candidateList.map(c => {
+      let weight = 1;
+      
+      // Favor peninsulas (adjacency 1) sometimes, but not always
+      if (c.adjacentCount === 1) {
+        weight = Math.random() < 0.4 ? 3 : 1; // 40% chance to strongly favor
+      } else if (c.adjacentCount === 2) {
+        weight = 2; // Good balance
+      } else if (c.adjacentCount >= 3) {
+        weight = Math.random() < 0.3 ? 2 : 0.5; // Usually avoid filling, sometimes do
+      }
+      
+      // Boost preferred direction for streaky growth
+      if (c.isPreferredDir && directionStreak < 4) {
+        weight *= 1.5;
+      }
+      
+      return weight;
     });
     
-    // Sort by weight and pick from top candidates with some randomness
-    weightedCandidates.sort((a, b) => b.weight - a.weight);
-    const topCount = Math.min(5, weightedCandidates.length);
-    const chosen = weightedCandidates[Math.floor(Math.random() * topCount)];
+    // Weighted random selection
+    const totalWeight = weights.reduce((a, b) => a + b, 0);
+    let random = Math.random() * totalWeight;
+    let chosenIndex = 0;
     
+    for (let i = 0; i < weights.length; i++) {
+      random -= weights[i];
+      if (random <= 0) {
+        chosenIndex = i;
+        break;
+      }
+    }
+    
+    const chosen = candidateList[chosenIndex];
     landPositions.add(posKey(chosen.pos));
+    
+    // Update preferred direction occasionally
+    if (Math.random() < 0.15 || directionStreak > 5) {
+      preferredDir = directions[Math.floor(Math.random() * 4)];
+      directionStreak = 0;
+    } else {
+      directionStreak++;
+    }
   }
   
   // Convert to tiles
@@ -116,7 +179,7 @@ function generateIslandShape(targetTiles: number): Tile[] {
       position: { x, y },
       isLand: true,
       building: null,
-      isRevealed: true, // Own island always revealed
+      isRevealed: true,
       hasRebel: false,
     });
   }
@@ -139,10 +202,14 @@ export function calculateMetrics(tiles: Tile[]): IslandMetrics {
   // Fort efficiency: how many tiles can be protected with optimal fort placement
   const fortEfficiency = calculateFortEfficiency(positions);
   
+  // Max inland depth: furthest any tile is from the coast
+  const maxInlandDepth = calculateMaxInlandDepth(positions);
+  
   return {
     compactness,
     coastlineLength,
     fortEfficiency,
+    maxInlandDepth,
   };
 }
 
@@ -186,6 +253,62 @@ function calculateCoastline(positions: Position[]): number {
   }
   
   return coastline;
+}
+
+/**
+ * Calculate max inland depth - the furthest any tile is from the coast
+ * Uses BFS from all coastal tiles simultaneously
+ */
+function calculateMaxInlandDepth(positions: Position[]): number {
+  const posSet = new Set(positions.map(p => `${p.x},${p.y}`));
+  const directions = [
+    { x: 0, y: -1 },
+    { x: 0, y: 1 },
+    { x: -1, y: 0 },
+    { x: 1, y: 0 },
+  ];
+  
+  // Find coastal tiles (tiles with at least one water neighbor)
+  const coastalTiles: Position[] = [];
+  for (const pos of positions) {
+    for (const dir of directions) {
+      const neighbor = `${pos.x + dir.x},${pos.y + dir.y}`;
+      if (!posSet.has(neighbor)) {
+        coastalTiles.push(pos);
+        break;
+      }
+    }
+  }
+  
+  // BFS from all coastal tiles to find max distance
+  const distances = new Map<string, number>();
+  const queue: { pos: Position; dist: number }[] = [];
+  
+  for (const pos of coastalTiles) {
+    const key = `${pos.x},${pos.y}`;
+    distances.set(key, 0);
+    queue.push({ pos, dist: 0 });
+  }
+  
+  let maxDepth = 0;
+  
+  while (queue.length > 0) {
+    const { pos, dist } = queue.shift()!;
+    
+    for (const dir of directions) {
+      const newPos = { x: pos.x + dir.x, y: pos.y + dir.y };
+      const key = `${newPos.x},${newPos.y}`;
+      
+      if (posSet.has(key) && !distances.has(key)) {
+        const newDist = dist + 1;
+        distances.set(key, newDist);
+        maxDepth = Math.max(maxDepth, newDist);
+        queue.push({ pos: newPos, dist: newDist });
+      }
+    }
+  }
+  
+  return maxDepth;
 }
 
 /**

@@ -100,9 +100,10 @@ export interface BuildingConfig {
 
 // Island generator types
 export interface IslandMetrics {
-  compactness: number;      // 0-1, higher = more compact shape
-  coastlineLength: number;  // Number of water-adjacent edges
-  fortEfficiency: number;   // Tiles protectable by optimal fort placement
+  compactness: number;       // 0-1, higher = more compact shape
+  coastlineLength: number;   // Number of water-adjacent edges
+  fortEfficiency: number;    // Tiles protectable by optimal fort placement
+  maxInlandDepth: number;    // Max distance from any tile to nearest coast
 }
 
 export interface IslandGeneratorConfig {

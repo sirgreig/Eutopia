@@ -64,6 +64,9 @@ export default function App() {
           <Text style={styles.metric}>
             Fort Efficiency: {(metrics.fortEfficiency * 100).toFixed(1)}%
           </Text>
+          <Text style={styles.metric}>
+            Max Inland Depth: {metrics.maxInlandDepth} tiles
+          </Text>
         </View>
       )}
       
