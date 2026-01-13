@@ -1,14 +1,15 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import Svg, { Rect, G } from 'react-native-svg';
 import { Island as IslandType, Position, Tile } from '../../types/game';
 import { COLORS } from '../../constants/game';
+import { BuildingIcon } from './BuildingIcon';
 
 interface IslandProps {
   island: IslandType;
   tileSize?: number;
   selectedTile?: Position | null;
-  onTilePress?: (position: Position) => void;
+  onTilePress?: (position: Position, tile: Tile) => void;
 }
 
 const GRID_SIZE = 8;
@@ -78,13 +79,41 @@ export function Island({
                   stroke={selected ? COLORS.selected : COLORS.landDark}
                   strokeWidth={selected ? 3 : 1}
                   rx={6}
-                  onPress={() => onTilePress?.(tile.position)}
+                  onPress={() => onTilePress?.(tile.position, tile)}
                 />
               </G>
             );
           })}
         </G>
       </Svg>
+      
+      {/* Buildings rendered as overlay (React Native views for better interaction) */}
+      {island.tiles.map((tile) => {
+        if (!tile.building) return null;
+        
+        const x = tile.position.x * tileSize;
+        const y = tile.position.y * tileSize;
+        const buildingSize = tileSize - 8;
+        
+        return (
+          <TouchableOpacity
+            key={`building-${tile.id}`}
+            style={[
+              styles.buildingContainer,
+              {
+                left: x + 2,
+                top: y + 2,
+                width: buildingSize,
+                height: buildingSize,
+              }
+            ]}
+            onPress={() => onTilePress?.(tile.position, tile)}
+            activeOpacity={0.8}
+          >
+            <BuildingIcon type={tile.building} size={buildingSize} />
+          </TouchableOpacity>
+        );
+      })}
     </View>
   );
 }
@@ -93,5 +122,9 @@ const styles = StyleSheet.create({
   container: {
     borderRadius: 8,
     overflow: 'hidden',
+    position: 'relative',
+  },
+  buildingContainer: {
+    position: 'absolute',
   },
 });
