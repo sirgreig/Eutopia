@@ -1,8 +1,7 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal } from 'react-native';
-import { BuildingIcon } from './BuildingIcon';
+import { View, Text, TouchableOpacity, StyleSheet, Modal, Pressable } from 'react-native';
 import { BuildingConfig, GameMode } from '../../types/game';
-import { getAvailableBuildings, COLORS, BOAT_COSTS } from '../../constants/game';
+import { getAvailableBuildings, BOAT_COSTS } from '../../constants/game';
 
 interface BuildMenuProps {
   visible: boolean;
@@ -13,6 +12,21 @@ interface BuildMenuProps {
   onClose: () => void;
 }
 
+const BUILDING_ICONS: Record<string, string> = {
+  farm: '🌾',
+  house: '🏠',
+  school: '🏫',
+  factory: '🏭',
+  fort: '🏰',
+  hospital: '🏥',
+  apartment: '🏢',
+  dock: '⚓',
+  lighthouse: '🗼',
+  granary: '🏛️',
+  marketplace: '🏪',
+  watchtower: '🗽',
+};
+
 export function BuildMenu({ 
   visible, 
   gold, 
@@ -21,100 +35,78 @@ export function BuildMenu({
   onSelectBoat,
   onClose 
 }: BuildMenuProps) {
-  const buildings = getAvailableBuildings(mode);
+  if (!visible) return null;
   
+  const buildings = getAvailableBuildings(mode);
   const canAfford = (cost: number) => gold >= cost;
   
   return (
     <Modal
       visible={visible}
-      transparent
+      transparent={true}
       animationType="fade"
       onRequestClose={onClose}
     >
-      <TouchableOpacity 
-        style={styles.overlay} 
-        activeOpacity={1} 
-        onPress={onClose}
-      >
-        <View style={styles.menuContainer}>
-          <TouchableOpacity activeOpacity={1}>
-            <View style={styles.menu}>
-              <View style={styles.header}>
-                <Text style={styles.title}>BUILD</Text>
-                <Text style={styles.goldText}>💰 {gold}</Text>
-              </View>
-              
-              <Text style={styles.sectionTitle}>Buildings</Text>
-              <View style={styles.grid}>
-                {buildings.map((building) => (
-                  <TouchableOpacity
-                    key={building.type}
-                    style={[
-                      styles.item,
-                      !canAfford(building.cost) && styles.itemDisabled
-                    ]}
-                    onPress={() => canAfford(building.cost) && onSelectBuilding(building.type)}
-                    disabled={!canAfford(building.cost)}
-                  >
-                    <BuildingIcon type={building.type} size={36} />
-                    <Text style={styles.itemName}>{building.name}</Text>
-                    <Text style={[
-                      styles.itemCost,
-                      !canAfford(building.cost) && styles.costDisabled
-                    ]}>
-                      {building.cost}g
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              
-              <Text style={styles.sectionTitle}>Boats</Text>
-              <View style={styles.boatRow}>
+      <Pressable style={styles.overlay} onPress={onClose}>
+        <Pressable style={styles.menu} onPress={() => {}}>
+          <View style={styles.header}>
+            <Text style={styles.title}>BUILD</Text>
+            <Text style={styles.goldText}>💰 {gold}</Text>
+          </View>
+          
+          <Text style={styles.sectionTitle}>Buildings</Text>
+          <View style={styles.grid}>
+            {buildings.map((building) => {
+              const affordable = canAfford(building.cost);
+              return (
                 <TouchableOpacity
-                  style={[
-                    styles.boatItem,
-                    !canAfford(BOAT_COSTS.fishing) && styles.itemDisabled
-                  ]}
-                  onPress={() => canAfford(BOAT_COSTS.fishing) && onSelectBoat('fishing')}
-                  disabled={!canAfford(BOAT_COSTS.fishing)}
+                  key={building.type}
+                  style={[styles.item, !affordable && styles.itemDisabled]}
+                  onPress={() => affordable && onSelectBuilding(building.type)}
+                  activeOpacity={0.7}
                 >
-                  <Text style={styles.boatEmoji}>🚣</Text>
-                  <Text style={styles.itemName}>Fishing</Text>
-                  <Text style={[
-                    styles.itemCost,
-                    !canAfford(BOAT_COSTS.fishing) && styles.costDisabled
-                  ]}>
-                    {BOAT_COSTS.fishing}g
+                  <Text style={styles.itemIcon}>{BUILDING_ICONS[building.type] || '🏗️'}</Text>
+                  <Text style={styles.itemName}>{building.name}</Text>
+                  <Text style={[styles.itemCost, !affordable && styles.costDisabled]}>
+                    {building.cost}g
                   </Text>
                 </TouchableOpacity>
-                
-                <TouchableOpacity
-                  style={[
-                    styles.boatItem,
-                    !canAfford(BOAT_COSTS.pt) && styles.itemDisabled
-                  ]}
-                  onPress={() => canAfford(BOAT_COSTS.pt) && onSelectBoat('pt')}
-                  disabled={!canAfford(BOAT_COSTS.pt)}
-                >
-                  <Text style={styles.boatEmoji}>⛵</Text>
-                  <Text style={styles.itemName}>PT Boat</Text>
-                  <Text style={[
-                    styles.itemCost,
-                    !canAfford(BOAT_COSTS.pt) && styles.costDisabled
-                  ]}>
-                    {BOAT_COSTS.pt}g
-                  </Text>
-                </TouchableOpacity>
-              </View>
-              
-              <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-                <Text style={styles.closeText}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
+              );
+            })}
+          </View>
+          
+          <Text style={styles.sectionTitle}>Boats</Text>
+          <View style={styles.boatRow}>
+            <TouchableOpacity
+              style={[styles.boatItem, !canAfford(BOAT_COSTS.fishing) && styles.itemDisabled]}
+              onPress={() => canAfford(BOAT_COSTS.fishing) && onSelectBoat('fishing')}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.boatEmoji}>🚣</Text>
+              <Text style={styles.itemName}>Fishing</Text>
+              <Text style={[styles.itemCost, !canAfford(BOAT_COSTS.fishing) && styles.costDisabled]}>
+                {BOAT_COSTS.fishing}g
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.boatItem, !canAfford(BOAT_COSTS.pt) && styles.itemDisabled]}
+              onPress={() => canAfford(BOAT_COSTS.pt) && onSelectBoat('pt')}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.boatEmoji}>⛵</Text>
+              <Text style={styles.itemName}>PT Boat</Text>
+              <Text style={[styles.itemCost, !canAfford(BOAT_COSTS.pt) && styles.costDisabled]}>
+                {BOAT_COSTS.pt}g
+              </Text>
+            </TouchableOpacity>
+          </View>
+          
+          <TouchableOpacity style={styles.closeButton} onPress={onClose} activeOpacity={0.7}>
+            <Text style={styles.closeText}>Cancel</Text>
           </TouchableOpacity>
-        </View>
-      </TouchableOpacity>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }
@@ -126,16 +118,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  menuContainer: {
-    width: '90%',
-    maxWidth: 360,
-  },
   menu: {
-    backgroundColor: COLORS.panel,
+    backgroundColor: '#1a2530',
     borderRadius: 12,
     padding: 16,
     borderWidth: 2,
-    borderColor: COLORS.panelBorder,
+    borderColor: '#2a3a4a',
+    width: '85%',
+    maxWidth: 400,
   },
   header: {
     flexDirection: 'row',
@@ -146,16 +136,16 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: COLORS.text,
+    color: '#e0e0e0',
   },
   goldText: {
     fontSize: 16,
-    color: COLORS.gold,
+    color: '#ffc107',
     fontWeight: 'bold',
   },
   sectionTitle: {
     fontSize: 12,
-    color: COLORS.textDim,
+    color: '#888',
     marginTop: 8,
     marginBottom: 8,
     textTransform: 'uppercase',
@@ -164,56 +154,60 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
   },
   item: {
     width: '31%',
-    backgroundColor: COLORS.panelLight,
+    backgroundColor: '#2a3a4a',
     borderRadius: 8,
     padding: 8,
     alignItems: 'center',
+    marginRight: '2%',
     marginBottom: 8,
   },
   itemDisabled: {
     opacity: 0.4,
   },
+  itemIcon: {
+    fontSize: 24,
+  },
   itemName: {
-    fontSize: 11,
-    color: COLORS.text,
-    marginTop: 4,
+    fontSize: 9,
+    color: '#e0e0e0',
+    marginTop: 2,
+    textAlign: 'center',
   },
   itemCost: {
-    fontSize: 12,
-    color: COLORS.gold,
+    fontSize: 11,
+    color: '#ffc107',
     fontWeight: 'bold',
     marginTop: 2,
   },
   costDisabled: {
-    color: COLORS.textDim,
+    color: '#666',
   },
   boatRow: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'space-between',
   },
   boatItem: {
-    width: '45%',
-    backgroundColor: COLORS.panelLight,
+    width: '48%',
+    backgroundColor: '#2a3a4a',
     borderRadius: 8,
-    padding: 12,
+    padding: 10,
     alignItems: 'center',
   },
   boatEmoji: {
-    fontSize: 28,
+    fontSize: 24,
   },
   closeButton: {
-    marginTop: 16,
-    padding: 12,
-    backgroundColor: COLORS.panelLight,
+    marginTop: 12,
+    padding: 10,
+    backgroundColor: '#2a3a4a',
     borderRadius: 8,
     alignItems: 'center',
   },
   closeText: {
-    color: COLORS.textDim,
+    color: '#888',
     fontSize: 14,
   },
 });

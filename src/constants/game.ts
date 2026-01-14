@@ -1,5 +1,10 @@
 import { BuildingConfig, GameMode } from '../types/game';
 
+// Grid configuration - wider for landscape mobile
+export const GRID_WIDTH = 12;
+export const GRID_HEIGHT = 7;
+export const GRID_SIZE = Math.max(GRID_WIDTH, GRID_HEIGHT); // For compatibility
+
 // Building configurations
 export const BUILDINGS: BuildingConfig[] = [
   // Original buildings
@@ -90,6 +95,14 @@ export const BUILDINGS: BuildingConfig[] = [
   },
 ];
 
+// Get buildings available for the current game mode
+export function getAvailableBuildings(mode: GameMode): BuildingConfig[] {
+  if (mode === 'enhanced') {
+    return BUILDINGS; // All buildings available
+  }
+  return BUILDINGS.filter(b => !b.enhanced); // Only original buildings
+}
+
 // Boat configurations
 export const BOAT_COSTS = {
   fishing: 28,
@@ -107,7 +120,7 @@ export const BALANCE = {
   maxPopulation: 9999,
   
   // Island
-  tilesPerIsland: 29,
+  tilesPerIsland: 18,
   
   // Round timing (seconds)
   defaultRoundDuration: 90,
@@ -150,14 +163,6 @@ export const BALANCE = {
   // PT boat scouting radius (tiles)
   ptScoutRadius: 3,
 } as const;
-
-// Get available buildings for current game mode
-export function getAvailableBuildings(mode: GameMode): BuildingConfig[] {
-  if (mode === 'enhanced') {
-    return BUILDINGS;
-  }
-  return BUILDINGS.filter(b => !b.enhanced);
-}
 
 // Color palette
 export const COLORS = {

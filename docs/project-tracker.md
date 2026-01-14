@@ -552,41 +552,11 @@ src/
 
 ---
 
-## Session Log
+## Project Setup
 
-### Session 1 (Current)
-
-**Completed:**
-- Established project goals and two design pillars
-- Created and iterated on this tracker
-- Researched and documented original Utopia mechanics from reverse-engineered code
-- Made all major design decisions
-- Confirmed development platform (VS Code, GitHub, Expo Metro)
-- **Created visual prototype** (eutopia-prototype.jsx)
-
-**Key Decisions Made:**
-- **Game name: Eutopía** (Greek root of "Utopia")
-- 29 tiles per island, randomly generated with fairness constraints
-- 2-player = 2 devices (networked), full-screen own island + opponent minimap
-- Original vs Enhanced mode toggle:
-  - Original: Full visibility, classic buildings only
-  - Enhanced: Fog of war + 6 new building types
-- Scouting via PT boat proximity (radius covers full island from coast)
-- Manual ready-up between rounds (20-sec timeout)
-- 3-minute timeout forfeit for disconnects in PvP
-- Tap-tap boat controls, contextual popup building menu
-- **Visual style: Modern & detailed** (clean rendering, rich icons, inspired by but not pixel-perfect to original)
-- Contextual first-time hints for tutorial
-- Comprehensive technical stack documented
-
-**Enhanced Mode Buildings Defined:**
-- Apartment, Dock, Lighthouse, Granary, Marketplace, Watchtower
-
-**Deliverables This Session:**
-- project-tracker-eutopia.md (this document)
-- eutopia-prototype.jsx (visual style prototype v1 - modern, minimal)
-- eutopia-prototype-v2.jsx (v2 - too pixelated/retro, reverted)
-- eutopia-prototype-v3.jsx (v3 - modern with detailed icons, animations, iPhone-sized) ✓ APPROVED
+**Local Path:** `C:\Dev\Eutopia`
+**Repository:** GitHub (to be created)
+**IDE:** VS Code + Expo Metro
 
 ---
 
@@ -602,19 +572,154 @@ src/
 - Approved visual style: modern, detailed, animated
 - Documented animation specs for all buildings
 
-**Next Session:**
-- Initialize GitHub repository with project structure
-- Set up Expo + React Native + TypeScript
-- Create initial component scaffolding
-- Begin island generator implementation
+### Session 2 (Jan 13, 2026)
+**Completed:**
+- ✅ Initialized Expo project with TypeScript
+- ✅ Set up project structure (types, constants, state, services, components)
+- ✅ Core TypeScript interfaces for all game entities
+- ✅ Game constants and building configurations
+- ✅ Zustand store skeleton with game actions
+- ✅ Island generator with organic shapes (peninsulas, irregular coastlines)
+- ✅ Island fairness metrics (compactness, coastline, fort efficiency, max inland depth)
+- ✅ Island component with SVG rendering
+- ✅ Building icons (all 12 buildings with detailed SVGs)
+- ✅ Build menu popup with building/boat selection
+- ✅ Building placement on tiles with gold cost
+- ✅ Original/Enhanced mode toggle
+- ✅ Boat icons (fishing boat & PT boat SVGs)
+- ✅ Boat spawning from coastal tiles
+- ✅ Boat selection and tap-to-move controls
+- ✅ Status bar with gold and boat count
 
-**Next Steps:**
-1. Review visual prototype, iterate on style if needed
-2. Set up project structure in codebase
-3. Implement island generator with fairness constraints
-4. Build core game state management
-5. Create basic tile/building rendering
+**GitHub Commits:**
+- Initial commit: design docs and visual prototype
+- Initialize Expo project with TypeScript
+- Add organic island generator with depth metrics
+- Add building icons and placement system
+- Add boat spawning and movement
 
 ---
 
-*Last Updated: Session 1*
+## Development Task Backlog
+
+### Phase 1: Core Loop (In Progress)
+
+**Round Timer & Game Flow** ← NEXT
+- [ ] Round state management (round number, active/waiting)
+- [ ] Countdown timer display
+- [ ] Start/end round transitions
+- [ ] Ready-up between rounds
+- [ ] Basic round scoring calculation
+
+**Weather System**
+- [ ] Weather state (clear, rain, storm, hurricane)
+- [ ] Rain visualization over tiles
+- [ ] Rain triggers crop income
+- [ ] Storm/hurricane effects on boats and crops
+- [ ] Fish school spawning and movement
+- [ ] Pirate spawning
+
+**Status Bar Upgrade**
+- [ ] Population display
+- [ ] Score/approval rating display
+- [ ] Round indicator (X of Y)
+- [ ] Timer display integration
+
+### Phase 2: Full Single-Player
+
+**Economy & Population**
+- [ ] Per-round income calculation (factories, fishing, productivity)
+- [ ] Continuous income during round (rain on crops, fishing)
+- [ ] Population growth/decline per round
+- [ ] Gold spending validation
+
+**Scoring System**
+- [ ] Four subscore calculation (housing, GDP, food, welfare)
+- [ ] Real-time score updates
+- [ ] Score history tracking
+- [ ] End-game score comparison
+
+**Rebellion System**
+- [ ] Rebel spawning conditions (score drop, low score)
+- [ ] Rebel visualization on tiles
+- [ ] Fort protection radius
+- [ ] Rebel removal conditions
+
+**Sabotage**
+- [ ] Spawn rebel on opponent island
+- [ ] Cost deduction
+- [ ] Target tile selection
+
+### Phase 3: Animations & Polish (Deferred)
+
+**Boat Animations**
+- [ ] Pathfinding through water tiles (BFS)
+- [ ] Tile-by-tile animated movement (react-native-reanimated)
+- [ ] Movement speed (0.5 sec/tile)
+- [ ] Interruptible movement
+
+**Building Animations**
+- [ ] Factory smoke rising and fading
+- [ ] House chimney smoke wisps
+- [ ] School bell swinging
+- [ ] Fort flag waving
+- [ ] Hospital cross pulse
+- [ ] Farm crops swaying
+- [ ] Fish school swimming
+
+**Weather Animations**
+- [ ] Rain particles falling
+- [ ] Storm clouds moving
+- [ ] Lightning flashes
+- [ ] Wave effects on water
+
+**UI Animations**
+- [ ] Build menu slide in/out
+- [ ] Gold change flash
+- [ ] Score change animation
+- [ ] Round transition effects
+
+### Phase 4: AI Opponent
+
+- [ ] Utility-based decision architecture
+- [ ] Building placement strategy
+- [ ] Boat deployment strategy
+- [ ] Sabotage decision logic
+- [ ] Difficulty tuning parameters
+- [ ] Aggression scaling
+
+### Phase 5: Multiplayer
+
+- [ ] Room-based lobby (leverage existing IJBA infra)
+- [ ] WebSocket state sync
+- [ ] Opponent island minimap
+- [ ] Ready-up flow between rounds
+- [ ] Disconnect handling (3-min forfeit)
+- [ ] Reconnection support
+
+### Phase 6: Enhanced Mode
+
+- [ ] Fog of war rendering
+- [ ] PT boat scouting radius reveal
+- [ ] Watchtower reveal mechanics
+- [ ] Revealed tiles stay revealed
+- [ ] Enhanced building implementations:
+  - [ ] Apartment (3× housing, -1 welfare)
+  - [ ] Dock (+50% adjacent fishing income)
+  - [ ] Lighthouse (PT radius boost, storm resistance)
+  - [ ] Granary (food surplus storage)
+  - [ ] Marketplace (food→gold conversion)
+  - [ ] Watchtower (stationary scouting)
+
+### Phase 7: Final Polish
+
+- [ ] Contextual tutorial hints
+- [ ] Sound effects
+- [ ] Settings screen
+- [ ] Performance optimization
+- [ ] App store assets
+- [ ] TestFlight / Play Store beta
+
+---
+
+*Last Updated: Session 2*

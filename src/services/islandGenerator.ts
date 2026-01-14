@@ -1,5 +1,5 @@
 import { Island, Tile, Position, IslandMetrics, IslandGeneratorConfig } from '../types/game';
-import { BALANCE } from '../constants/game';
+import { BALANCE, GRID_WIDTH, GRID_HEIGHT } from '../constants/game';
 
 const DEFAULT_CONFIG: IslandGeneratorConfig = {
   tileCount: BALANCE.tilesPerIsland,
@@ -53,13 +53,20 @@ export function generateIsland(config: Partial<IslandGeneratorConfig> = {}): Isl
 /**
  * Generate a contiguous island shape with organic features
  * Uses weighted random growth that allows peninsulas and irregular shapes
+ * Maintains 1-tile water buffer around perimeter for boat passage
  */
 function generateIslandShape(targetTiles: number): Tile[] {
   const landPositions = new Set<string>();
   const posKey = (p: Position) => `${p.x},${p.y}`;
   
+  // Valid bounds: 1 to GRID-2 to leave 1-tile water buffer on all sides
+  const MIN_X = 1;
+  const MAX_X = GRID_WIDTH - 2;
+  const MIN_Y = 1;
+  const MAX_Y = GRID_HEIGHT - 2;
+  
   // Start from center
-  const start: Position = { x: 4, y: 3 };
+  const start: Position = { x: Math.floor(GRID_WIDTH / 2), y: Math.floor(GRID_HEIGHT / 2) };
   landPositions.add(posKey(start));
   
   const directions = [
@@ -85,10 +92,10 @@ function generateIslandShape(targetTiles: number): Tile[] {
         const newPos = { x: x + dir.x, y: y + dir.y };
         const newKey = posKey(newPos);
         
-        // Valid bounds and not already land
+        // Valid bounds (with 1-tile buffer) and not already land
         if (
-          newPos.x >= 0 && newPos.x < 8 &&
-          newPos.y >= 0 && newPos.y < 8 &&
+          newPos.x >= MIN_X && newPos.x <= MAX_X &&
+          newPos.y >= MIN_Y && newPos.y <= MAX_Y &&
           !landPositions.has(newKey)
         ) {
           // Count adjacent land tiles
@@ -119,23 +126,17 @@ function generateIslandShape(targetTiles: number): Tile[] {
     const candidateList = Array.from(uniqueCandidates.values());
     
     // Weighted selection favoring variety
-    // - Low adjacency (1) = peninsula growth, interesting shapes
-    // - High adjacency (3-4) = filling gaps, compact areas
-    // - Preferred direction = creates elongated features
-    
     const weights = candidateList.map(c => {
       let weight = 1;
       
-      // Favor peninsulas (adjacency 1) sometimes, but not always
       if (c.adjacentCount === 1) {
-        weight = Math.random() < 0.4 ? 3 : 1; // 40% chance to strongly favor
+        weight = Math.random() < 0.4 ? 3 : 1;
       } else if (c.adjacentCount === 2) {
-        weight = 2; // Good balance
+        weight = 2;
       } else if (c.adjacentCount >= 3) {
-        weight = Math.random() < 0.3 ? 2 : 0.5; // Usually avoid filling, sometimes do
+        weight = Math.random() < 0.3 ? 2 : 0.5;
       }
       
-      // Boost preferred direction for streaky growth
       if (c.isPreferredDir && directionStreak < 4) {
         weight *= 1.5;
       }
