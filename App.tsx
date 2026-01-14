@@ -16,10 +16,22 @@ import {
   HospitalIcon, 
   SchoolIcon, 
   FortIcon,
+  ApartmentIcon,
+  DockIcon,
+  LighthouseIcon,
+  GranaryIcon,
+  MarketplaceIcon,
+  WatchtowerIcon,
   FishingBoatIcon,
   PTBoatIcon,
   ConstructionIcon,
 } from './src/components/game/Icons';
+import { RainCloud } from './src/components/game/RainCloud';
+import { ScoreDisplay } from './src/components/game/ScoreDisplay';
+import { EndGameSummary } from './src/components/game/EndGameSummary';
+import { Toast } from './src/components/game/Toast';
+import { RoundTransition } from './src/components/game/RoundTransition';
+import { ResourceBar } from './src/components/game/ResourceBar';
 import { generateIsland } from './src/services/islandGenerator';
 import { 
   Island as IslandType, 
@@ -32,7 +44,7 @@ import {
 } from './src/types';
 import { BUILDINGS, BOAT_COSTS, BALANCE, GRID_WIDTH, GRID_HEIGHT, getAvailableBuildings } from './src/constants/game';
 
-const MENU_ICON_SIZE = 32;
+const MENU_ICON_SIZE = 28;
 
 const MenuBuildingIcon = ({ type }: { type: string }) => {
   switch (type) {
@@ -42,6 +54,12 @@ const MenuBuildingIcon = ({ type }: { type: string }) => {
     case 'hospital': return <HospitalIcon size={MENU_ICON_SIZE} />;
     case 'school': return <SchoolIcon size={MENU_ICON_SIZE} />;
     case 'fort': return <FortIcon size={MENU_ICON_SIZE} />;
+    case 'apartment': return <ApartmentIcon size={MENU_ICON_SIZE} />;
+    case 'dock': return <DockIcon size={MENU_ICON_SIZE} />;
+    case 'lighthouse': return <LighthouseIcon size={MENU_ICON_SIZE} />;
+    case 'granary': return <GranaryIcon size={MENU_ICON_SIZE} />;
+    case 'marketplace': return <MarketplaceIcon size={MENU_ICON_SIZE} />;
+    case 'watchtower': return <WatchtowerIcon size={MENU_ICON_SIZE} />;
     default: return <ConstructionIcon size={MENU_ICON_SIZE} />;
   }
 };
@@ -60,6 +78,7 @@ export default function App() {
   const [gold, setGold] = useState(BALANCE.startingGold);
   const [population, setPopulation] = useState(BALANCE.startingPopulation);
   const [score, setScore] = useState(50);
+  const [scoreBreakdown, setScoreBreakdown] = useState({ housing: 0, food: 0, welfare: 0, gdp: 0 });
   const [mode, setMode] = useState<GameMode>('original');
   const [round, setRound] = useState(0);
   const [maxRounds] = useState(15);
@@ -68,13 +87,17 @@ export default function App() {
   const [selectedTile, setSelectedTile] = useState<Position | null>(null);
   const [selectedBoat, setSelectedBoat] = useState<string | null>(null);
   const [showBuildMenu, setShowBuildMenu] = useState(false);
-  const [message, setMessage] = useState<string>('Tap START');
+  const [toast, setToast] = useState<{ message: string; type: 'gold' | 'population' | 'rebel' | 'rain' | 'round' | 'build' | 'error' | 'stability' } | null>(null);
+  const [showRainCloud, setShowRainCloud] = useState(false);
+  const [rainCloudY, setRainCloudY] = useState(50);
+  const [showGameOver, setShowGameOver] = useState(false);
+  const [showRoundTransition, setShowRoundTransition] = useState<'start' | 'end' | null>(null);
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const rainTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const showMsg = (msg: string) => {
-    setMessage(msg);
-    setTimeout(() => setMessage(''), 2000);
+  const showToast = (message: string, type: 'gold' | 'population' | 'rebel' | 'rain' | 'round' | 'build' | 'error' | 'stability' = 'round') => {
+    setToast({ message, type });
   };
 
   const initGame = useCallback(() => {
@@ -83,17 +106,22 @@ export default function App() {
     setGold(BALANCE.startingGold);
     setPopulation(BALANCE.startingPopulation);
     setScore(50);
+    setScoreBreakdown({ housing: 0, food: 0, welfare: 0, gdp: 0 });
     setRound(0);
     setTimeRemaining(BALANCE.defaultRoundDuration);
     setIsRoundActive(false);
     setSelectedTile(null);
     setSelectedBoat(null);
     setShowBuildMenu(false);
-    setMessage('Tap START');
+    setShowRainCloud(false);
+    setShowGameOver(false);
+    setShowRoundTransition(null);
+    setToast(null);
   }, []);
 
   useEffect(() => { initGame(); }, [initGame]);
 
+  // Timer effect
   useEffect(() => {
     if (isRoundActive && timeRemaining > 0) {
       timerRef.current = setTimeout(() => setTimeRemaining(t => t - 1), 1000);
@@ -103,16 +131,53 @@ export default function App() {
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, [isRoundActive, timeRemaining]);
 
+  // Rain cloud spawning during rounds
+  useEffect(() => {
+    if (isRoundActive) {
+      const spawnRain = () => {
+        if (Math.random() < 0.3) { // 30% chance each check
+          setRainCloudY(50 + Math.random() * (GRID_HEIGHT * tileSize - 100));
+          setShowRainCloud(true);
+          
+          // Give gold for farms under rain
+          if (island) {
+            const farms = island.tiles.filter(t => t.building === 'farm').length;
+            if (farms > 0) {
+              setGold(g => g + farms);
+              showToast(`+${farms}g from rain!`, 'rain');
+            }
+          }
+        }
+      };
+      
+      rainTimerRef.current = setInterval(spawnRain, 5000);
+      return () => { if (rainTimerRef.current) clearInterval(rainTimerRef.current); };
+    }
+  }, [isRoundActive, island, tileSize]);
+
   const startRound = () => {
-    if (round >= maxRounds) return;
-    setRound(r => r + 1);
-    setTimeRemaining(BALANCE.defaultRoundDuration);
-    setIsRoundActive(true);
-    showMsg(`Round ${round + 1}`);
+    if (round >= maxRounds) {
+      setShowGameOver(true);
+      return;
+    }
+    const newRound = round + 1;
+    setRound(newRound);
+    setShowRoundTransition('start');
+  };
+
+  const onRoundTransitionComplete = () => {
+    if (showRoundTransition === 'start') {
+      setShowRoundTransition(null);
+      setTimeRemaining(BALANCE.defaultRoundDuration);
+      setIsRoundActive(true);
+    } else if (showRoundTransition === 'end') {
+      setShowRoundTransition(null);
+    }
   };
 
   const endRound = () => {
     setIsRoundActive(false);
+    setShowRainCloud(false);
     if (!island) return;
     
     const tiles = island.tiles;
@@ -123,16 +188,72 @@ export default function App() {
     const fishingBoats = boats.filter(b => b.type === 'fishing').length;
     const crops = tiles.filter(t => t.building === 'farm').length;
     const houses = tiles.filter(t => t.building === 'house').length;
+    const forts = tiles.filter(t => t.building === 'fort').length;
     
+    // Income calculation
     const productivity = Math.min(BALANCE.maxProductivityBonus, (schools + hospitals) * factories + hospitals);
     const income = BALANCE.baseRoundIncome + factories * BALANCE.factoryIncome + fishingBoats * BALANCE.fishingBoatIncome + productivity;
     setGold(g => g + income);
     
+    // Population calculation
     const fertility = Math.max(BALANCE.minFertility, BALANCE.baseFertility + crops * BALANCE.fertilityPerCrop + hospitals * BALANCE.fertilityPerHospital + houses * BALANCE.fertilityPerHouse + schools * BALANCE.fertilityPerSchool) / 100;
     const mortality = Math.min(BALANCE.maxMortality, Math.max(BALANCE.minMortality, BALANCE.baseMortality + hospitals * BALANCE.mortalityPerHospital + factories * BALANCE.mortalityPerFactory)) / 100;
-    setPopulation(pop => Math.min(BALANCE.maxPopulation, Math.max(1, Math.floor(pop + pop * fertility - pop * mortality))));
+    const newPopulation = Math.min(BALANCE.maxPopulation, Math.max(1, Math.floor(population + population * fertility - population * mortality)));
+    setPopulation(newPopulation);
     
-    showMsg(`+${income}g`);
+    // Score breakdown calculation
+    const housingScore = Math.min(30, Math.floor((houses * 500) / Math.max(1, newPopulation / 100) / 3));
+    const foodScore = Math.min(30, Math.floor(((fishingBoats + crops) * 500) / Math.max(1, newPopulation / 100) / 3));
+    const welfareScore = Math.min(30, (schools + hospitals) * 5);
+    const gdpScore = Math.min(30, Math.floor(income / 4));
+    const totalScore = Math.min(100, housingScore + foodScore + welfareScore + gdpScore);
+    
+    setScoreBreakdown({ housing: housingScore, food: foodScore, welfare: welfareScore, gdp: gdpScore });
+    setScore(totalScore);
+    
+    // Rebel spawning (low score = more rebels)
+    let updatedTiles = [...tiles];
+    if (totalScore < BALANCE.rebellionLowScore && Math.random() < 0.4) {
+      // Spawn rebel on random non-fort-protected tile
+      const fortPositions = tiles.filter(t => t.building === 'fort').map(t => t.position);
+      const unprotectedTiles = tiles.filter(t => {
+        if (t.hasRebel) return false;
+        // Check if within fort radius
+        for (const fort of fortPositions) {
+          if (Math.abs(t.position.x - fort.x) <= BALANCE.fortRadius && 
+              Math.abs(t.position.y - fort.y) <= BALANCE.fortRadius) {
+            return false;
+          }
+        }
+        return true;
+      });
+      
+      if (unprotectedTiles.length > 0) {
+        const rebelTile = unprotectedTiles[Math.floor(Math.random() * unprotectedTiles.length)];
+        updatedTiles = updatedTiles.map(t => 
+          t.id === rebelTile.id ? { ...t, hasRebel: true } : t
+        );
+        showToast('Rebel appeared!', 'rebel');
+      }
+    }
+    
+    // Clear rebels if score is high (stability)
+    if (totalScore >= BALANCE.stabilityHighScore) {
+      const rebelsCleared = updatedTiles.filter(t => t.hasRebel).length;
+      if (rebelsCleared > 0) {
+        updatedTiles = updatedTiles.map(t => ({ ...t, hasRebel: false }));
+        showToast('Stability restored!', 'stability');
+      }
+    }
+    
+    setIsland({ ...island, tiles: updatedTiles });
+    
+    // Check for game over
+    if (round >= maxRounds) {
+      setTimeout(() => setShowGameOver(true), 1500);
+    } else {
+      showToast(`+${income}g income`, 'gold');
+    }
   };
 
   const isCoastalTile = (position: Position): boolean => {
@@ -161,20 +282,20 @@ export default function App() {
   const handleTilePress = (position: Position, tile: Tile) => {
     if (selectedBoat) { 
       setSelectedBoat(null); 
-      showMsg('Boats move on water');
+      showToast('Boats move on water', 'error');
       return; 
     }
     if (tile.building) { 
       const b = BUILDINGS.find(b => b.type === tile.building);
-      showMsg(b?.name || '');
+      showToast(b?.name || '', 'build');
       return; 
     }
     if (!isRoundActive && round > 0 && round < maxRounds) { 
-      showMsg('Start next round'); 
+      showToast('Start next round', 'round'); 
       return; 
     }
     if (round >= maxRounds) {
-      showMsg('Game Over');
+      showToast('Game Over', 'round');
       return;
     }
     setSelectedTile(position);
@@ -190,19 +311,17 @@ export default function App() {
     const tileSet = new Set(island.tiles.map(t => `${t.position.x},${t.position.y}`));
     if (tileSet.has(`${position.x},${position.y}`)) return;
     if (island.boats.find(b => b.id !== selectedBoat && b.position.x === position.x && b.position.y === position.y)) {
-      showMsg('Occupied');
+      showToast('Occupied', 'error');
       return;
     }
     
     setIsland({ ...island, boats: island.boats.map(b => b.id === selectedBoat ? { ...b, position } : b) });
     setSelectedBoat(null);
-    showMsg('Moved');
   };
 
   const handleBoatPress = (boat: Boat) => {
     setSelectedBoat(selectedBoat === boat.id ? null : boat.id);
     setSelectedTile(null);
-    showMsg(boat.type === 'fishing' ? 'Fishing boat' : 'PT boat');
   };
 
   const handleSelectBuilding = (type: BuildingType) => {
@@ -218,17 +337,17 @@ export default function App() {
     setGold(gold - building.cost);
     setShowBuildMenu(false);
     setSelectedTile(null);
-    showMsg(`Built ${building.name}`);
+    showToast(`Built ${building.name}`, 'build');
   };
 
   const handleSelectBoat = (type: BoatType) => {
     if (!island || !selectedTile) return;
     const cost = BOAT_COSTS[type];
-    if (gold < cost) { showMsg('Need more gold'); closeBuildMenu(); return; }
-    if (!isCoastalTile(selectedTile)) { showMsg('Coast tiles only'); closeBuildMenu(); return; }
+    if (gold < cost) { showToast('Need more gold', 'error'); closeBuildMenu(); return; }
+    if (!isCoastalTile(selectedTile)) { showToast('Coast tiles only', 'error'); closeBuildMenu(); return; }
     
     const spawnPos = findAdjacentWater(selectedTile);
-    if (!spawnPos) { showMsg('No water nearby'); closeBuildMenu(); return; }
+    if (!spawnPos) { showToast('No water nearby', 'error'); closeBuildMenu(); return; }
     
     setIsland({ 
       ...island, 
@@ -243,7 +362,7 @@ export default function App() {
     });
     setGold(gold - cost);
     closeBuildMenu();
-    showMsg(`${type === 'fishing' ? 'Fishing boat' : 'PT boat'} launched`);
+    showToast(`${type === 'fishing' ? 'Fishing boat' : 'PT boat'} launched`, 'build');
   };
 
   const closeBuildMenu = () => {
@@ -262,15 +381,23 @@ export default function App() {
       
       {/* Header */}
       <View style={styles.header}>
-        <View style={styles.stats}>
-          <Text style={styles.gold}>💰 {gold}</Text>
-          <Text style={styles.stat}>👥 {population.toLocaleString()}</Text>
-          <Text style={styles.stat}>⭐ {score}</Text>
+        <View style={styles.resourcesRow}>
+          <ResourceBar icon="💰" value={gold} color="#ffc107" />
+          <ResourceBar icon="👥" value={population} color="#64b5f6" />
+          <ResourceBar icon="⭐" value={score} maxValue={100} color="#4caf50" showBar />
         </View>
         
         <View style={styles.headerCenter}>
           {isRoundActive ? (
-            <Text style={[styles.timer, { color: timerColor }]}>{formatTime(timeRemaining)}</Text>
+            <View style={styles.timerContainer}>
+              <Text style={[styles.timer, { color: timerColor }]}>{formatTime(timeRemaining)}</Text>
+              <View style={styles.timerBar}>
+                <View style={[styles.timerFill, { 
+                  width: `${(timeRemaining / BALANCE.defaultRoundDuration) * 100}%`,
+                  backgroundColor: timerColor 
+                }]} />
+              </View>
+            </View>
           ) : (
             <TouchableOpacity style={styles.startBtn} onPress={startRound}>
               <Text style={styles.startBtnText}>
@@ -282,21 +409,23 @@ export default function App() {
         </View>
         
         <View style={styles.headerRight}>
-          <TouchableOpacity onPress={() => setMode(mode === 'original' ? 'enhanced' : 'original')}>
+          <TouchableOpacity onPress={() => setMode(mode === 'original' ? 'enhanced' : 'original')} style={styles.modeButton}>
             <Text style={styles.modeBtn}>{mode === 'original' ? 'OG' : 'ENH'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={initGame}>
+          <TouchableOpacity onPress={initGame} style={styles.resetButton}>
             <Text style={styles.newBtn}>↻</Text>
           </TouchableOpacity>
         </View>
       </View>
       
-      {/* Message */}
-      {message ? (
-        <View style={styles.msgBar}>
-          <Text style={styles.msgText}>{message}</Text>
-        </View>
-      ) : null}
+      {/* Toast Notifications */}
+      {toast && (
+        <Toast 
+          message={toast.message} 
+          type={toast.type} 
+          onHide={() => setToast(null)} 
+        />
+      )}
       
       {/* Map */}
       <View style={styles.mapArea}>
@@ -313,7 +442,7 @@ export default function App() {
         )}
       </View>
       
-      {/* Build Menu - NO MODAL, just an overlay View */}
+      {/* Build Menu - Wide horizontal layout */}
       {showBuildMenu && (
         <View style={styles.menuOverlay}>
           <Pressable style={styles.menuBackdrop} onPress={closeBuildMenu} />
@@ -321,58 +450,119 @@ export default function App() {
             <View style={styles.menuHeader}>
               <Text style={styles.menuTitle}>BUILD</Text>
               <Text style={styles.menuGold}>💰 {gold}</Text>
-            </View>
-            
-            <Text style={styles.sectionTitle}>BUILDINGS</Text>
-            <View style={styles.grid}>
-              {buildings.map((b) => (
-                <TouchableOpacity
-                  key={b.type}
-                  style={[styles.gridItem, gold < b.cost && styles.gridItemDisabled]}
-                  onPress={() => gold >= b.cost && handleSelectBuilding(b.type)}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.gridIconContainer}>
-                    <MenuBuildingIcon type={b.type} />
-                  </View>
-                  <Text style={styles.gridName}>{b.name}</Text>
-                  <Text style={[styles.gridCost, gold < b.cost && styles.gridCostDisabled]}>{b.cost}g</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            
-            <Text style={styles.sectionTitle}>BOATS</Text>
-            <View style={styles.boatRow}>
-              <TouchableOpacity
-                style={[styles.boatItem, gold < BOAT_COSTS.fishing && styles.gridItemDisabled]}
-                onPress={() => gold >= BOAT_COSTS.fishing && handleSelectBoat('fishing')}
-                activeOpacity={0.7}
-              >
-                <View style={styles.gridIconContainer}>
-                  <FishingBoatIcon size={MENU_ICON_SIZE} />
-                </View>
-                <Text style={styles.gridName}>Fishing</Text>
-                <Text style={[styles.gridCost, gold < BOAT_COSTS.fishing && styles.gridCostDisabled]}>{BOAT_COSTS.fishing}g</Text>
+              <TouchableOpacity style={styles.cancelBtn} onPress={closeBuildMenu} activeOpacity={0.7}>
+                <Text style={styles.cancelText}>✕</Text>
               </TouchableOpacity>
+            </View>
+            
+            <View style={styles.menuContent}>
+              <View style={styles.buildingsSection}>
+                <Text style={styles.sectionTitle}>BUILDINGS</Text>
+                <View style={styles.grid}>
+                  {buildings.map((b) => (
+                    <TouchableOpacity
+                      key={b.type}
+                      style={[styles.gridItem, gold < b.cost && styles.gridItemDisabled]}
+                      onPress={() => gold >= b.cost && handleSelectBuilding(b.type)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.gridIconContainer}>
+                        <MenuBuildingIcon type={b.type} />
+                      </View>
+                      <Text style={styles.gridName}>{b.name}</Text>
+                      <Text style={[styles.gridCost, gold < b.cost && styles.gridCostDisabled]}>{b.cost}g</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
               
-              <TouchableOpacity
-                style={[styles.boatItem, gold < BOAT_COSTS.pt && styles.gridItemDisabled]}
-                onPress={() => gold >= BOAT_COSTS.pt && handleSelectBoat('pt')}
-                activeOpacity={0.7}
-              >
-                <View style={styles.gridIconContainer}>
-                  <PTBoatIcon size={MENU_ICON_SIZE} />
+              <View style={styles.boatsSection}>
+                <Text style={styles.sectionTitle}>BOATS</Text>
+                <View style={styles.boatRow}>
+                  <TouchableOpacity
+                    style={[styles.boatItem, gold < BOAT_COSTS.fishing && styles.gridItemDisabled]}
+                    onPress={() => gold >= BOAT_COSTS.fishing && handleSelectBoat('fishing')}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.gridIconContainer}>
+                      <FishingBoatIcon size={MENU_ICON_SIZE} />
+                    </View>
+                    <Text style={styles.gridName}>Fishing</Text>
+                    <Text style={[styles.gridCost, gold < BOAT_COSTS.fishing && styles.gridCostDisabled]}>{BOAT_COSTS.fishing}g</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[styles.boatItem, gold < BOAT_COSTS.pt && styles.gridItemDisabled]}
+                    onPress={() => gold >= BOAT_COSTS.pt && handleSelectBoat('pt')}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.gridIconContainer}>
+                      <PTBoatIcon size={MENU_ICON_SIZE} />
+                    </View>
+                    <Text style={styles.gridName}>PT Boat</Text>
+                    <Text style={[styles.gridCost, gold < BOAT_COSTS.pt && styles.gridCostDisabled]}>{BOAT_COSTS.pt}g</Text>
+                  </TouchableOpacity>
                 </View>
-                <Text style={styles.gridName}>PT Boat</Text>
-                <Text style={[styles.gridCost, gold < BOAT_COSTS.pt && styles.gridCostDisabled]}>{BOAT_COSTS.pt}g</Text>
-              </TouchableOpacity>
+              </View>
             </View>
-            
-            <TouchableOpacity style={styles.cancelBtn} onPress={closeBuildMenu} activeOpacity={0.7}>
-              <Text style={styles.cancelText}>Cancel</Text>
-            </TouchableOpacity>
           </View>
         </View>
+      )}
+      
+      {/* Rain Cloud */}
+      {showRainCloud && (
+        <RainCloud 
+          size={tileSize}
+          startX={-100}
+          y={rainCloudY}
+          duration={8000}
+          onComplete={() => setShowRainCloud(false)}
+        />
+      )}
+      
+      {/* Score Display - shown during gameplay */}
+      {round > 0 && !showBuildMenu && !showGameOver && (
+        <View style={styles.scoreDisplayContainer}>
+          <ScoreDisplay 
+            housing={scoreBreakdown.housing}
+            food={scoreBreakdown.food}
+            welfare={scoreBreakdown.welfare}
+            gdp={scoreBreakdown.gdp}
+            total={score}
+          />
+        </View>
+      )}
+      
+      {/* End Game Summary */}
+      {showGameOver && island && (
+        <EndGameSummary
+          score={score}
+          population={population}
+          gold={gold}
+          buildings={{
+            houses: island.tiles.filter(t => t.building === 'house').length,
+            farms: island.tiles.filter(t => t.building === 'farm').length,
+            factories: island.tiles.filter(t => t.building === 'factory').length,
+            schools: island.tiles.filter(t => t.building === 'school').length,
+            hospitals: island.tiles.filter(t => t.building === 'hospital').length,
+            forts: island.tiles.filter(t => t.building === 'fort').length,
+          }}
+          boats={{
+            fishing: island.boats.filter(b => b.type === 'fishing').length,
+            pt: island.boats.filter(b => b.type === 'pt').length,
+          }}
+          onPlayAgain={initGame}
+        />
+      )}
+      
+      {/* Round Transition Animation */}
+      {showRoundTransition && (
+        <RoundTransition
+          round={round}
+          maxRounds={maxRounds}
+          type={showRoundTransition}
+          onComplete={onRoundTransitionComplete}
+        />
       )}
     </View>
   );
@@ -384,76 +574,92 @@ const styles = StyleSheet.create({
     backgroundColor: '#1e3a4c',
   },
   header: {
-    height: 50,
+    height: 56,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    backgroundColor: 'rgba(0,0,0,0.7)',
+    paddingHorizontal: 8,
+    backgroundColor: 'rgba(0,0,0,0.8)',
   },
-  stats: {
+  resourcesRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 4,
   },
   headerCenter: {
     alignItems: 'center',
   },
   headerRight: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 8,
     alignItems: 'center',
   },
-  gold: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#ffc107',
-  },
-  stat: {
-    fontSize: 14,
-    color: '#e0e0e0',
+  timerContainer: {
+    alignItems: 'center',
   },
   timer: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
     fontVariant: ['tabular-nums'],
+  },
+  timerBar: {
+    width: 60,
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 2,
+    marginTop: 2,
+    overflow: 'hidden',
+  },
+  timerFill: {
+    height: '100%',
+    borderRadius: 2,
   },
   roundText: {
     fontSize: 10,
     color: '#888',
+    marginTop: 2,
   },
   startBtn: {
     backgroundColor: '#4caf50',
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 6,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 8,
   },
   startBtnText: {
     color: 'white',
     fontWeight: 'bold',
     fontSize: 14,
   },
+  modeButton: {
+    backgroundColor: 'rgba(255,193,7,0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
   modeBtn: {
     color: '#ffc107',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: 'bold',
   },
-  newBtn: {
-    color: '#888',
-    fontSize: 20,
-  },
-  msgBar: {
-    backgroundColor: 'rgba(0,0,0,0.6)',
+  resetButton: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    paddingHorizontal: 8,
     paddingVertical: 4,
-    alignItems: 'center',
+    borderRadius: 6,
   },
-  msgText: {
-    color: '#fff',
-    fontSize: 13,
+  newBtn: {
+    color: '#aaa',
+    fontSize: 18,
   },
   mapArea: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  scoreDisplayContainer: {
+    position: 'absolute',
+    bottom: 12,
+    left: 12,
+    zIndex: 100,
   },
   // Menu styles - NO MODAL
   menuOverlay: {
@@ -477,21 +683,25 @@ const styles = StyleSheet.create({
   menu: {
     backgroundColor: '#1a2530',
     borderRadius: 12,
-    padding: 16,
+    padding: 12,
     borderWidth: 2,
     borderColor: '#2a3a4a',
-    width: '85%',
-    maxWidth: 380,
+    width: '95%',
+    maxWidth: 700,
+    maxHeight: '85%',
     zIndex: 1001,
   },
   menuHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#2a3a4a',
   },
   menuTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#e0e0e0',
   },
@@ -499,12 +709,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#ffc107',
     fontWeight: 'bold',
+    flex: 1,
+    textAlign: 'center',
+  },
+  menuContent: {
+    flexDirection: 'row',
+  },
+  buildingsSection: {
+    flex: 1,
+    paddingRight: 10,
+    borderRightWidth: 1,
+    borderRightColor: '#2a3a4a',
+  },
+  boatsSection: {
+    width: 100,
+    paddingLeft: 10,
   },
   sectionTitle: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#888',
-    marginTop: 8,
-    marginBottom: 8,
+    marginBottom: 6,
     letterSpacing: 1,
   },
   grid: {
@@ -512,58 +736,57 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   gridItem: {
-    width: '31%',
+    width: '16%',
     backgroundColor: '#2a3a4a',
-    borderRadius: 8,
-    padding: 8,
+    borderRadius: 6,
+    padding: 6,
     alignItems: 'center',
-    marginRight: '2%',
-    marginBottom: 8,
+    marginRight: '0.5%',
+    marginBottom: 6,
   },
   gridItemDisabled: {
     opacity: 0.4,
   },
   gridIconContainer: {
-    width: 36,
-    height: 36,
+    width: 32,
+    height: 32,
     justifyContent: 'center',
     alignItems: 'center',
   },
   gridName: {
-    fontSize: 10,
+    fontSize: 8,
     color: '#e0e0e0',
     marginTop: 2,
     textAlign: 'center',
   },
   gridCost: {
-    fontSize: 12,
+    fontSize: 10,
     color: '#ffc107',
     fontWeight: 'bold',
-    marginTop: 2,
+    marginTop: 1,
   },
   gridCostDisabled: {
     color: '#666',
   },
   boatRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: 'column',
   },
   boatItem: {
-    width: '48%',
     backgroundColor: '#2a3a4a',
-    borderRadius: 8,
-    padding: 10,
+    borderRadius: 6,
+    padding: 6,
     alignItems: 'center',
+    marginBottom: 6,
   },
   cancelBtn: {
-    marginTop: 12,
-    padding: 10,
-    backgroundColor: '#2a3a4a',
-    borderRadius: 8,
-    alignItems: 'center',
+    backgroundColor: '#3a4a5a',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
   },
   cancelText: {
-    color: '#888',
-    fontSize: 14,
+    color: '#e0e0e0',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });

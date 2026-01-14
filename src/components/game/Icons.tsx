@@ -242,6 +242,234 @@ export function PTBoatIcon({ size, color = '#90a4ae' }: IconProps) {
   );
 }
 
+// Apartment - tall residential building
+export function ApartmentIcon({ size, color = '#78909c' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 100 100">
+      {/* Main building */}
+      <Rect x="20" y="15" width="60" height="77" fill={color} />
+      <Rect x="20" y="15" width="60" height="5" fill="#607d8b" />
+      {/* Roof structure */}
+      <Rect x="35" y="5" width="30" height="12" fill="#546e7a" />
+      <Rect x="45" y="0" width="10" height="7" fill="#455a64" />
+      {/* Windows - column 1 */}
+      <Rect x="26" y="25" width="10" height="8" fill="#ffe082" />
+      <Rect x="26" y="40" width="10" height="8" fill="#81d4fa" />
+      <Rect x="26" y="55" width="10" height="8" fill="#ffe082" />
+      <Rect x="26" y="70" width="10" height="8" fill="#81d4fa" />
+      {/* Windows - column 2 */}
+      <Rect x="45" y="25" width="10" height="8" fill="#81d4fa" />
+      <Rect x="45" y="40" width="10" height="8" fill="#ffe082" />
+      <Rect x="45" y="55" width="10" height="8" fill="#81d4fa" />
+      <Rect x="45" y="70" width="10" height="8" fill="#ffe082" />
+      {/* Windows - column 3 */}
+      <Rect x="64" y="25" width="10" height="8" fill="#ffe082" />
+      <Rect x="64" y="40" width="10" height="8" fill="#81d4fa" />
+      <Rect x="64" y="55" width="10" height="8" fill="#ffe082" />
+      <Rect x="64" y="70" width="10" height="8" fill="#81d4fa" />
+      {/* Entrance */}
+      <Rect x="40" y="80" width="20" height="12" fill="#455a64" />
+      <Rect x="48" y="82" width="4" height="10" fill="#37474f" />
+    </Svg>
+  );
+}
+
+// Dock - wooden pier with mooring
+export function DockIcon({ size, color = '#8d6e63' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 100 100">
+      {/* Water */}
+      <Rect x="0" y="60" width="100" height="40" fill="#2d6a8e" rx="4" />
+      <Path d="M5,70 Q20,67 35,70 T65,70 T95,70" stroke="rgba(255,255,255,0.2)" strokeWidth="2" fill="none" />
+      <Path d="M0,82 Q15,79 30,82 T60,82 T90,82" stroke="rgba(255,255,255,0.15)" strokeWidth="2" fill="none" />
+      {/* Main pier platform */}
+      <Rect x="10" y="45" width="80" height="12" fill={color} />
+      <Rect x="10" y="45" width="80" height="3" fill="#a1887f" />
+      {/* Pier planks */}
+      <Line x1="20" y1="45" x2="20" y2="57" stroke="#6d4c41" strokeWidth="1" />
+      <Line x1="35" y1="45" x2="35" y2="57" stroke="#6d4c41" strokeWidth="1" />
+      <Line x1="50" y1="45" x2="50" y2="57" stroke="#6d4c41" strokeWidth="1" />
+      <Line x1="65" y1="45" x2="65" y2="57" stroke="#6d4c41" strokeWidth="1" />
+      <Line x1="80" y1="45" x2="80" y2="57" stroke="#6d4c41" strokeWidth="1" />
+      {/* Support posts */}
+      <Rect x="15" y="55" width="6" height="30" fill="#5d4037" />
+      <Rect x="45" y="55" width="6" height="30" fill="#5d4037" />
+      <Rect x="75" y="55" width="6" height="30" fill="#5d4037" />
+      {/* Mooring posts */}
+      <Rect x="22" y="35" width="6" height="15" fill="#4e342e" />
+      <Ellipse cx="25" cy="35" rx="5" ry="2" fill="#5d4037" />
+      <Rect x="68" y="35" width="6" height="15" fill="#4e342e" />
+      <Ellipse cx="71" cy="35" rx="5" ry="2" fill="#5d4037" />
+      {/* Rope */}
+      <Path d="M25,38 Q35,30 45,38" stroke="#d7ccc8" strokeWidth="2" fill="none" />
+      <Path d="M55,38 Q60,32 71,38" stroke="#d7ccc8" strokeWidth="2" fill="none" />
+      {/* Anchor decoration */}
+      <Circle cx="50" cy="25" r="4" fill="none" stroke="#546e7a" strokeWidth="2" />
+      <Line x1="50" y1="29" x2="50" y2="42" stroke="#546e7a" strokeWidth="2" />
+      <Path d="M42,40 L50,45 L58,40" stroke="#546e7a" strokeWidth="2" fill="none" />
+    </Svg>
+  );
+}
+
+// Lighthouse - coastal beacon
+export function LighthouseIcon({ size, color = '#f5f5dc' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 100 100">
+      {/* Light beam */}
+      <Path d="M50,25 L15,5 L25,25 Z" fill="#fff59d" opacity="0.6" />
+      <Path d="M50,25 L85,5 L75,25 Z" fill="#fff59d" opacity="0.6" />
+      <Path d="M50,25 L50,0" stroke="#fff59d" strokeWidth="3" opacity="0.8" />
+      {/* Base rocks */}
+      <Ellipse cx="50" cy="92" rx="40" ry="8" fill="#5d4037" />
+      <Ellipse cx="50" cy="88" rx="35" ry="6" fill="#6d4c41" />
+      {/* Tower base */}
+      <Path d="M30,88 L35,45 L65,45 L70,88 Z" fill={color} />
+      {/* Red stripes */}
+      <Path d="M33,80 L35,60 L65,60 L67,80 Z" fill="#e53935" />
+      <Path d="M36,52 L37,45 L63,45 L64,52 Z" fill="#e53935" />
+      {/* Lantern room */}
+      <Rect x="35" y="30" width="30" height="17" fill="#37474f" />
+      <Rect x="38" y="33" width="24" height="11" fill="#fff59d" />
+      {/* Lantern roof */}
+      <Polygon points="50,18 32,30 68,30" fill="#b71c1c" />
+      <Circle cx="50" cy="22" r="3" fill="#ffeb3b" />
+      {/* Gallery/balcony */}
+      <Rect x="32" y="45" width="36" height="3" fill="#455a64" />
+      <Line x1="32" y1="48" x2="32" y2="52" stroke="#455a64" strokeWidth="1" />
+      <Line x1="40" y1="48" x2="40" y2="52" stroke="#455a64" strokeWidth="1" />
+      <Line x1="50" y1="48" x2="50" y2="52" stroke="#455a64" strokeWidth="1" />
+      <Line x1="60" y1="48" x2="60" y2="52" stroke="#455a64" strokeWidth="1" />
+      <Line x1="68" y1="48" x2="68" y2="52" stroke="#455a64" strokeWidth="1" />
+      {/* Door */}
+      <Rect x="44" y="75" width="12" height="13" fill="#4e342e" rx="6" ry="6" />
+      {/* Window */}
+      <Circle cx="50" cy="65" r="4" fill="#81d4fa" stroke="#455a64" strokeWidth="1" />
+    </Svg>
+  );
+}
+
+// Granary - food storage building
+export function GranaryIcon({ size, color = '#d7ccc8' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 100 100">
+      {/* Base/foundation */}
+      <Rect x="15" y="85" width="70" height="8" fill="#5d4037" />
+      {/* Main silo - left */}
+      <Ellipse cx="35" cy="35" rx="20" ry="10" fill="#bcaaa4" />
+      <Rect x="15" y="35" width="40" height="50" fill={color} />
+      <Ellipse cx="35" cy="85" rx="20" ry="5" fill="#a1887f" />
+      {/* Main silo - right */}
+      <Ellipse cx="65" cy="35" rx="20" ry="10" fill="#bcaaa4" />
+      <Rect x="45" y="35" width="40" height="50" fill={color} />
+      <Ellipse cx="65" cy="85" rx="20" ry="5" fill="#a1887f" />
+      {/* Silo caps */}
+      <Ellipse cx="35" cy="35" rx="18" ry="8" fill="#8d6e63" />
+      <Ellipse cx="65" cy="35" rx="18" ry="8" fill="#8d6e63" />
+      {/* Roof vents */}
+      <Rect x="32" y="25" width="6" height="8" fill="#5d4037" />
+      <Polygon points="35,20 30,28 40,28" fill="#6d4c41" />
+      <Rect x="62" y="25" width="6" height="8" fill="#5d4037" />
+      <Polygon points="65,20 60,28 70,28" fill="#6d4c41" />
+      {/* Vertical lines (metal bands) */}
+      <Line x1="25" y1="40" x2="25" y2="82" stroke="#a1887f" strokeWidth="1" />
+      <Line x1="35" y1="45" x2="35" y2="82" stroke="#a1887f" strokeWidth="1" />
+      <Line x1="45" y1="40" x2="45" y2="82" stroke="#a1887f" strokeWidth="1" />
+      <Line x1="55" y1="40" x2="55" y2="82" stroke="#a1887f" strokeWidth="1" />
+      <Line x1="65" y1="45" x2="65" y2="82" stroke="#a1887f" strokeWidth="1" />
+      <Line x1="75" y1="40" x2="75" y2="82" stroke="#a1887f" strokeWidth="1" />
+      {/* Grain symbol */}
+      <Ellipse cx="35" cy="60" rx="6" ry="10" fill="#f4d03f" opacity="0.6" />
+      <Ellipse cx="65" cy="60" rx="6" ry="10" fill="#f4d03f" opacity="0.6" />
+    </Svg>
+  );
+}
+
+// Marketplace - trading post with stalls
+export function MarketplaceIcon({ size, color = '#ff8a65' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 100 100">
+      {/* Ground */}
+      <Rect x="5" y="85" width="90" height="10" fill="#8d6e63" rx="2" />
+      {/* Left stall */}
+      <Rect x="8" y="50" width="25" height="35" fill="#ffcc80" />
+      <Polygon points="8,50 20,30 33,50" fill={color} />
+      <Polygon points="10,50 20,33 31,50" fill="#ff7043" />
+      <Line x1="20" y1="30" x2="20" y2="50" stroke="#5d4037" strokeWidth="2" />
+      {/* Left stall goods */}
+      <Circle cx="14" cy="70" r="5" fill="#e53935" />
+      <Circle cx="24" cy="72" r="4" fill="#8bc34a" />
+      <Circle cx="18" cy="78" r="4" fill="#ffeb3b" />
+      {/* Center stall (main) */}
+      <Rect x="38" y="45" width="30" height="40" fill="#ffe0b2" />
+      <Polygon points="38,45 53,20 68,45" fill="#f44336" />
+      <Polygon points="40,45 53,24 66,45" fill="#e53935" />
+      <Line x1="53" y1="20" x2="53" y2="10" stroke="#5d4037" strokeWidth="2" />
+      <Polygon points="53,10 65,15 53,18" fill="#ffeb3b" />
+      {/* Center stall goods - crates */}
+      <Rect x="42" y="60" width="10" height="10" fill="#8d6e63" />
+      <Rect x="54" y="65" width="10" height="8" fill="#a1887f" />
+      <Rect x="45" y="75" width="15" height="8" fill="#6d4c41" />
+      {/* Right stall */}
+      <Rect x="72" y="50" width="22" height="35" fill="#ffcc80" />
+      <Polygon points="72,50 83,32 94,50" fill={color} />
+      <Polygon points="74,50 83,35 92,50" fill="#ff7043" />
+      <Line x1="83" y1="32" x2="83" y2="50" stroke="#5d4037" strokeWidth="2" />
+      {/* Right stall goods - baskets */}
+      <Ellipse cx="80" cy="72" rx="5" ry="3" fill="#8d6e63" />
+      <Ellipse cx="80" cy="70" rx="4" ry="5" fill="#c8e6c9" />
+      <Ellipse cx="88" cy="75" rx="4" ry="2" fill="#8d6e63" />
+      <Ellipse cx="88" cy="73" rx="3" ry="4" fill="#fff59d" />
+      {/* Hanging signs */}
+      <Rect x="15" y="52" width="8" height="6" fill="#5d4037" rx="1" />
+      <Rect x="78" y="52" width="8" height="6" fill="#5d4037" rx="1" />
+    </Svg>
+  );
+}
+
+// Watchtower - observation tower
+export function WatchtowerIcon({ size, color = '#6d4c41' }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 100 100">
+      {/* Base platform */}
+      <Rect x="30" y="85" width="40" height="8" fill="#4e342e" />
+      {/* Main tower structure - tapered */}
+      <Path d="M38,85 L42,40 L58,40 L62,85 Z" fill={color} />
+      {/* Cross bracing */}
+      <Line x1="40" y1="85" x2="58" y2="50" stroke="#5d4037" strokeWidth="2" />
+      <Line x1="60" y1="85" x2="42" y2="50" stroke="#5d4037" strokeWidth="2" />
+      <Line x1="42" y1="70" x2="58" y2="70" stroke="#5d4037" strokeWidth="2" />
+      <Line x1="41" y1="55" x2="59" y2="55" stroke="#5d4037" strokeWidth="2" />
+      {/* Observation deck */}
+      <Rect x="32" y="35" width="36" height="8" fill="#8d6e63" />
+      <Rect x="30" y="33" width="40" height="4" fill="#a1887f" />
+      {/* Cabin */}
+      <Rect x="36" y="15" width="28" height="20" fill="#8d6e63" />
+      <Rect x="36" y="15" width="28" height="3" fill="#6d4c41" />
+      {/* Roof */}
+      <Polygon points="50,2 30,17 70,17" fill="#5d4037" />
+      <Polygon points="50,5 33,17 67,17" fill={color} />
+      {/* Windows */}
+      <Rect x="40" y="20" width="6" height="8" fill="#81d4fa" />
+      <Rect x="54" y="20" width="6" height="8" fill="#81d4fa" />
+      {/* Window frames */}
+      <Line x1="43" y1="20" x2="43" y2="28" stroke="#5d4037" strokeWidth="1" />
+      <Line x1="57" y1="20" x2="57" y2="28" stroke="#5d4037" strokeWidth="1" />
+      {/* Railing posts */}
+      <Line x1="32" y1="33" x2="32" y2="28" stroke="#5d4037" strokeWidth="2" />
+      <Line x1="42" y1="33" x2="42" y2="28" stroke="#5d4037" strokeWidth="2" />
+      <Line x1="58" y1="33" x2="58" y2="28" stroke="#5d4037" strokeWidth="2" />
+      <Line x1="68" y1="33" x2="68" y2="28" stroke="#5d4037" strokeWidth="2" />
+      {/* Top railing */}
+      <Line x1="32" y1="28" x2="68" y2="28" stroke="#5d4037" strokeWidth="2" />
+      {/* Flag */}
+      <Line x1="50" y1="2" x2="50" y2="-8" stroke="#4e342e" strokeWidth="2" />
+      <Polygon points="50,-8 62,-5 50,-2" fill="#1565c0" />
+      {/* Lookout figure hint */}
+      <Circle cx="50" cy="23" r="2" fill="#ffcc80" />
+    </Svg>
+  );
+}
+
 // Fallback construction icon
 export function ConstructionIcon({ size, color = '#ff9800' }: IconProps) {
   return (
