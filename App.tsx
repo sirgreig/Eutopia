@@ -44,11 +44,9 @@ import {
 } from './src/types';
 import { BUILDINGS, BOAT_COSTS, BALANCE, GRID_WIDTH, GRID_HEIGHT, getAvailableBuildings } from './src/constants/game';
 
-// Audio imports
-import AudioManager from './src/services/AudioManager';
-import { playButtonTap, playSound } from './src/hooks/useAudio';
-import { AudioSettingsModal } from './src/components/settings/AudioSettingsModal';
-import { SOUND_KEYS } from './src/config/audioSettings';
+// Audio imports - simple system adapted from IJBA
+import { initializeSounds, Sounds } from './src/services/soundManager';
+import { loadAudioSettings, useAudioSettings } from './src/hooks/useAudioSettings';
 
 const MENU_ICON_SIZE = 28;
 
@@ -98,7 +96,9 @@ export default function App() {
   const [rainCloudY, setRainCloudY] = useState(50);
   const [showGameOver, setShowGameOver] = useState(false);
   const [showRoundTransition, setShowRoundTransition] = useState<'start' | 'end' | null>(null);
-  const [showAudioSettings, setShowAudioSettings] = useState(false);
+  
+  // Audio settings hook
+  const { isAudioEnabled, toggleSfx } = useAudioSettings();
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const rainTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -128,8 +128,12 @@ export default function App() {
 
   // Initialize audio and game on mount
   useEffect(() => { 
-    AudioManager.initialize();
-    initGame(); 
+    const init = async () => {
+      await initializeSounds();
+      await loadAudioSettings();
+      initGame();
+    };
+    init(); 
   }, [initGame]);
 
   // Timer effect
@@ -167,7 +171,7 @@ export default function App() {
   }, [isRoundActive, island, tileSize]);
 
   const startRound = () => {
-    playButtonTap();
+    Sounds.buttonClick();
     if (round >= maxRounds) {
       setShowGameOver(true);
       return;
@@ -292,7 +296,7 @@ export default function App() {
   };
 
   const handleTilePress = (position: Position, tile: Tile) => {
-    playSound(SOUND_KEYS.TILE_TAP);
+    Sounds.tileClick();
     if (selectedBoat) { 
       setSelectedBoat(null); 
       showToast('Boats move on water', 'error');
@@ -302,6 +306,10 @@ export default function App() {
       const b = BUILDINGS.find(b => b.type === tile.building);
       showToast(b?.name || '', 'build');
       return; 
+    }
+    if (round === 0) {
+      showToast('Press START to begin', 'round');
+      return;
     }
     if (!isRoundActive && round > 0 && round < maxRounds) { 
       showToast('Start next round', 'round'); 
@@ -328,13 +336,13 @@ export default function App() {
       return;
     }
     
-    playSound(SOUND_KEYS.BOAT_MOVE);
+    Sounds.boatMove();
     setIsland({ ...island, boats: island.boats.map(b => b.id === selectedBoat ? { ...b, position } : b) });
     setSelectedBoat(null);
   };
 
   const handleBoatPress = (boat: Boat) => {
-    playSound(SOUND_KEYS.BOAT_SELECT);
+    Sounds.boatSelect();
     setSelectedBoat(selectedBoat === boat.id ? null : boat.id);
     setSelectedTile(null);
   };
@@ -344,7 +352,7 @@ export default function App() {
     const building = BUILDINGS.find(b => b.type === type);
     if (!building || gold < building.cost) return;
     
-    playButtonTap();
+    Sounds.buttonClick();
     setIsland({ ...island, tiles: island.tiles.map(tile => 
       tile.position.x === selectedTile.x && tile.position.y === selectedTile.y 
         ? { ...tile, building: type } 
@@ -365,7 +373,7 @@ export default function App() {
     const spawnPos = findAdjacentWater(selectedTile);
     if (!spawnPos) { showToast('No water nearby', 'error'); closeBuildMenu(); return; }
     
-    playButtonTap();
+    Sounds.buttonClick();
     setIsland({ 
       ...island, 
       boats: [...island.boats, { 
@@ -383,7 +391,7 @@ export default function App() {
   };
 
   const closeBuildMenu = () => {
-    playButtonTap();
+    Sounds.buttonClick();
     setShowBuildMenu(false);
     setSelectedTile(null);
   };
@@ -428,19 +436,19 @@ export default function App() {
         
         <View style={styles.headerRight}>
           <TouchableOpacity 
-            onPress={() => { playButtonTap(); setMode(mode === 'original' ? 'enhanced' : 'original'); }} 
+            onPress={() => { Sounds.buttonClick(); setMode(mode === 'original' ? 'enhanced' : 'original'); }} 
             style={styles.modeButton}
           >
             <Text style={styles.modeBtn}>{mode === 'original' ? 'OG' : 'ENH'}</Text>
           </TouchableOpacity>
           <TouchableOpacity 
-            onPress={() => { playButtonTap(); setShowAudioSettings(true); }} 
+            onPress={toggleSfx} 
             style={styles.resetButton}
           >
-            <Text style={styles.newBtn}>🔊</Text>
+            <Text style={styles.newBtn}>{isAudioEnabled ? '🔊' : '🔇'}</Text>
           </TouchableOpacity>
           <TouchableOpacity 
-            onPress={() => { playButtonTap(); initGame(); }} 
+            onPress={() => { Sounds.buttonClick(); initGame(); }} 
             style={styles.resetButton}
           >
             <Text style={styles.newBtn}>↻</Text>
@@ -594,12 +602,6 @@ export default function App() {
           onComplete={onRoundTransitionComplete}
         />
       )}
-      
-      {/* Audio Settings Modal */}
-      <AudioSettingsModal 
-        visible={showAudioSettings} 
-        onClose={() => setShowAudioSettings(false)} 
-      />
     </View>
   );
 }
