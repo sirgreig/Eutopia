@@ -1,6 +1,6 @@
 // src/hooks/useAudioSettings.ts
 // Manages audio settings with AsyncStorage persistence
-// Adapted from Inside Joke Battle Arena
+// Supports separate music and SFX volume controls
 
 import { useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -9,11 +9,15 @@ import { Sounds } from '../services/soundManager';
 const STORAGE_KEY = '@eutopia_audio_settings';
 
 export type AudioSettings = {
+    musicEnabled: boolean;
+    musicVolume: number;  // 0-1
     sfxEnabled: boolean;
     sfxVolume: number;    // 0-1
 };
 
 const DEFAULT_SETTINGS: AudioSettings = {
+    musicEnabled: true,
+    musicVolume: 0.5,
     sfxEnabled: true,
     sfxVolume: 1.0,
 };
@@ -38,7 +42,9 @@ export async function loadAudioSettings(): Promise<AudioSettings> {
             globalSettings = { ...DEFAULT_SETTINGS, ...parsed };
         }
         
-        // Apply loaded settings to sound system
+        // Apply loaded settings to sound systems
+        Sounds.setMusicEnabled(globalSettings.musicEnabled);
+        Sounds.setMusicVolume(globalSettings.musicVolume);
         Sounds.setEnabled(globalSettings.sfxEnabled);
         Sounds.setVolume(globalSettings.sfxVolume);
         
@@ -62,6 +68,13 @@ async function saveAudioSettings(settings: AudioSettings): Promise<void> {
 }
 
 /**
+ * Get current global settings (for components that don't use hook)
+ */
+export function getAudioSettings(): AudioSettings {
+    return { ...globalSettings };
+}
+
+/**
  * Hook to access and modify audio settings
  */
 export function useAudioSettings() {
@@ -79,6 +92,14 @@ export function useAudioSettings() {
         };
     }, []);
     
+    // Toggle Music on/off
+    const toggleMusic = useCallback(async () => {
+        globalSettings.musicEnabled = !globalSettings.musicEnabled;
+        Sounds.setMusicEnabled(globalSettings.musicEnabled);
+        await saveAudioSettings(globalSettings);
+        notifyListeners();
+    }, []);
+    
     // Toggle SFX on/off
     const toggleSfx = useCallback(async () => {
         globalSettings.sfxEnabled = !globalSettings.sfxEnabled;
@@ -87,8 +108,27 @@ export function useAudioSettings() {
         notifyListeners();
     }, []);
     
-    // Check if audio is enabled
-    const isAudioEnabled = settings.sfxEnabled;
+    // Toggle all audio on/off
+    const toggleAllAudio = useCallback(async () => {
+        const newEnabled = !(globalSettings.musicEnabled || globalSettings.sfxEnabled);
+        globalSettings.musicEnabled = newEnabled;
+        globalSettings.sfxEnabled = newEnabled;
+        Sounds.setMusicEnabled(newEnabled);
+        Sounds.setEnabled(newEnabled);
+        await saveAudioSettings(globalSettings);
+        notifyListeners();
+    }, []);
+    
+    // Check if any audio is enabled
+    const isAudioEnabled = settings.musicEnabled || settings.sfxEnabled;
+    
+    // Set Music volume (0-1)
+    const setMusicVolume = useCallback(async (volume: number) => {
+        globalSettings.musicVolume = Math.max(0, Math.min(1, volume));
+        await Sounds.setMusicVolume(globalSettings.musicVolume);
+        await saveAudioSettings(globalSettings);
+        notifyListeners();
+    }, []);
     
     // Set SFX volume (0-1)
     const setSfxVolume = useCallback(async (volume: number) => {
@@ -101,7 +141,10 @@ export function useAudioSettings() {
     return {
         settings,
         isAudioEnabled,
+        toggleMusic,
         toggleSfx,
+        toggleAllAudio,
+        setMusicVolume,
         setSfxVolume,
     };
 }

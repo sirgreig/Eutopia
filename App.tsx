@@ -47,6 +47,7 @@ import { BUILDINGS, BOAT_COSTS, BALANCE, GRID_WIDTH, GRID_HEIGHT, getAvailableBu
 // Audio imports - simple system adapted from IJBA
 import { initializeSounds, Sounds } from './src/services/soundManager';
 import { loadAudioSettings, useAudioSettings } from './src/hooks/useAudioSettings';
+import { SettingsScreen } from './src/components/settings/SettingsScreen';
 
 const MENU_ICON_SIZE = 28;
 
@@ -96,9 +97,10 @@ export default function App() {
   const [rainCloudY, setRainCloudY] = useState(50);
   const [showGameOver, setShowGameOver] = useState(false);
   const [showRoundTransition, setShowRoundTransition] = useState<'start' | 'end' | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
   
   // Audio settings hook
-  const { isAudioEnabled, toggleSfx } = useAudioSettings();
+  const { isAudioEnabled, toggleAllAudio } = useAudioSettings();
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const rainTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -132,9 +134,25 @@ export default function App() {
       await initializeSounds();
       await loadAudioSettings();
       initGame();
+      // Start menu music
+      Sounds.playMusic('menu');
     };
     init(); 
   }, [initGame]);
+
+  // Toggle music based on round state
+  // Menu music: before game starts, between rounds
+  // Gameplay music: during active rounds
+  useEffect(() => {
+    if (isRoundActive) {
+      Sounds.playMusic('gameplay');
+    } else if (round < maxRounds) {
+      Sounds.playMusic('menu');
+    } else {
+      // Game over - stop music
+      Sounds.stopMusic();
+    }
+  }, [isRoundActive, round, maxRounds]);
 
   // Timer effect
   useEffect(() => {
@@ -153,6 +171,7 @@ export default function App() {
         if (Math.random() < 0.3) { // 30% chance each check
           setRainCloudY(50 + Math.random() * (GRID_HEIGHT * tileSize - 100));
           setShowRainCloud(true);
+          Sounds.rainStorm();
           
           // Give gold for farms under rain
           if (island) {
@@ -186,6 +205,7 @@ export default function App() {
       setShowRoundTransition(null);
       setTimeRemaining(BALANCE.defaultRoundDuration);
       setIsRoundActive(true);
+      Sounds.roundStart();
     } else if (showRoundTransition === 'end') {
       setShowRoundTransition(null);
     }
@@ -194,6 +214,7 @@ export default function App() {
   const endRound = () => {
     setIsRoundActive(false);
     setShowRainCloud(false);
+    Sounds.roundEnd();
     if (!island) return;
     
     const tiles = island.tiles;
@@ -210,6 +231,7 @@ export default function App() {
     const productivity = Math.min(BALANCE.maxProductivityBonus, (schools + hospitals) * factories + hospitals);
     const income = BALANCE.baseRoundIncome + factories * BALANCE.factoryIncome + fishingBoats * BALANCE.fishingBoatIncome + productivity;
     setGold(g => g + income);
+    Sounds.goldReceive();
     
     // Population calculation
     const fertility = Math.max(BALANCE.minFertility, BALANCE.baseFertility + crops * BALANCE.fertilityPerCrop + hospitals * BALANCE.fertilityPerHospital + houses * BALANCE.fertilityPerHouse + schools * BALANCE.fertilityPerSchool) / 100;
@@ -249,6 +271,7 @@ export default function App() {
         updatedTiles = updatedTiles.map(t => 
           t.id === rebelTile.id ? { ...t, hasRebel: true } : t
         );
+        Sounds.rebelAppear();
         showToast('Rebel appeared!', 'rebel');
       }
     }
@@ -258,6 +281,7 @@ export default function App() {
       const rebelsCleared = updatedTiles.filter(t => t.hasRebel).length;
       if (rebelsCleared > 0) {
         updatedTiles = updatedTiles.map(t => ({ ...t, hasRebel: false }));
+        Sounds.stabilityAchieved();
         showToast('Stability restored!', 'stability');
       }
     }
@@ -266,6 +290,11 @@ export default function App() {
     
     // Check for game over
     if (round >= maxRounds) {
+      if (totalScore >= 70) {
+        Sounds.gameOverWin();
+      } else {
+        Sounds.gameOverLose();
+      }
       setTimeout(() => setShowGameOver(true), 1500);
     } else {
       showToast(`+${income}g income`, 'gold');
@@ -352,7 +381,7 @@ export default function App() {
     const building = BUILDINGS.find(b => b.type === type);
     if (!building || gold < building.cost) return;
     
-    Sounds.buttonClick();
+    Sounds.buildPlace();
     setIsland({ ...island, tiles: island.tiles.map(tile => 
       tile.position.x === selectedTile.x && tile.position.y === selectedTile.y 
         ? { ...tile, building: type } 
@@ -367,13 +396,13 @@ export default function App() {
   const handleSelectBoat = (type: BoatType) => {
     if (!island || !selectedTile) return;
     const cost = BOAT_COSTS[type];
-    if (gold < cost) { showToast('Need more gold', 'error'); closeBuildMenu(); return; }
-    if (!isCoastalTile(selectedTile)) { showToast('Coast tiles only', 'error'); closeBuildMenu(); return; }
+    if (gold < cost) { Sounds.buildError(); showToast('Need more gold', 'error'); closeBuildMenu(); return; }
+    if (!isCoastalTile(selectedTile)) { Sounds.buildError(); showToast('Coast tiles only', 'error'); closeBuildMenu(); return; }
     
     const spawnPos = findAdjacentWater(selectedTile);
-    if (!spawnPos) { showToast('No water nearby', 'error'); closeBuildMenu(); return; }
+    if (!spawnPos) { Sounds.buildError(); showToast('No water nearby', 'error'); closeBuildMenu(); return; }
     
-    Sounds.buttonClick();
+    Sounds.buildPlace();
     setIsland({ 
       ...island, 
       boats: [...island.boats, { 
@@ -442,13 +471,19 @@ export default function App() {
             <Text style={styles.modeBtn}>{mode === 'original' ? 'OG' : 'ENH'}</Text>
           </TouchableOpacity>
           <TouchableOpacity 
-            onPress={toggleSfx} 
+            onPress={toggleAllAudio} 
             style={styles.resetButton}
           >
             <Text style={styles.newBtn}>{isAudioEnabled ? '🔊' : '🔇'}</Text>
           </TouchableOpacity>
           <TouchableOpacity 
-            onPress={() => { Sounds.buttonClick(); initGame(); }} 
+            onPress={() => { Sounds.buttonClick(); setShowSettings(true); }} 
+            style={styles.resetButton}
+          >
+            <Text style={styles.newBtn}>⚙️</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            onPress={() => { Sounds.buttonClick(); initGame(); Sounds.playMusic('menu'); }} 
             style={styles.resetButton}
           >
             <Text style={styles.newBtn}>↻</Text>
@@ -602,6 +637,12 @@ export default function App() {
           onComplete={onRoundTransitionComplete}
         />
       )}
+      
+      {/* Settings Screen */}
+      <SettingsScreen 
+        visible={showSettings} 
+        onClose={() => setShowSettings(false)} 
+      />
     </View>
   );
 }
