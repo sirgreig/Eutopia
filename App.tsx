@@ -6,9 +6,11 @@ import {
   TouchableOpacity, 
   useWindowDimensions,
   Pressable,
+  Animated,
+  Easing,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { Island } from './src/components';
+import { Island } from './src/components/game/Island';
 import { 
   HouseIcon, 
   FarmIcon, 
@@ -31,8 +33,11 @@ import { ScoreDisplay } from './src/components/game/ScoreDisplay';
 import { EndGameSummary } from './src/components/game/EndGameSummary';
 import { Toast } from './src/components/game/Toast';
 import { RoundTransition } from './src/components/game/RoundTransition';
-import { ResourceBar } from './src/components/game/ResourceBar';
+import { AnimatedResourceBar } from './src/components/game/AnimatedResourceBar';
+import { AnimatedBuildMenu } from './src/components/game/AnimatedBuildMenu';
+import { AnimatedBoat } from './src/components/game/AnimatedBoat';
 import { generateIsland } from './src/services/islandGenerator';
+import { findPath } from './src/services/boatPathfinding';
 import { 
   Island as IslandType, 
   Position, 
@@ -48,6 +53,7 @@ import { BUILDINGS, BOAT_COSTS, BALANCE, GRID_WIDTH, GRID_HEIGHT, getAvailableBu
 import { initializeSounds, Sounds } from './src/services/soundManager';
 import { loadAudioSettings, useAudioSettings } from './src/hooks/useAudioSettings';
 import { SettingsScreen } from './src/components/settings/SettingsScreen';
+import { SetupScreen, GameConfig } from './src/components/setup/SetupScreen';
 
 const MENU_ICON_SIZE = 28;
 
@@ -86,7 +92,9 @@ export default function App() {
   const [scoreBreakdown, setScoreBreakdown] = useState({ housing: 0, food: 0, welfare: 0, gdp: 0 });
   const [mode, setMode] = useState<GameMode>('original');
   const [round, setRound] = useState(0);
-  const [maxRounds] = useState(15);
+  const [maxRounds, setMaxRounds] = useState(15);
+  const [roundDuration, setRoundDuration] = useState(BALANCE.defaultRoundDuration);
+  const [difficulty, setDifficulty] = useState<'easy' | 'normal' | 'hard'>('normal');
   const [timeRemaining, setTimeRemaining] = useState(BALANCE.defaultRoundDuration);
   const [isRoundActive, setIsRoundActive] = useState(false);
   const [selectedTile, setSelectedTile] = useState<Position | null>(null);
@@ -98,6 +106,10 @@ export default function App() {
   const [showGameOver, setShowGameOver] = useState(false);
   const [showRoundTransition, setShowRoundTransition] = useState<'start' | 'end' | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showSetup, setShowSetup] = useState(true); // Start on setup screen
+  const [showQuitConfirm, setShowQuitConfirm] = useState(false); // Quit confirmation dialog
+  const [boatPaths, setBoatPaths] = useState<Map<string, Position[]>>(new Map()); // Boat movement paths
+  const [animationsEnabled, setAnimationsEnabled] = useState(true); // Toggle for animations
   
   // Audio settings hook
   const { isAudioEnabled, toggleAllAudio } = useAudioSettings();
@@ -117,7 +129,34 @@ export default function App() {
     setScore(50);
     setScoreBreakdown({ housing: 0, food: 0, welfare: 0, gdp: 0 });
     setRound(0);
-    setTimeRemaining(BALANCE.defaultRoundDuration);
+    setTimeRemaining(roundDuration);
+    setIsRoundActive(false);
+    setSelectedTile(null);
+    setSelectedBoat(null);
+    setShowBuildMenu(false);
+    setShowRainCloud(false);
+    setShowGameOver(false);
+    setShowRoundTransition(null);
+    setToast(null);
+  }, [roundDuration]);
+
+  // Start game with config from setup screen
+  const startGameWithConfig = useCallback((config: GameConfig) => {
+    setMode(config.mode);
+    setMaxRounds(config.rounds);
+    setRoundDuration(config.roundDuration);
+    setDifficulty(config.difficulty);
+    setShowSetup(false);
+    
+    // Initialize game with new config
+    const newIsland = generateIsland();
+    setIsland(newIsland);
+    setGold(BALANCE.startingGold);
+    setPopulation(BALANCE.startingPopulation);
+    setScore(50);
+    setScoreBreakdown({ housing: 0, food: 0, welfare: 0, gdp: 0 });
+    setRound(0);
+    setTimeRemaining(config.roundDuration);
     setIsRoundActive(false);
     setSelectedTile(null);
     setSelectedBoat(null);
@@ -128,23 +167,31 @@ export default function App() {
     setToast(null);
   }, []);
 
-  // Initialize audio and game on mount
+  // Return to setup screen
+  const returnToSetup = useCallback(() => {
+    setShowSetup(true);
+    setShowGameOver(false);
+    Sounds.playMusic('menu');
+  }, []);
+
+  // Initialize audio on mount (game waits for setup screen)
   useEffect(() => { 
     const init = async () => {
       await initializeSounds();
       await loadAudioSettings();
-      initGame();
-      // Start menu music
+      // Start menu music (setup screen)
       Sounds.playMusic('menu');
     };
     init(); 
-  }, [initGame]);
+  }, []);
 
-  // Toggle music based on round state
-  // Menu music: before game starts, between rounds
+  // Toggle music based on game state
+  // Menu music: setup screen, before game starts, between rounds
   // Gameplay music: during active rounds
   useEffect(() => {
-    if (isRoundActive) {
+    if (showSetup) {
+      Sounds.playMusic('menu');
+    } else if (isRoundActive) {
       Sounds.playMusic('gameplay');
     } else if (round < maxRounds) {
       Sounds.playMusic('menu');
@@ -152,7 +199,7 @@ export default function App() {
       // Game over - stop music
       Sounds.stopMusic();
     }
-  }, [isRoundActive, round, maxRounds]);
+  }, [showSetup, isRoundActive, round, maxRounds]);
 
   // Timer effect
   useEffect(() => {
@@ -203,7 +250,7 @@ export default function App() {
   const onRoundTransitionComplete = () => {
     if (showRoundTransition === 'start') {
       setShowRoundTransition(null);
-      setTimeRemaining(BALANCE.defaultRoundDuration);
+      setTimeRemaining(roundDuration);
       setIsRoundActive(true);
       Sounds.roundStart();
     } else if (showRoundTransition === 'end') {
@@ -358,17 +405,53 @@ export default function App() {
     const boat = island.boats.find(b => b.id === selectedBoat);
     if (!boat) return;
     
+    // Check if destination is valid water
     const tileSet = new Set(island.tiles.map(t => `${t.position.x},${t.position.y}`));
     if (tileSet.has(`${position.x},${position.y}`)) return;
+    
+    // Check if destination is occupied by another boat
     if (island.boats.find(b => b.id !== selectedBoat && b.position.x === position.x && b.position.y === position.y)) {
+      Sounds.buildError();
       showToast('Occupied', 'error');
       return;
     }
     
+    // Find path using BFS
+    const path = findPath(boat.position, position, island, boat.id);
+    
+    if (!path || path.length === 0) {
+      Sounds.buildError();
+      showToast('No path', 'error');
+      return;
+    }
+    
+    // Start animated movement
     Sounds.boatMove();
-    setIsland({ ...island, boats: island.boats.map(b => b.id === selectedBoat ? { ...b, position } : b) });
+    setBoatPaths(prev => new Map(prev).set(boat.id, path));
     setSelectedBoat(null);
   };
+
+  // Handle boat movement updates during animation
+  const handleBoatMoveComplete = useCallback((boatId: string, newPosition: Position) => {
+    setIsland(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        boats: prev.boats.map(b => 
+          b.id === boatId ? { ...b, position: newPosition } : b
+        ),
+      };
+    });
+  }, []);
+
+  // Handle when boat finishes entire path
+  const handleBoatPathComplete = useCallback((boatId: string) => {
+    setBoatPaths(prev => {
+      const next = new Map(prev);
+      next.delete(boatId);
+      return next;
+    });
+  }, []);
 
   const handleBoatPress = (boat: Boat) => {
     Sounds.boatSelect();
@@ -430,6 +513,23 @@ export default function App() {
 
   const buildings = getAvailableBuildings(mode);
 
+  // Show setup screen before game starts
+  if (showSetup) {
+    return (
+      <View style={styles.container}>
+        <StatusBar style="light" hidden />
+        <SetupScreen 
+          onStartGame={startGameWithConfig}
+          onOpenSettings={() => setShowSettings(true)}
+        />
+        <SettingsScreen 
+          visible={showSettings} 
+          onClose={() => setShowSettings(false)} 
+        />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <StatusBar style="light" hidden />
@@ -437,9 +537,9 @@ export default function App() {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.resourcesRow}>
-          <ResourceBar icon="💰" value={gold} color="#ffc107" />
-          <ResourceBar icon="👥" value={population} color="#64b5f6" />
-          <ResourceBar icon="⭐" value={score} maxValue={100} color="#4caf50" showBar />
+          <AnimatedResourceBar icon="💰" value={gold} color="#ffc107" />
+          <AnimatedResourceBar icon="👥" value={population} color="#64b5f6" />
+          <AnimatedResourceBar icon="⭐" value={score} maxValue={100} color="#4caf50" showBar />
         </View>
         
         <View style={styles.headerCenter}>
@@ -448,7 +548,7 @@ export default function App() {
               <Text style={[styles.timer, { color: timerColor }]}>{formatTime(timeRemaining)}</Text>
               <View style={styles.timerBar}>
                 <View style={[styles.timerFill, { 
-                  width: `${(timeRemaining / BALANCE.defaultRoundDuration) * 100}%`,
+                  width: `${(timeRemaining / roundDuration) * 100}%`,
                   backgroundColor: timerColor 
                 }]} />
               </View>
@@ -465,12 +565,6 @@ export default function App() {
         
         <View style={styles.headerRight}>
           <TouchableOpacity 
-            onPress={() => { Sounds.buttonClick(); setMode(mode === 'original' ? 'enhanced' : 'original'); }} 
-            style={styles.modeButton}
-          >
-            <Text style={styles.modeBtn}>{mode === 'original' ? 'OG' : 'ENH'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
             onPress={toggleAllAudio} 
             style={styles.resetButton}
           >
@@ -482,11 +576,19 @@ export default function App() {
           >
             <Text style={styles.newBtn}>⚙️</Text>
           </TouchableOpacity>
+          {round === 0 && (
+            <TouchableOpacity 
+              onPress={() => { Sounds.buttonClick(); initGame(); }} 
+              style={styles.resetButton}
+            >
+              <Text style={styles.newBtn}>↻</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity 
-            onPress={() => { Sounds.buttonClick(); initGame(); Sounds.playMusic('menu'); }} 
+            onPress={() => { Sounds.buttonClick(); setShowQuitConfirm(true); }} 
             style={styles.resetButton}
           >
-            <Text style={styles.newBtn}>↻</Text>
+            <Text style={styles.newBtn}>🏠</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -503,84 +605,46 @@ export default function App() {
       {/* Map */}
       <View style={styles.mapArea}>
         {island && (
-          <Island
-            island={island}
-            tileSize={tileSize}
-            selectedTile={selectedTile}
-            selectedBoat={selectedBoat}
-            onTilePress={handleTilePress}
-            onWaterPress={handleWaterPress}
-            onBoatPress={handleBoatPress}
-          />
+          <View style={styles.mapContainer}>
+            <Island
+              island={island}
+              tileSize={tileSize}
+              selectedTile={selectedTile}
+              selectedBoat={selectedBoat}
+              animationsEnabled={animationsEnabled}
+              onTilePress={handleTilePress}
+              onWaterPress={handleWaterPress}
+              onBoatPress={handleBoatPress}
+            />
+            
+            {/* Animated Boats Layer */}
+            <View style={styles.boatsLayer} pointerEvents="box-none">
+              {island.boats.map(boat => (
+                <AnimatedBoat
+                  key={boat.id}
+                  boat={boat}
+                  tileSize={tileSize}
+                  selected={selectedBoat === boat.id}
+                  path={boatPaths.get(boat.id) || null}
+                  onPress={() => handleBoatPress(boat)}
+                  onMoveComplete={handleBoatMoveComplete}
+                  onPathComplete={handleBoatPathComplete}
+                />
+              ))}
+            </View>
+          </View>
         )}
       </View>
       
-      {/* Build Menu - Wide horizontal layout */}
-      {showBuildMenu && (
-        <View style={styles.menuOverlay}>
-          <Pressable style={styles.menuBackdrop} onPress={closeBuildMenu} />
-          <View style={styles.menu}>
-            <View style={styles.menuHeader}>
-              <Text style={styles.menuTitle}>BUILD</Text>
-              <Text style={styles.menuGold}>💰 {gold}</Text>
-              <TouchableOpacity style={styles.cancelBtn} onPress={closeBuildMenu} activeOpacity={0.7}>
-                <Text style={styles.cancelText}>✕</Text>
-              </TouchableOpacity>
-            </View>
-            
-            <View style={styles.menuContent}>
-              <View style={styles.buildingsSection}>
-                <Text style={styles.sectionTitle}>BUILDINGS</Text>
-                <View style={styles.grid}>
-                  {buildings.map((b) => (
-                    <TouchableOpacity
-                      key={b.type}
-                      style={[styles.gridItem, gold < b.cost && styles.gridItemDisabled]}
-                      onPress={() => gold >= b.cost && handleSelectBuilding(b.type)}
-                      activeOpacity={0.7}
-                    >
-                      <View style={styles.gridIconContainer}>
-                        <MenuBuildingIcon type={b.type} />
-                      </View>
-                      <Text style={styles.gridName}>{b.name}</Text>
-                      <Text style={[styles.gridCost, gold < b.cost && styles.gridCostDisabled]}>{b.cost}g</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-              
-              <View style={styles.boatsSection}>
-                <Text style={styles.sectionTitle}>BOATS</Text>
-                <View style={styles.boatRow}>
-                  <TouchableOpacity
-                    style={[styles.boatItem, gold < BOAT_COSTS.fishing && styles.gridItemDisabled]}
-                    onPress={() => gold >= BOAT_COSTS.fishing && handleSelectBoat('fishing')}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.gridIconContainer}>
-                      <FishingBoatIcon size={MENU_ICON_SIZE} />
-                    </View>
-                    <Text style={styles.gridName}>Fishing</Text>
-                    <Text style={[styles.gridCost, gold < BOAT_COSTS.fishing && styles.gridCostDisabled]}>{BOAT_COSTS.fishing}g</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity
-                    style={[styles.boatItem, gold < BOAT_COSTS.pt && styles.gridItemDisabled]}
-                    onPress={() => gold >= BOAT_COSTS.pt && handleSelectBoat('pt')}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.gridIconContainer}>
-                      <PTBoatIcon size={MENU_ICON_SIZE} />
-                    </View>
-                    <Text style={styles.gridName}>PT Boat</Text>
-                    <Text style={[styles.gridCost, gold < BOAT_COSTS.pt && styles.gridCostDisabled]}>{BOAT_COSTS.pt}g</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          </View>
-        </View>
-      )}
+      {/* Animated Build Menu */}
+      <AnimatedBuildMenu
+        visible={showBuildMenu}
+        gold={gold}
+        mode={mode}
+        onSelectBuilding={handleSelectBuilding}
+        onSelectBoat={handleSelectBoat}
+        onClose={closeBuildMenu}
+      />
       
       {/* Rain Cloud */}
       {showRainCloud && (
@@ -625,6 +689,7 @@ export default function App() {
             pt: island.boats.filter(b => b.type === 'pt').length,
           }}
           onPlayAgain={initGame}
+          onMainMenu={returnToSetup}
         />
       )}
       
@@ -643,6 +708,33 @@ export default function App() {
         visible={showSettings} 
         onClose={() => setShowSettings(false)} 
       />
+      
+      {/* Quit Confirmation Dialog */}
+      {showQuitConfirm && (
+        <View style={styles.confirmOverlay}>
+          <View style={styles.confirmBackdrop} />
+          <View style={styles.confirmDialog}>
+            <Text style={styles.confirmTitle}>Quit Game?</Text>
+            <Text style={styles.confirmMessage}>
+              Your current game progress will be lost.
+            </Text>
+            <View style={styles.confirmButtons}>
+              <TouchableOpacity 
+                style={styles.confirmCancelBtn}
+                onPress={() => { Sounds.buttonClick(); setShowQuitConfirm(false); }}
+              >
+                <Text style={styles.confirmCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.confirmQuitBtn}
+                onPress={() => { Sounds.buttonClick(); setShowQuitConfirm(false); returnToSetup(); }}
+              >
+                <Text style={styles.confirmQuitText}>Quit</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -733,6 +825,16 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  mapContainer: {
+    position: 'relative',
+  },
+  boatsLayer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   scoreDisplayContainer: {
     position: 'absolute',
@@ -867,5 +969,74 @@ const styles = StyleSheet.create({
     color: '#e0e0e0',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  confirmOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 2000,
+  },
+  confirmBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+  },
+  confirmDialog: {
+    backgroundColor: '#1a2a3a',
+    borderRadius: 16,
+    padding: 24,
+    width: '80%',
+    maxWidth: 320,
+    borderWidth: 2,
+    borderColor: '#2a4a5a',
+    alignItems: 'center',
+    zIndex: 2001,
+  },
+  confirmTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 12,
+  },
+  confirmMessage: {
+    fontSize: 15,
+    color: '#88a4b8',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  confirmButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  confirmCancelBtn: {
+    flex: 1,
+    backgroundColor: '#2a4a5a',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  confirmCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#88a4b8',
+  },
+  confirmQuitBtn: {
+    flex: 1,
+    backgroundColor: '#e53935',
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  confirmQuitText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#fff',
   },
 });

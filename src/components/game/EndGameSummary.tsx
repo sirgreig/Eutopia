@@ -1,239 +1,355 @@
+// src/components/game/EndGameSummary.tsx
+// End game summary screen with Play Again and Main Menu options
+
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import Svg, { Circle, Path, Polygon, G, Rect } from 'react-native-svg';
+import {
+    View,
+    Text,
+    StyleSheet,
+    TouchableOpacity,
+    ScrollView,
+} from 'react-native';
+import { Sounds } from '../../services/soundManager';
 
 interface EndGameSummaryProps {
-  score: number;
-  population: number;
-  gold: number;
-  buildings: {
-    houses: number;
-    farms: number;
-    factories: number;
-    schools: number;
-    hospitals: number;
-    forts: number;
-  };
-  boats: {
-    fishing: number;
-    pt: number;
-  };
-  onPlayAgain: () => void;
+    score: number;
+    scoreBreakdown: {
+        housing: number;
+        food: number;
+        welfare: number;
+        gdp: number;
+    };
+    population: number;
+    gold: number;
+    buildings: {
+        houses: number;
+        farms: number;
+        factories: number;
+        schools: number;
+        hospitals: number;
+        forts: number;
+    };
+    boats: {
+        fishing: number;
+        pt: number;
+    };
+    onPlayAgain: () => void;
+    onMainMenu?: () => void;
 }
 
-const TrophyIcon = ({ size, color }: { size: number; color: string }) => (
-  <Svg width={size} height={size} viewBox="0 0 100 100">
-    {/* Trophy cup */}
-    <Path d="M30,20 L70,20 L65,55 Q50,65 35,55 Z" fill={color} />
-    <Rect x="40" y="55" width="20" height="15" fill="#a08050" />
-    <Rect x="30" y="70" width="40" height="10" fill="#8d6e63" rx="2" />
-    <Rect x="25" y="78" width="50" height="8" fill="#6d4c41" rx="2" />
-    {/* Handles */}
-    <Path d="M30,25 Q15,25 15,40 Q15,50 25,50" stroke={color} strokeWidth="6" fill="none" />
-    <Path d="M70,25 Q85,25 85,40 Q85,50 75,50" stroke={color} strokeWidth="6" fill="none" />
-    {/* Star */}
-    <Polygon points="50,28 53,38 63,38 55,44 58,54 50,48 42,54 45,44 37,38 47,38" fill="#fff" opacity="0.8" />
-    {/* Shine */}
-    <Path d="M35,25 Q40,35 35,45" stroke="#fff" strokeWidth="2" opacity="0.5" fill="none" />
-  </Svg>
-);
+export const EndGameSummary: React.FC<EndGameSummaryProps> = ({
+    score,
+    scoreBreakdown,
+    population,
+    gold,
+    buildings,
+    boats,
+    onPlayAgain,
+    onMainMenu,
+}) => {
+    const getScoreRating = () => {
+        if (score >= 90) return { text: 'Utopia Achieved! 🏆', color: '#ffd700' };
+        if (score >= 70) return { text: 'Prosperous Nation! 🌟', color: '#4ade80' };
+        if (score >= 50) return { text: 'Stable Government', color: '#64b5f6' };
+        if (score >= 30) return { text: 'Struggling Economy', color: '#ffc107' };
+        return { text: 'Failed State 💀', color: '#e53935' };
+    };
 
-const getRank = (score: number): { title: string; color: string } => {
-  if (score >= 90) return { title: 'UTOPIAN MASTER', color: '#ffd700' };
-  if (score >= 75) return { title: 'PROSPERITY LEADER', color: '#c0c0c0' };
-  if (score >= 60) return { title: 'CAPABLE GOVERNOR', color: '#cd7f32' };
-  if (score >= 45) return { title: 'STRUGGLING ADMINISTRATOR', color: '#78909c' };
-  if (score >= 30) return { title: 'TROUBLED RULER', color: '#e57373' };
-  return { title: 'FAILED STATE', color: '#b71c1c' };
+    const rating = getScoreRating();
+
+    const handlePlayAgain = () => {
+        Sounds.buttonClick();
+        onPlayAgain();
+    };
+
+    const handleMainMenu = () => {
+        Sounds.buttonClick();
+        onMainMenu?.();
+    };
+
+    return (
+        <View style={styles.overlay}>
+            <View style={styles.container}>
+                <ScrollView 
+                    style={styles.scrollView}
+                    contentContainerStyle={styles.scrollContent}
+                    showsVerticalScrollIndicator={false}
+                >
+                    <Text style={styles.title}>Game Over</Text>
+                    
+                    {/* Final Score */}
+                    <View style={styles.scoreContainer}>
+                        <Text style={[styles.scoreValue, { color: rating.color }]}>{score}</Text>
+                        <Text style={styles.scoreLabel}>Final Score</Text>
+                        <Text style={[styles.rating, { color: rating.color }]}>{rating.text}</Text>
+                    </View>
+
+                    {/* Score Breakdown */}
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Score Breakdown</Text>
+                        <View style={styles.breakdownRow}>
+                            <Text style={styles.breakdownLabel}>🏠 Housing</Text>
+                            <Text style={styles.breakdownValue}>{scoreBreakdown.housing}/30</Text>
+                        </View>
+                        <View style={styles.breakdownRow}>
+                            <Text style={styles.breakdownLabel}>🍞 Food Supply</Text>
+                            <Text style={styles.breakdownValue}>{scoreBreakdown.food}/30</Text>
+                        </View>
+                        <View style={styles.breakdownRow}>
+                            <Text style={styles.breakdownLabel}>❤️ Welfare</Text>
+                            <Text style={styles.breakdownValue}>{scoreBreakdown.welfare}/30</Text>
+                        </View>
+                        <View style={styles.breakdownRow}>
+                            <Text style={styles.breakdownLabel}>💰 GDP</Text>
+                            <Text style={styles.breakdownValue}>{scoreBreakdown.gdp}/30</Text>
+                        </View>
+                    </View>
+
+                    {/* Final Stats */}
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Final Stats</Text>
+                        <View style={styles.statsGrid}>
+                            <View style={styles.statItem}>
+                                <Text style={styles.statValue}>{population.toLocaleString()}</Text>
+                                <Text style={styles.statLabel}>Population</Text>
+                            </View>
+                            <View style={styles.statItem}>
+                                <Text style={styles.statValue}>{gold}</Text>
+                                <Text style={styles.statLabel}>Gold</Text>
+                            </View>
+                        </View>
+                    </View>
+
+                    {/* Buildings */}
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Buildings</Text>
+                        <View style={styles.buildingsGrid}>
+                            <View style={styles.buildingItem}>
+                                <Text style={styles.buildingValue}>{buildings.houses}</Text>
+                                <Text style={styles.buildingLabel}>🏠</Text>
+                            </View>
+                            <View style={styles.buildingItem}>
+                                <Text style={styles.buildingValue}>{buildings.farms}</Text>
+                                <Text style={styles.buildingLabel}>🌾</Text>
+                            </View>
+                            <View style={styles.buildingItem}>
+                                <Text style={styles.buildingValue}>{buildings.factories}</Text>
+                                <Text style={styles.buildingLabel}>🏭</Text>
+                            </View>
+                            <View style={styles.buildingItem}>
+                                <Text style={styles.buildingValue}>{buildings.schools}</Text>
+                                <Text style={styles.buildingLabel}>🏫</Text>
+                            </View>
+                            <View style={styles.buildingItem}>
+                                <Text style={styles.buildingValue}>{buildings.hospitals}</Text>
+                                <Text style={styles.buildingLabel}>🏥</Text>
+                            </View>
+                            <View style={styles.buildingItem}>
+                                <Text style={styles.buildingValue}>{buildings.forts}</Text>
+                                <Text style={styles.buildingLabel}>🏰</Text>
+                            </View>
+                        </View>
+                    </View>
+
+                    {/* Boats */}
+                    <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>Fleet</Text>
+                        <View style={styles.boatsGrid}>
+                            <View style={styles.boatItem}>
+                                <Text style={styles.boatValue}>{boats.fishing}</Text>
+                                <Text style={styles.boatLabel}>🎣 Fishing</Text>
+                            </View>
+                            <View style={styles.boatItem}>
+                                <Text style={styles.boatValue}>{boats.pt}</Text>
+                                <Text style={styles.boatLabel}>⚓ PT Boats</Text>
+                            </View>
+                        </View>
+                    </View>
+                </ScrollView>
+
+                {/* Action Buttons */}
+                <View style={styles.buttonContainer}>
+                    <TouchableOpacity style={styles.playAgainButton} onPress={handlePlayAgain}>
+                        <Text style={styles.playAgainText}>↻ Play Again</Text>
+                    </TouchableOpacity>
+                    {onMainMenu && (
+                        <TouchableOpacity style={styles.mainMenuButton} onPress={handleMainMenu}>
+                            <Text style={styles.mainMenuText}>🏠 Main Menu</Text>
+                        </TouchableOpacity>
+                    )}
+                </View>
+            </View>
+        </View>
+    );
 };
 
-export function EndGameSummary({ 
-  score, 
-  population, 
-  gold, 
-  buildings, 
-  boats, 
-  onPlayAgain 
-}: EndGameSummaryProps) {
-  const rank = getRank(score);
-  
-  return (
-    <View style={styles.overlay}>
-      <View style={styles.container}>
-        <Text style={styles.title}>GAME OVER</Text>
-        
-        <View style={styles.trophySection}>
-          <TrophyIcon size={80} color={rank.color} />
-          <Text style={[styles.rankTitle, { color: rank.color }]}>{rank.title}</Text>
-        </View>
-        
-        <View style={styles.scoreSection}>
-          <Text style={styles.scoreLabel}>FINAL SCORE</Text>
-          <Text style={styles.scoreValue}>{score}</Text>
-        </View>
-        
-        <View style={styles.statsGrid}>
-          <View style={styles.statItem}>
-            <Text style={styles.statEmoji}>👥</Text>
-            <Text style={styles.statValue}>{population.toLocaleString()}</Text>
-            <Text style={styles.statLabel}>Population</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statEmoji}>💰</Text>
-            <Text style={styles.statValue}>{gold}</Text>
-            <Text style={styles.statLabel}>Gold</Text>
-          </View>
-        </View>
-        
-        <View style={styles.buildingsSection}>
-          <Text style={styles.sectionTitle}>BUILDINGS</Text>
-          <View style={styles.buildingsGrid}>
-            <Text style={styles.buildingItem}>🏠 {buildings.houses}</Text>
-            <Text style={styles.buildingItem}>🌾 {buildings.farms}</Text>
-            <Text style={styles.buildingItem}>🏭 {buildings.factories}</Text>
-            <Text style={styles.buildingItem}>🏫 {buildings.schools}</Text>
-            <Text style={styles.buildingItem}>🏥 {buildings.hospitals}</Text>
-            <Text style={styles.buildingItem}>🏰 {buildings.forts}</Text>
-          </View>
-        </View>
-        
-        <View style={styles.boatsSection}>
-          <Text style={styles.sectionTitle}>BOATS</Text>
-          <View style={styles.boatsGrid}>
-            <Text style={styles.buildingItem}>🚣 {boats.fishing}</Text>
-            <Text style={styles.buildingItem}>⛵ {boats.pt}</Text>
-          </View>
-        </View>
-        
-        <TouchableOpacity style={styles.playAgainBtn} onPress={onPlayAgain}>
-          <Text style={styles.playAgainText}>PLAY AGAIN</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  overlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.85)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 2000,
-  },
-  container: {
-    backgroundColor: '#1a2530',
-    borderRadius: 16,
-    padding: 20,
-    width: '90%',
-    maxWidth: 400,
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#2a3a4a',
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#e0e0e0',
-    marginBottom: 15,
-    letterSpacing: 2,
-  },
-  trophySection: {
-    alignItems: 'center',
-    marginBottom: 15,
-  },
-  rankTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginTop: 8,
-    letterSpacing: 1,
-  },
-  scoreSection: {
-    alignItems: 'center',
-    marginBottom: 15,
-    paddingVertical: 10,
-    paddingHorizontal: 30,
-    backgroundColor: 'rgba(76,175,80,0.2)',
-    borderRadius: 10,
-  },
-  scoreLabel: {
-    fontSize: 10,
-    color: '#888',
-    letterSpacing: 1,
-  },
-  scoreValue: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#4caf50',
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '100%',
-    marginBottom: 15,
-  },
-  statItem: {
-    alignItems: 'center',
-    backgroundColor: '#2a3a4a',
-    padding: 10,
-    borderRadius: 8,
-    minWidth: 100,
-  },
-  statEmoji: {
-    fontSize: 20,
-  },
-  statValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#e0e0e0',
-  },
-  statLabel: {
-    fontSize: 10,
-    color: '#888',
-  },
-  buildingsSection: {
-    width: '100%',
-    marginBottom: 10,
-  },
-  sectionTitle: {
-    fontSize: 10,
-    color: '#888',
-    letterSpacing: 1,
-    marginBottom: 5,
-  },
-  buildingsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-  },
-  buildingItem: {
-    fontSize: 14,
-    color: '#e0e0e0',
-    marginHorizontal: 8,
-    marginVertical: 2,
-  },
-  boatsSection: {
-    width: '100%',
-    marginBottom: 15,
-  },
-  boatsGrid: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-  },
-  playAgainBtn: {
-    backgroundColor: '#4caf50',
-    paddingVertical: 12,
-    paddingHorizontal: 40,
-    borderRadius: 8,
-  },
-  playAgainText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-    letterSpacing: 1,
-  },
+    overlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.9)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 1000,
+    },
+    container: {
+        backgroundColor: '#1a2a3a',
+        borderRadius: 16,
+        width: '92%',
+        maxWidth: 400,
+        maxHeight: '85%',
+        borderWidth: 2,
+        borderColor: '#2a4a5a',
+    },
+    scrollView: {
+        flex: 1,
+    },
+    scrollContent: {
+        padding: 20,
+    },
+    title: {
+        fontSize: 28,
+        fontWeight: 'bold',
+        color: '#fff',
+        textAlign: 'center',
+        marginBottom: 16,
+    },
+    scoreContainer: {
+        alignItems: 'center',
+        marginBottom: 20,
+        padding: 16,
+        backgroundColor: '#0a1a2a',
+        borderRadius: 12,
+    },
+    scoreValue: {
+        fontSize: 64,
+        fontWeight: 'bold',
+    },
+    scoreLabel: {
+        fontSize: 14,
+        color: '#88a4b8',
+        marginTop: 4,
+    },
+    rating: {
+        fontSize: 18,
+        fontWeight: '600',
+        marginTop: 8,
+    },
+    section: {
+        marginBottom: 16,
+        backgroundColor: '#0a1a2a',
+        borderRadius: 10,
+        padding: 14,
+    },
+    sectionTitle: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#88a4b8',
+        marginBottom: 10,
+        textTransform: 'uppercase',
+        letterSpacing: 1,
+    },
+    breakdownRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingVertical: 6,
+        borderBottomWidth: 1,
+        borderBottomColor: '#1a2a3a',
+    },
+    breakdownLabel: {
+        fontSize: 15,
+        color: '#ccc',
+    },
+    breakdownValue: {
+        fontSize: 15,
+        color: '#fff',
+        fontWeight: '600',
+    },
+    statsGrid: {
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+    },
+    statItem: {
+        alignItems: 'center',
+    },
+    statValue: {
+        fontSize: 24,
+        fontWeight: 'bold',
+        color: '#fff',
+    },
+    statLabel: {
+        fontSize: 12,
+        color: '#88a4b8',
+        marginTop: 4,
+    },
+    buildingsGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'space-between',
+    },
+    buildingItem: {
+        width: '30%',
+        alignItems: 'center',
+        marginBottom: 10,
+    },
+    buildingValue: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: '#fff',
+    },
+    buildingLabel: {
+        fontSize: 18,
+        marginTop: 2,
+    },
+    boatsGrid: {
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+    },
+    boatItem: {
+        alignItems: 'center',
+    },
+    boatValue: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: '#fff',
+    },
+    boatLabel: {
+        fontSize: 13,
+        color: '#88a4b8',
+        marginTop: 4,
+    },
+    buttonContainer: {
+        padding: 16,
+        paddingTop: 8,
+        gap: 10,
+        borderTopWidth: 1,
+        borderTopColor: '#2a4a5a',
+    },
+    playAgainButton: {
+        backgroundColor: '#4ade80',
+        paddingVertical: 14,
+        borderRadius: 10,
+        alignItems: 'center',
+    },
+    playAgainText: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#0a1a0a',
+    },
+    mainMenuButton: {
+        backgroundColor: '#2a4a5a',
+        paddingVertical: 12,
+        borderRadius: 10,
+        alignItems: 'center',
+    },
+    mainMenuText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#88a4b8',
+    },
 });
+
+export default EndGameSummary;
