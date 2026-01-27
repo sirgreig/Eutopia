@@ -1,5 +1,5 @@
 // src/components/game/EndGameSummary.tsx
-// End game summary screen with Play Again and Main Menu options
+// End game summary screen with AI comparison
 
 import React from 'react';
 import {
@@ -33,6 +33,14 @@ interface EndGameSummaryProps {
         fishing: number;
         pt: number;
     };
+    aiScore?: number;
+    aiScoreBreakdown?: {
+        housing: number;
+        food: number;
+        welfare: number;
+        gdp: number;
+    };
+    difficulty?: 'easy' | 'normal' | 'hard';
     onPlayAgain: () => void;
     onMainMenu?: () => void;
 }
@@ -44,18 +52,39 @@ export const EndGameSummary: React.FC<EndGameSummaryProps> = ({
     gold,
     buildings,
     boats,
+    aiScore,
+    aiScoreBreakdown,
+    difficulty,
     onPlayAgain,
     onMainMenu,
 }) => {
-    const getScoreRating = () => {
-        if (score >= 90) return { text: 'Utopia Achieved! 🏆', color: '#ffd700' };
-        if (score >= 70) return { text: 'Prosperous Nation! 🌟', color: '#4ade80' };
-        if (score >= 50) return { text: 'Stable Government', color: '#64b5f6' };
-        if (score >= 30) return { text: 'Struggling Economy', color: '#ffc107' };
-        return { text: 'Failed State 💀', color: '#e53935' };
+    const hasAI = aiScore !== undefined;
+    const playerWins = hasAI ? score > aiScore : score >= 70;
+    const isTie = hasAI && score === aiScore;
+    
+    const getResultText = () => {
+        if (isTie) return { text: "It's a Tie! 🤝", color: '#ffc107' };
+        if (playerWins) return { text: 'Victory! 🏆', color: '#4ade80' };
+        return { text: 'Defeat 💀', color: '#e53935' };
+    };
+    
+    const getScoreRating = (s: number) => {
+        if (s >= 90) return { text: 'Utopia!', color: '#ffd700' };
+        if (s >= 70) return { text: 'Prosperous', color: '#4ade80' };
+        if (s >= 50) return { text: 'Stable', color: '#64b5f6' };
+        if (s >= 30) return { text: 'Struggling', color: '#ffc107' };
+        return { text: 'Failed', color: '#e53935' };
     };
 
-    const rating = getScoreRating();
+    const result = getResultText();
+    const playerRating = getScoreRating(score);
+    const aiRating = hasAI ? getScoreRating(aiScore) : null;
+    
+    const difficultyColors = {
+        easy: '#4ade80',
+        normal: '#ffc107',
+        hard: '#e53935',
+    };
 
     const handlePlayAgain = () => {
         Sounds.buttonClick();
@@ -77,37 +106,94 @@ export const EndGameSummary: React.FC<EndGameSummaryProps> = ({
                 >
                     <Text style={styles.title}>Game Over</Text>
                     
-                    {/* Final Score */}
-                    <View style={styles.scoreContainer}>
-                        <Text style={[styles.scoreValue, { color: rating.color }]}>{score}</Text>
-                        <Text style={styles.scoreLabel}>Final Score</Text>
-                        <Text style={[styles.rating, { color: rating.color }]}>{rating.text}</Text>
+                    {/* Result Banner */}
+                    <View style={[styles.resultBanner, { borderColor: result.color }]}>
+                        <Text style={[styles.resultText, { color: result.color }]}>
+                            {result.text}
+                        </Text>
                     </View>
+                    
+                    {/* Score Comparison */}
+                    {hasAI ? (
+                        <View style={styles.comparisonContainer}>
+                            <View style={styles.scoreColumn}>
+                                <Text style={styles.columnHeader}>👤 You</Text>
+                                <Text style={[styles.scoreValue, { color: playerRating.color }]}>
+                                    {score}
+                                </Text>
+                                <Text style={[styles.ratingText, { color: playerRating.color }]}>
+                                    {playerRating.text}
+                                </Text>
+                            </View>
+                            
+                            <View style={styles.vsContainer}>
+                                <Text style={styles.vsText}>VS</Text>
+                            </View>
+                            
+                            <View style={styles.scoreColumn}>
+                                <View style={styles.aiHeader}>
+                                    <Text style={styles.columnHeader}>🤖 AI</Text>
+                                    {difficulty && (
+                                        <View style={[styles.diffBadge, { backgroundColor: difficultyColors[difficulty] }]}>
+                                            <Text style={styles.diffText}>{difficulty}</Text>
+                                        </View>
+                                    )}
+                                </View>
+                                <Text style={[styles.scoreValue, { color: aiRating?.color || '#fff' }]}>
+                                    {aiScore}
+                                </Text>
+                                <Text style={[styles.ratingText, { color: aiRating?.color || '#888' }]}>
+                                    {aiRating?.text || ''}
+                                </Text>
+                            </View>
+                        </View>
+                    ) : (
+                        <View style={styles.singleScoreContainer}>
+                            <Text style={[styles.scoreSingle, { color: playerRating.color }]}>{score}</Text>
+                            <Text style={styles.scoreLabel}>Final Score</Text>
+                            <Text style={[styles.ratingSingle, { color: playerRating.color }]}>{playerRating.text}</Text>
+                        </View>
+                    )}
 
-                    {/* Score Breakdown */}
+                    {/* Score Breakdown Comparison */}
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>Score Breakdown</Text>
-                        <View style={styles.breakdownRow}>
-                            <Text style={styles.breakdownLabel}>🏠 Housing</Text>
-                            <Text style={styles.breakdownValue}>{scoreBreakdown.housing}/30</Text>
+                        
+                        <View style={styles.breakdownHeader}>
+                            <Text style={styles.breakdownLabel}></Text>
+                            <Text style={styles.breakdownColHeader}>You</Text>
+                            {hasAI && <Text style={styles.breakdownColHeader}>AI</Text>}
                         </View>
-                        <View style={styles.breakdownRow}>
-                            <Text style={styles.breakdownLabel}>🍞 Food Supply</Text>
-                            <Text style={styles.breakdownValue}>{scoreBreakdown.food}/30</Text>
-                        </View>
-                        <View style={styles.breakdownRow}>
-                            <Text style={styles.breakdownLabel}>❤️ Welfare</Text>
-                            <Text style={styles.breakdownValue}>{scoreBreakdown.welfare}/30</Text>
-                        </View>
-                        <View style={styles.breakdownRow}>
-                            <Text style={styles.breakdownLabel}>💰 GDP</Text>
-                            <Text style={styles.breakdownValue}>{scoreBreakdown.gdp}/30</Text>
-                        </View>
+                        
+                        {[
+                            { icon: '🏠', label: 'Housing', player: scoreBreakdown.housing, ai: aiScoreBreakdown?.housing },
+                            { icon: '🍞', label: 'Food', player: scoreBreakdown.food, ai: aiScoreBreakdown?.food },
+                            { icon: '❤️', label: 'Welfare', player: scoreBreakdown.welfare, ai: aiScoreBreakdown?.welfare },
+                            { icon: '💰', label: 'GDP', player: scoreBreakdown.gdp, ai: aiScoreBreakdown?.gdp },
+                        ].map(({ icon, label, player, ai }) => (
+                            <View key={label} style={styles.breakdownRow}>
+                                <Text style={styles.breakdownLabel}>{icon} {label}</Text>
+                                <Text style={[
+                                    styles.breakdownValue,
+                                    hasAI && ai !== undefined && player > ai && styles.winningValue
+                                ]}>
+                                    {player}/30
+                                </Text>
+                                {hasAI && ai !== undefined && (
+                                    <Text style={[
+                                        styles.breakdownValue,
+                                        ai > player && styles.winningValue
+                                    ]}>
+                                        {ai}/30
+                                    </Text>
+                                )}
+                            </View>
+                        ))}
                     </View>
 
                     {/* Final Stats */}
                     <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Final Stats</Text>
+                        <Text style={styles.sectionTitle}>Your Stats</Text>
                         <View style={styles.statsGrid}>
                             <View style={styles.statItem}>
                                 <Text style={styles.statValue}>{population.toLocaleString()}</Text>
@@ -200,7 +286,7 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         width: '92%',
         maxWidth: 400,
-        maxHeight: '85%',
+        maxHeight: '88%',
         borderWidth: 2,
         borderColor: '#2a4a5a',
     },
@@ -211,20 +297,88 @@ const styles = StyleSheet.create({
         padding: 20,
     },
     title: {
-        fontSize: 28,
+        fontSize: 24,
         fontWeight: 'bold',
         color: '#fff',
         textAlign: 'center',
+        marginBottom: 12,
+    },
+    resultBanner: {
+        borderWidth: 2,
+        borderRadius: 12,
+        padding: 12,
+        marginBottom: 16,
+        backgroundColor: 'rgba(0,0,0,0.3)',
+    },
+    resultText: {
+        fontSize: 28,
+        fontWeight: 'bold',
+        textAlign: 'center',
+    },
+    
+    // Score comparison styles
+    comparisonContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-around',
+        backgroundColor: '#0a1a2a',
+        borderRadius: 12,
+        padding: 16,
         marginBottom: 16,
     },
-    scoreContainer: {
+    scoreColumn: {
         alignItems: 'center',
-        marginBottom: 20,
+        flex: 1,
+    },
+    columnHeader: {
+        fontSize: 14,
+        color: '#88a4b8',
+        marginBottom: 4,
+    },
+    aiHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginBottom: 4,
+    },
+    diffBadge: {
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 4,
+    },
+    diffText: {
+        fontSize: 9,
+        fontWeight: 'bold',
+        color: '#000',
+        textTransform: 'capitalize',
+    },
+    scoreValue: {
+        fontSize: 48,
+        fontWeight: 'bold',
+    },
+    ratingText: {
+        fontSize: 14,
+        fontWeight: '600',
+        marginTop: 2,
+    },
+    vsContainer: {
+        paddingHorizontal: 12,
+    },
+    vsText: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: '#556677',
+    },
+    
+    // Single score (no AI)
+    singleScoreContainer: {
+        alignItems: 'center',
+        marginBottom: 16,
         padding: 16,
         backgroundColor: '#0a1a2a',
         borderRadius: 12,
     },
-    scoreValue: {
+    scoreSingle: {
         fontSize: 64,
         fontWeight: 'bold',
     },
@@ -233,41 +387,68 @@ const styles = StyleSheet.create({
         color: '#88a4b8',
         marginTop: 4,
     },
-    rating: {
+    ratingSingle: {
         fontSize: 18,
         fontWeight: '600',
         marginTop: 8,
     },
+    
+    // Breakdown styles
     section: {
-        marginBottom: 16,
+        marginBottom: 14,
         backgroundColor: '#0a1a2a',
         borderRadius: 10,
-        padding: 14,
+        padding: 12,
     },
     sectionTitle: {
-        fontSize: 14,
+        fontSize: 13,
         fontWeight: '600',
         color: '#88a4b8',
         marginBottom: 10,
         textTransform: 'uppercase',
         letterSpacing: 1,
     },
+    breakdownHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingBottom: 6,
+        borderBottomWidth: 1,
+        borderBottomColor: '#2a4a5a',
+        marginBottom: 4,
+    },
+    breakdownColHeader: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#667788',
+        width: 50,
+        textAlign: 'center',
+    },
     breakdownRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        paddingVertical: 6,
+        alignItems: 'center',
+        paddingVertical: 5,
         borderBottomWidth: 1,
         borderBottomColor: '#1a2a3a',
     },
     breakdownLabel: {
-        fontSize: 15,
+        fontSize: 14,
         color: '#ccc',
+        flex: 1,
     },
     breakdownValue: {
-        fontSize: 15,
+        fontSize: 14,
         color: '#fff',
-        fontWeight: '600',
+        fontWeight: '500',
+        width: 50,
+        textAlign: 'center',
     },
+    winningValue: {
+        color: '#4ade80',
+        fontWeight: '700',
+    },
+    
+    // Stats styles
     statsGrid: {
         flexDirection: 'row',
         justifyContent: 'space-around',
@@ -276,15 +457,17 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     statValue: {
-        fontSize: 24,
+        fontSize: 22,
         fontWeight: 'bold',
         color: '#fff',
     },
     statLabel: {
-        fontSize: 12,
+        fontSize: 11,
         color: '#88a4b8',
-        marginTop: 4,
+        marginTop: 2,
     },
+    
+    // Buildings styles
     buildingsGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
@@ -293,17 +476,19 @@ const styles = StyleSheet.create({
     buildingItem: {
         width: '30%',
         alignItems: 'center',
-        marginBottom: 10,
+        marginBottom: 8,
     },
     buildingValue: {
-        fontSize: 20,
+        fontSize: 18,
         fontWeight: 'bold',
         color: '#fff',
     },
     buildingLabel: {
-        fontSize: 18,
+        fontSize: 16,
         marginTop: 2,
     },
+    
+    // Boats styles
     boatsGrid: {
         flexDirection: 'row',
         justifyContent: 'space-around',
@@ -312,15 +497,17 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     boatValue: {
-        fontSize: 20,
+        fontSize: 18,
         fontWeight: 'bold',
         color: '#fff',
     },
     boatLabel: {
-        fontSize: 13,
+        fontSize: 12,
         color: '#88a4b8',
-        marginTop: 4,
+        marginTop: 2,
     },
+    
+    // Button styles
     buttonContainer: {
         padding: 16,
         paddingTop: 8,

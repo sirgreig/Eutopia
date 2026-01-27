@@ -55,6 +55,10 @@ import { loadAudioSettings, useAudioSettings } from './src/hooks/useAudioSetting
 import { SettingsScreen } from './src/components/settings/SettingsScreen';
 import { SetupScreen, GameConfig } from './src/components/setup/SetupScreen';
 
+// AI Opponent imports
+import { useAIOpponent } from './src/hooks/useAIOpponent';
+import { AIIslandMinimap } from './src/components/game/AIIslandMinimap';
+
 const MENU_ICON_SIZE = 28;
 
 const MenuBuildingIcon = ({ type }: { type: string }) => {
@@ -114,6 +118,26 @@ export default function App() {
   // Audio settings hook
   const { isAudioEnabled, toggleAllAudio } = useAudioSettings();
   
+  // AI Opponent hook
+  const {
+    aiIsland,
+    aiGold,
+    aiPopulation,
+    aiScore,
+    aiScoreBreakdown,
+    initializeAI,
+    processAIRoundEnd,
+    lastAIAction,
+  } = useAIOpponent({
+    difficulty,
+    mode,
+    isRoundActive,
+    round,
+    maxRounds,
+    playerIsland: island,
+    enabled: true, // AI is always enabled for now
+  });
+  
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const rainTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -165,7 +189,10 @@ export default function App() {
     setShowGameOver(false);
     setShowRoundTransition(null);
     setToast(null);
-  }, []);
+    
+    // Initialize AI opponent
+    setTimeout(() => initializeAI(), 100);
+  }, [initializeAI]);
 
   // Return to setup screen
   const returnToSetup = useCallback(() => {
@@ -335,9 +362,15 @@ export default function App() {
     
     setIsland({ ...island, tiles: updatedTiles });
     
+    // Process AI round end
+    processAIRoundEnd();
+    
     // Check for game over
     if (round >= maxRounds) {
-      if (totalScore >= 70) {
+      // Determine winner: player vs AI
+      const playerWins = totalScore > aiScore;
+      const tie = totalScore === aiScore;
+      if (playerWins || (tie && totalScore >= 70)) {
         Sounds.gameOverWin();
       } else {
         Sounds.gameOverLose();
@@ -670,10 +703,22 @@ export default function App() {
         </View>
       )}
       
+      {/* AI Opponent Minimap */}
+      <AIIslandMinimap
+        island={aiIsland}
+        score={aiScore}
+        gold={aiGold}
+        population={aiPopulation}
+        difficulty={difficulty}
+        visible={round > 0 && !showBuildMenu && !showGameOver}
+        lastAction={lastAIAction}
+      />
+      
       {/* End Game Summary */}
       {showGameOver && island && (
         <EndGameSummary
           score={score}
+          scoreBreakdown={scoreBreakdown}
           population={population}
           gold={gold}
           buildings={{
@@ -688,7 +733,10 @@ export default function App() {
             fishing: island.boats.filter(b => b.type === 'fishing').length,
             pt: island.boats.filter(b => b.type === 'pt').length,
           }}
-          onPlayAgain={initGame}
+          aiScore={aiScore}
+          aiScoreBreakdown={aiScoreBreakdown}
+          difficulty={difficulty}
+          onPlayAgain={() => { initGame(); initializeAI(); }}
           onMainMenu={returnToSetup}
         />
       )}

@@ -356,40 +356,96 @@ game_score1.mp3, gamePlay1.mp3
 - [x] Movement speed (400ms per tile)
 - [x] Gentle bobbing animation while idle
 - [x] Path completion callbacks
+- [x] "No path" error when destination unreachable
 
-**Building Animations (SVG SMIL)**
-- [x] Factory smoke rising and fading (multiple puffs, staggered)
-- [x] Factory windows flickering
-- [x] Factory gear rotating
-- [x] House chimney smoke wisps
-- [x] School bell swinging
-- [x] School clock minute hand rotating
-- [x] Fort flag waving
-- [x] Hospital cross pulsing
-- [x] Farm crops swaying in breeze
+**Building Icons (Static SVG)**
+- [x] Detailed SVG icons with smoke, flags, etc.
+- [x] House with chimney smoke wisps
+- [x] Factory with smoke stacks and gear
+- [x] Farm with crop rows and grain heads
+- [x] School with bell tower and clock
+- [x] Fort with waving flag and portcullis
+- [x] Hospital with red cross
+- Note: SMIL animations (`<animate>`, `<animateTransform>`) not supported in react-native-svg
 
 **UI Animations**
-- [x] Build menu slide in/out with scale bounce
+- [x] Build menu slide in/out (React Native Animated API)
 - [x] Build menu backdrop fade
-- [x] Gold change flash effect
-- [x] Score change flash effect
+- [x] Gold/Population/Score flash effect on change
 - [x] Resource value change indicators (+/- floating up)
+- [x] Fixed build menu layout for wide screens (fixed 70px item width)
+
+**Header UX**
+- [x] Reset map button (↻) only visible before game starts (round === 0)
 
 **New Files:**
 - `src/services/boatPathfinding.ts` - BFS pathfinding
-- `src/components/game/AnimatedIcons.tsx` - Animated building SVGs
+- `src/components/game/AnimatedIcons.tsx` - Detailed static building SVGs
 - `src/components/game/AnimatedBoat.tsx` - Boat with path animation
 - `src/components/game/AnimatedBuildMenu.tsx` - Sliding build menu
 - `src/components/game/AnimatedResourceBar.tsx` - Flash effects
-- `src/components/game/Island.tsx` - Updated with animated buildings
+- `src/components/game/Island.tsx` - Updated with building icons
 
-### Phase 7: AI Opponent
-- [ ] Utility-based decision architecture
-- [ ] Building placement strategy
-- [ ] Boat deployment strategy
-- [ ] Sabotage decision logic
-- [ ] Difficulty tuning parameters
-- [ ] Aggression scaling
+**Technical Notes:**
+- SVG SMIL animations don't work in React Native SVG (web-only feature)
+- For future animated buildings, would need react-native-reanimated with SVG transforms
+- Build menu uses fixed pixel widths to prevent oversizing on wide screens
+
+### Phase 7: AI Opponent ✅ COMPLETE
+
+**AI Decision Architecture**
+- [x] Utility-based decision system (evaluates score for each action)
+- [x] Game phase awareness (early/mid/late game priorities)
+- [x] Score breakdown analysis (housing, food, welfare, GDP deficiencies)
+- [x] Building synergy detection (factory + school/hospital combos)
+
+**Building Placement Strategy**
+- [x] Priority scoring based on current needs
+- [x] Farm/House priority early game for food and housing scores
+- [x] Factory priority mid-game when income needed
+- [x] Hospital/School for welfare score
+- [x] Fort placement near rebels or preventatively
+
+**Boat Deployment Strategy**
+- [x] Fishing boat deployment for food and income
+- [x] PT boat deployment based on aggression level
+- [x] Coastal tile detection for boat spawning
+
+**Difficulty Settings**
+- [x] Easy: 3s decisions, 60% build chance, 50% optimal choice, 80% income
+- [x] Normal: 2s decisions, 75% build chance, 75% optimal choice, 100% income
+- [x] Hard: 1.5s decisions, 90% build chance, 95% optimal choice, 120% income
+
+**Aggression System**
+- [x] Base PT aggression per difficulty
+- [x] Aggression scaling per round (+2-5% per round)
+- [x] PT boat targeting player fishing boats
+- [x] Patrol near player island waters
+
+**AI State Management**
+- [x] Separate island generation for AI
+- [x] Independent gold, population, score tracking
+- [x] Round-end income/population/score calculation
+- [x] Same formulas as player for fairness
+
+**UI Components**
+- [x] AI Island Minimap (tap to expand)
+- [x] Real-time AI stats display (score, gold, population)
+- [x] Difficulty badge indicator
+- [x] Last action display
+- [x] Expanded view with legend
+
+**New Files:**
+- `src/services/aiOpponent.ts` - AI decision engine and utilities
+- `src/hooks/useAIOpponent.ts` - React hook for AI state management
+- `src/components/game/AIIslandMinimap.tsx` - Minimap with expand modal
+- `src/components/game/OpponentStatus.tsx` - Compact status display
+
+**Technical Notes:**
+- AI runs on setInterval during active rounds
+- Decision delay varies by difficulty (1.5-3 seconds)
+- All logic is local - no API calls or costs
+- AI uses same scoring/income formulas as player
 
 ### Phase 8: Multiplayer
 - [ ] Room-based lobby (leverage existing IJBA infra)
@@ -474,6 +530,11 @@ C:\dev\Eutopia\
 │   ├── components/
 │   │   ├── game/
 │   │   │   ├── Icons.tsx            # All building/boat SVG icons
+│   │   │   ├── AnimatedIcons.tsx    # Detailed static building SVGs
+│   │   │   ├── AnimatedBoat.tsx     # Boat with path animation
+│   │   │   ├── AnimatedBuildMenu.tsx # Sliding build menu
+│   │   │   ├── AnimatedResourceBar.tsx # Flash effects on value change
+│   │   │   ├── Island.tsx           # Map renderer with tiles
 │   │   │   ├── RainCloud.tsx
 │   │   │   ├── ScoreDisplay.tsx
 │   │   │   ├── EndGameSummary.tsx
@@ -482,14 +543,19 @@ C:\dev\Eutopia\
 │   │   │   └── ResourceBar.tsx
 │   │   ├── settings/
 │   │   │   └── SettingsScreen.tsx   # Audio settings overlay
+│   │   ├── setup/
+│   │   │   └── SetupScreen.tsx      # Pre-game configuration
 │   │   └── index.ts
 │   ├── constants/
 │   │   └── game.ts                  # BUILDINGS, BALANCE, etc.
 │   ├── hooks/
-│   │   └── useAudioSettings.ts      # Audio settings hook
+│   │   ├── useAudioSettings.ts      # Audio settings hook
+│   │   └── useAIOpponent.ts         # AI state management hook
 │   ├── services/
 │   │   ├── islandGenerator.ts
-│   │   └── soundManager.ts          # Sound & music manager
+│   │   ├── soundManager.ts          # Sound & music manager
+│   │   ├── boatPathfinding.ts       # BFS pathfinding for boats
+│   │   └── aiOpponent.ts            # AI decision engine
 │   └── types/
 │       └── index.ts
 └── package.json
@@ -499,16 +565,17 @@ C:\dev\Eutopia\
 
 ## Notes
 
-- Mode selection (Original vs Enhanced) will move to setup screen
+- ~~Mode selection (Original vs Enhanced) will move to setup screen~~ ✅ Done
 - PT boat combat mechanics TBD
 - Enhanced mode building effects TBD (dock bonus, lighthouse radius, etc.)
 - Consider haptic feedback for mobile
 - Rain could affect specific tiles visually, not just gold bonus
 - expo-av is deprecated in SDK 54 - may need migration to expo-audio in future
+- SVG SMIL animations not supported in React Native - use Reanimated for future animations
 
 ---
 
-*Last Updated: Session 6 (Jan 23, 2026)*
+*Last Updated: Session 7 (Jan 26, 2026)*
 
 ---
 
@@ -523,13 +590,14 @@ C:\dev\Eutopia\
 | 4 | Sound & Audio System | ✅ Complete |
 | 5 | Setup Screen | ✅ Complete |
 | 6 | Animations & Polish | ✅ Complete |
-| 7 | AI Opponent | ⏳ Next |
-| 8 | Multiplayer | 🔜 Planned |
+| 7 | AI Opponent | ✅ Complete |
+| 8 | Multiplayer | ⏳ Next |
 | 9 | Enhanced Mode Features | 🔜 Planned |
 | 10 | Final Polish | 🔜 Planned |
 
 **Known Issues:**
 - ~~Can build before game starts~~ ✅ Fixed (now shows "Press START to begin")
-- PT boat combat not yet implemented
+- PT boat combat not yet implemented (AI PT boats track but don't destroy)
 - Enhanced mode building effects not yet implemented
 - Weather animations (storms, lightning, hurricanes) not yet implemented
+- AI minimap needs integration into App.tsx (components ready)
