@@ -7,14 +7,12 @@ import Svg, { Rect, Defs, LinearGradient, Stop, G, Circle, Ellipse, Path } from 
 import { Island as IslandType, Position, Tile, Boat } from '../../types';
 import { GRID_WIDTH, GRID_HEIGHT } from '../../constants/game';
 import {
-  AnimatedHouseIcon,
-  AnimatedFactoryIcon,
-  AnimatedFarmIcon,
-  AnimatedHospitalIcon,
-  AnimatedSchoolIcon,
-  AnimatedFortIcon,
-} from './AnimatedIcons';
-import {
+  HouseIcon,
+  FarmIcon,
+  FactoryIcon,
+  HospitalIcon,
+  SchoolIcon,
+  FortIcon,
   ApartmentIcon,
   DockIcon,
   LighthouseIcon,
@@ -35,24 +33,23 @@ interface IslandProps {
   onBoatPress: (boat: Boat) => void;
 }
 
-// Building icon component that uses animated or static version
-const BuildingIcon = ({ type, size, animated }: { type: string; size: number; animated: boolean }) => {
+// Building icon component - all use consistent Icons.tsx
+const BuildingIcon = ({ type, size }: { type: string; size: number }) => {
   const iconSize = size * 0.85;
   
   switch (type) {
     case 'house':
-      return <AnimatedHouseIcon size={iconSize} animated={animated} />;
+      return <HouseIcon size={iconSize} />;
     case 'factory':
-      return <AnimatedFactoryIcon size={iconSize} animated={animated} />;
+      return <FactoryIcon size={iconSize} />;
     case 'farm':
-      return <AnimatedFarmIcon size={iconSize} animated={animated} />;
+      return <FarmIcon size={iconSize} />;
     case 'hospital':
-      return <AnimatedHospitalIcon size={iconSize} animated={animated} />;
+      return <HospitalIcon size={iconSize} />;
     case 'school':
-      return <AnimatedSchoolIcon size={iconSize} animated={animated} />;
+      return <SchoolIcon size={iconSize} />;
     case 'fort':
-      return <AnimatedFortIcon size={iconSize} animated={animated} />;
-    // Enhanced mode buildings (no special animations yet)
+      return <FortIcon size={iconSize} />;
     case 'apartment':
       return <ApartmentIcon size={iconSize} />;
     case 'dock':
@@ -197,7 +194,6 @@ export const Island: React.FC<IslandProps> = ({
                   <BuildingIcon 
                     type={tile.building} 
                     size={tileSize} 
-                    animated={animationsEnabled} 
                   />
                 </View>
               )}
