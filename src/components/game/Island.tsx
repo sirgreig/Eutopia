@@ -1,10 +1,12 @@
 // src/components/game/Island.tsx
-// Main island map component with animated buildings and boats
+// Main island map component with two-layer rendering:
+// Layer 1: Seamless water background
+// Layer 2: Land tiles on top
 
 import React, { useMemo } from 'react';
-import { View, StyleSheet, Pressable } from 'react-native';
-import Svg, { Rect, Defs, LinearGradient, Stop, G, Circle, Ellipse, Path } from 'react-native-svg';
-import { Island as IslandType, Position, Tile, Boat } from '../../types';
+import { View, StyleSheet, Pressable, GestureResponderEvent } from 'react-native';
+import Svg, { Rect, Defs, LinearGradient, Stop, G, Circle, Path } from 'react-native-svg';
+import { Island as IslandType, Position, Tile, WaterPosition } from '../../types';
 import { GRID_WIDTH, GRID_HEIGHT } from '../../constants/game';
 import {
   HouseIcon,
@@ -20,17 +22,15 @@ import {
   MarketplaceIcon,
   WatchtowerIcon,
 } from './Icons';
-import { Sounds } from '../../services/soundManager';
 
 interface IslandProps {
   island: IslandType;
   tileSize: number;
   selectedTile: Position | null;
-  selectedBoat: string | null;
-  animationsEnabled?: boolean;
+  selectedBoatId: string | null;
   onTilePress: (position: Position, tile: Tile) => void;
-  onWaterPress: (position: Position) => void;
-  onBoatPress: (boat: Boat) => void;
+  onWaterTap: (waterPosition: WaterPosition, screenX: number, screenY: number) => void;
+  children?: React.ReactNode; // For rendering boats on top
 }
 
 // Building icon component - all use consistent Icons.tsx
@@ -71,11 +71,10 @@ export const Island: React.FC<IslandProps> = ({
   island,
   tileSize,
   selectedTile,
-  selectedBoat,
-  animationsEnabled = true,
+  selectedBoatId,
   onTilePress,
-  onWaterPress,
-  onBoatPress,
+  onWaterTap,
+  children,
 }) => {
   const width = GRID_WIDTH * tileSize;
   const height = GRID_HEIGHT * tileSize;
@@ -89,15 +88,6 @@ export const Island: React.FC<IslandProps> = ({
     return map;
   }, [island.tiles]);
   
-  // Create boat lookup map
-  const boatMap = useMemo(() => {
-    const map = new Map<string, Boat>();
-    island.boats.forEach(boat => {
-      map.set(`${boat.position.x},${boat.position.y}`, boat);
-    });
-    return map;
-  }, [island.boats]);
-  
   const isLand = (x: number, y: number) => tileMap.has(`${x},${y}`);
   
   const getCoastalEdges = (x: number, y: number) => ({
@@ -107,37 +97,89 @@ export const Island: React.FC<IslandProps> = ({
     right: x < GRID_WIDTH - 1 && !isLand(x + 1, y),
   });
   
-  const handleCellPress = (x: number, y: number) => {
-    const tile = tileMap.get(`${x},${y}`);
-    const boat = boatMap.get(`${x},${y}`);
+  // Unified tap handler - placed on top to catch all taps
+  const handleMapPress = (event: GestureResponderEvent) => {
+    const { locationX, locationY } = event.nativeEvent;
     
-    if (boat) {
-      Sounds.boatSelect();
-      onBoatPress(boat);
-    } else if (tile) {
-      Sounds.tileClick();
+    // Convert to grid coordinates
+    const gridX = Math.floor(locationX / tileSize);
+    const gridY = Math.floor(locationY / tileSize);
+    
+    // Check if tapped on land or water
+    const tile = tileMap.get(`${gridX},${gridY}`);
+    
+    if (tile) {
+      // Tapped on land - forward to tile handler
       onTilePress(tile.position, tile);
     } else {
-      Sounds.tileClick();
-      onWaterPress({ x, y });
+      // Tapped on water - convert to continuous coordinates
+      const waterX = locationX / tileSize;
+      const waterY = locationY / tileSize;
+      onWaterTap({ x: waterX, y: waterY }, locationX, locationY);
     }
   };
   
-  // Generate all grid cells
-  const cells = [];
-  for (let y = 0; y < GRID_HEIGHT; y++) {
-    for (let x = 0; x < GRID_WIDTH; x++) {
-      const tile = tileMap.get(`${x},${y}`);
-      const boat = boatMap.get(`${x},${y}`);
-      const isSelected = selectedTile?.x === x && selectedTile?.y === y;
-      const isBoatSelected = boat && selectedBoat === boat.id;
-      const coastalEdges = tile ? getCoastalEdges(x, y) : null;
+  // Generate wave pattern paths for seamless water
+  const generateWaves = () => {
+    const waves = [];
+    const waveSpacing = 40; // pixels between wave rows
+    const numWaves = Math.ceil(height / waveSpacing) + 1;
+    
+    for (let i = 0; i < numWaves; i++) {
+      const y = i * waveSpacing;
+      const offset = (i % 2) * 20; // Alternate offset for natural look
+      waves.push(
+        <Path
+          key={`wave-${i}`}
+          d={`M${-20 + offset},${y} Q${width * 0.25 + offset},${y - 8} ${width * 0.5 + offset},${y} T${width + 20 + offset},${y}`}
+          stroke="#2a7aba"
+          strokeWidth="1.5"
+          fill="none"
+          opacity={0.3 + (i % 3) * 0.1}
+        />
+      );
+    }
+    return waves;
+  };
+  
+  // Generate sparkle highlights on water
+  const generateSparkles = () => {
+    const sparkles = [];
+    const numSparkles = 30;
+    
+    for (let i = 0; i < numSparkles; i++) {
+      // Pseudo-random positions based on index
+      const x = ((i * 73) % width);
+      const y = ((i * 47) % height);
+      const size = 1 + (i % 3) * 0.5;
+      const opacity = 0.2 + (i % 4) * 0.1;
       
-      cells.push(
-        <Pressable
-          key={`cell-${x}-${y}`}
+      sparkles.push(
+        <Circle
+          key={`sparkle-${i}`}
+          cx={x}
+          cy={y}
+          r={size}
+          fill="#fff"
+          opacity={opacity}
+        />
+      );
+    }
+    return sparkles;
+  };
+  
+  // Generate land tiles (visual only - taps handled by unified tap layer)
+  const landTiles = useMemo(() => {
+    return island.tiles.map(tile => {
+      const { x, y } = tile.position;
+      const isSelected = selectedTile?.x === x && selectedTile?.y === y;
+      const coastalEdges = getCoastalEdges(x, y);
+      
+      return (
+        <View
+          key={`land-${x}-${y}`}
           style={[
-            styles.cell,
+            styles.landTile,
             {
               left: x * tileSize + 1,
               top: y * tileSize + 1,
@@ -145,114 +187,104 @@ export const Island: React.FC<IslandProps> = ({
               height: tileSize - 2,
             },
             isSelected && styles.selectedCell,
-            isBoatSelected && styles.selectedBoatCell,
           ]}
-          onPress={() => handleCellPress(x, y)}
+          pointerEvents="none"
         >
-          {tile ? (
-            <View style={styles.landTile}>
-              {/* Land background */}
-              <Svg width={tileSize - 2} height={tileSize - 2} style={styles.tileSvg}>
-                <Defs>
-                  <LinearGradient id={`landGrad-${x}-${y}`} x1="0" y1="0" x2="0" y2="1">
-                    <Stop offset="0" stopColor="#6b8e4e" />
-                    <Stop offset="1" stopColor="#4a7c3b" />
-                  </LinearGradient>
-                </Defs>
-                <Rect 
-                  x="0" y="0" 
-                  width={tileSize - 2} height={tileSize - 2} 
-                  fill={`url(#landGrad-${x}-${y})`}
-                  rx="4"
-                />
-                {/* Sandy beach edges */}
-                {coastalEdges?.top && (
-                  <Rect x="0" y="0" width={tileSize - 2} height="6" fill="#d4b896" rx="4" />
-                )}
-                {coastalEdges?.bottom && (
-                  <Rect x="0" y={tileSize - 8} width={tileSize - 2} height="6" fill="#d4b896" />
-                )}
-                {coastalEdges?.left && (
-                  <Rect x="0" y="0" width="6" height={tileSize - 2} fill="#d4b896" rx="4" />
-                )}
-                {coastalEdges?.right && (
-                  <Rect x={tileSize - 8} y="0" width="6" height={tileSize - 2} fill="#d4b896" />
-                )}
-                {/* Grass texture dots */}
-                {!tile.building && (
-                  <G>
-                    <Circle cx={tileSize * 0.25} cy={tileSize * 0.3} r="2" fill="#5a9c3e" opacity="0.6" />
-                    <Circle cx={tileSize * 0.6} cy={tileSize * 0.5} r="1.5" fill="#5a9c3e" opacity="0.5" />
-                    <Circle cx={tileSize * 0.4} cy={tileSize * 0.7} r="2" fill="#5a9c3e" opacity="0.4" />
-                  </G>
-                )}
-              </Svg>
-              
-              {/* Building overlay */}
-              {tile.building && (
-                <View style={styles.buildingOverlay}>
-                  <BuildingIcon 
-                    type={tile.building} 
-                    size={tileSize} 
-                  />
-                </View>
-              )}
-              
-              {/* Rebel indicator */}
-              {tile.hasRebel && (
-                <View style={styles.rebelIndicator}>
-                  <Svg width={20} height={20} viewBox="0 0 100 100">
-                    <Circle cx="50" cy="50" r="45" fill="#e53935" />
-                    <Path d="M50 25 L55 45 L75 50 L55 55 L50 75 L45 55 L25 50 L45 45 Z" fill="#fff" />
-                  </Svg>
-                </View>
-              )}
+          {/* Land background */}
+          <Svg width={tileSize - 2} height={tileSize - 2} style={styles.tileSvg}>
+            <Defs>
+              <LinearGradient id={`landGrad-${x}-${y}`} x1="0" y1="0" x2="0" y2="1">
+                <Stop offset="0" stopColor="#6b8e4e" />
+                <Stop offset="1" stopColor="#4a7c3b" />
+              </LinearGradient>
+            </Defs>
+            <Rect 
+              x="0" y="0" 
+              width={tileSize - 2} height={tileSize - 2} 
+              fill={`url(#landGrad-${x}-${y})`}
+              rx="4"
+            />
+            {/* Sandy beach edges */}
+            {coastalEdges.top && (
+              <Rect x="0" y="0" width={tileSize - 2} height="6" fill="#d4b896" rx="4" />
+            )}
+            {coastalEdges.bottom && (
+              <Rect x="0" y={tileSize - 8} width={tileSize - 2} height="6" fill="#d4b896" />
+            )}
+            {coastalEdges.left && (
+              <Rect x="0" y="0" width="6" height={tileSize - 2} fill="#d4b896" rx="4" />
+            )}
+            {coastalEdges.right && (
+              <Rect x={tileSize - 8} y="0" width="6" height={tileSize - 2} fill="#d4b896" />
+            )}
+            {/* Grass texture dots */}
+            {!tile.building && (
+              <G>
+                <Circle cx={tileSize * 0.25} cy={tileSize * 0.3} r="2" fill="#5a9c3e" opacity="0.6" />
+                <Circle cx={tileSize * 0.6} cy={tileSize * 0.5} r="1.5" fill="#5a9c3e" opacity="0.5" />
+                <Circle cx={tileSize * 0.4} cy={tileSize * 0.7} r="2" fill="#5a9c3e" opacity="0.4" />
+              </G>
+            )}
+          </Svg>
+          
+          {/* Building overlay */}
+          {tile.building && (
+            <View style={styles.buildingOverlay}>
+              <BuildingIcon 
+                type={tile.building} 
+                size={tileSize} 
+              />
             </View>
-          ) : (
-            <View style={styles.waterTile}>
-              {/* Water background with animated wave pattern */}
-              <Svg width={tileSize - 2} height={tileSize - 2} style={styles.tileSvg}>
-                <Defs>
-                  <LinearGradient id={`waterGrad-${x}-${y}`} x1="0" y1="0" x2="1" y2="1">
-                    <Stop offset="0" stopColor="#1a5a8a" />
-                    <Stop offset="1" stopColor="#0d3a5a" />
-                  </LinearGradient>
-                </Defs>
-                <Rect 
-                  x="0" y="0" 
-                  width={tileSize - 2} height={tileSize - 2} 
-                  fill={`url(#waterGrad-${x}-${y})`}
-                  rx="2"
-                />
-                {/* Wave lines */}
-                <Path 
-                  d={`M0,${tileSize * 0.3} Q${tileSize * 0.25},${tileSize * 0.25} ${tileSize * 0.5},${tileSize * 0.3} T${tileSize},${tileSize * 0.3}`}
-                  stroke="#2a7aba"
-                  strokeWidth="1"
-                  fill="none"
-                  opacity="0.5"
-                />
-                <Path 
-                  d={`M0,${tileSize * 0.6} Q${tileSize * 0.25},${tileSize * 0.55} ${tileSize * 0.5},${tileSize * 0.6} T${tileSize},${tileSize * 0.6}`}
-                  stroke="#2a7aba"
-                  strokeWidth="1"
-                  fill="none"
-                  opacity="0.4"
-                />
-                {/* Sparkle highlights */}
-                <Circle cx={tileSize * 0.2} cy={tileSize * 0.4} r="1" fill="#fff" opacity="0.4" />
-                <Circle cx={tileSize * 0.7} cy={tileSize * 0.2} r="1" fill="#fff" opacity="0.3" />
+          )}
+          
+          {/* Rebel indicator */}
+          {tile.hasRebel && (
+            <View style={styles.rebelIndicator}>
+              <Svg width={20} height={20} viewBox="0 0 100 100">
+                <Circle cx="50" cy="50" r="45" fill="#e53935" />
+                <Path d="M50 25 L55 45 L75 50 L55 55 L50 75 L45 55 L25 50 L45 45 Z" fill="#fff" />
               </Svg>
             </View>
           )}
-        </Pressable>
+        </View>
       );
-    }
-  }
+    });
+  }, [island.tiles, selectedTile, tileSize]);
   
   return (
     <View style={[styles.container, { width, height }]}>
-      {cells}
+      {/* Seamless water background (visual only) */}
+      <View style={styles.waterBackground} pointerEvents="none">
+        <Svg width={width} height={height}>
+          <Defs>
+            <LinearGradient id="waterGradient" x1="0" y1="0" x2="0.3" y2="1">
+              <Stop offset="0" stopColor="#1e6091" />
+              <Stop offset="0.5" stopColor="#155a8a" />
+              <Stop offset="1" stopColor="#0d4a6f" />
+            </LinearGradient>
+          </Defs>
+          {/* Water base */}
+          <Rect x="0" y="0" width={width} height={height} fill="url(#waterGradient)" />
+          {/* Wave patterns */}
+          {generateWaves()}
+          {/* Sparkle highlights */}
+          {generateSparkles()}
+        </Svg>
+      </View>
+      
+      {/* Land tiles layer (visual only) */}
+      {landTiles}
+      
+      {/* Tap layer - handles land and water taps */}
+      <Pressable 
+        style={styles.tapLayer}
+        onPress={handleMapPress}
+      />
+      
+      {/* Boats layer - boats on TOP so they can receive their own taps */}
+      <View style={styles.boatsLayer} pointerEvents="box-none">
+        {children}
+      </View>
     </View>
   );
 };
@@ -260,11 +292,17 @@ export const Island: React.FC<IslandProps> = ({
 const styles = StyleSheet.create({
   container: {
     position: 'relative',
-    backgroundColor: '#0d3a5a',
     borderRadius: 8,
     overflow: 'hidden',
   },
-  cell: {
+  waterBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  landTile: {
     position: 'absolute',
     borderRadius: 4,
     overflow: 'hidden',
@@ -278,25 +316,6 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 5,
   },
-  selectedBoatCell: {
-    borderWidth: 2,
-    borderColor: '#ffc107',
-    shadowColor: '#ffc107',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 6,
-    elevation: 5,
-  },
-  landTile: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  waterTile: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   tileSvg: {
     position: 'absolute',
     top: 0,
@@ -306,6 +325,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     justifyContent: 'center',
     alignItems: 'center',
+    width: '100%',
+    height: '100%',
   },
   rebelIndicator: {
     position: 'absolute',
@@ -313,6 +334,21 @@ const styles = StyleSheet.create({
     right: 2,
     width: 20,
     height: 20,
+  },
+  boatsLayer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  tapLayer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'transparent',
   },
 });
 

@@ -35,17 +35,24 @@ import { Toast } from './src/components/game/Toast';
 import { RoundTransition } from './src/components/game/RoundTransition';
 import { AnimatedResourceBar } from './src/components/game/AnimatedResourceBar';
 import { AnimatedBuildMenu } from './src/components/game/AnimatedBuildMenu';
-import { AnimatedBoat } from './src/components/game/AnimatedBoat';
+import { FreeRoamBoat, DestinationMarker } from './src/components/game/FreeRoamBoat';
 import { generateIsland } from './src/services/islandGenerator';
-import { findPath } from './src/services/boatPathfinding';
+import { generateCoastline } from './src/services/coastlineDetection';
+import { 
+  createFreeRoamBoat, 
+  setBoatDestination, 
+  updateBoat,
+} from './src/services/boatMovement';
 import { 
   Island as IslandType, 
   Position, 
   Tile, 
   BuildingType, 
   GameMode,
-  Boat,
   BoatType,
+  FreeRoamBoat as FreeRoamBoatType,
+  WaterPosition,
+  Coastline,
 } from './src/types';
 import { BUILDINGS, BOAT_COSTS, BALANCE, GRID_WIDTH, GRID_HEIGHT, getAvailableBuildings } from './src/constants/game';
 
@@ -112,8 +119,14 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showSetup, setShowSetup] = useState(true); // Start on setup screen
   const [showQuitConfirm, setShowQuitConfirm] = useState(false); // Quit confirmation dialog
-  const [boatPaths, setBoatPaths] = useState<Map<string, Position[]>>(new Map()); // Boat movement paths
   const [animationsEnabled, setAnimationsEnabled] = useState(true); // Toggle for animations
+  
+  // Free-roam boat system state
+  const [freeRoamBoats, setFreeRoamBoats] = useState<FreeRoamBoatType[]>([]);
+  const [coastline, setCoastline] = useState<Coastline | null>(null);
+  const [destinationMarker, setDestinationMarker] = useState<WaterPosition | null>(null);
+  const boatUpdateRef = useRef<number | null>(null);
+  const lastUpdateTimeRef = useRef<number>(Date.now());
   
   // Audio settings hook
   const { isAudioEnabled, toggleAllAudio } = useAudioSettings();
@@ -148,6 +161,8 @@ export default function App() {
   const initGame = useCallback(() => {
     const newIsland = generateIsland();
     setIsland(newIsland);
+    setCoastline(generateCoastline(newIsland));
+    setFreeRoamBoats([]);
     setGold(BALANCE.startingGold);
     setPopulation(BALANCE.startingPopulation);
     setScore(50);
@@ -157,6 +172,7 @@ export default function App() {
     setIsRoundActive(false);
     setSelectedTile(null);
     setSelectedBoat(null);
+    setDestinationMarker(null);
     setShowBuildMenu(false);
     setShowRainCloud(false);
     setShowGameOver(false);
@@ -175,6 +191,8 @@ export default function App() {
     // Initialize game with new config
     const newIsland = generateIsland();
     setIsland(newIsland);
+    setCoastline(generateCoastline(newIsland));
+    setFreeRoamBoats([]);
     setGold(BALANCE.startingGold);
     setPopulation(BALANCE.startingPopulation);
     setScore(50);
@@ -184,6 +202,7 @@ export default function App() {
     setIsRoundActive(false);
     setSelectedTile(null);
     setSelectedBoat(null);
+    setDestinationMarker(null);
     setShowBuildMenu(false);
     setShowRainCloud(false);
     setShowGameOver(false);
@@ -263,6 +282,45 @@ export default function App() {
     }
   }, [isRoundActive, island, tileSize]);
 
+  // Free-roam boat physics game loop
+  useEffect(() => {
+    if (!coastline || !island || freeRoamBoats.length === 0) {
+      return;
+    }
+    
+    const updateBoats = () => {
+      const now = Date.now();
+      const deltaTime = (now - lastUpdateTimeRef.current) / 1000; // Convert to seconds
+      lastUpdateTimeRef.current = now;
+      
+      // Cap deltaTime to prevent huge jumps
+      const dt = Math.min(deltaTime, 0.1);
+      
+      setFreeRoamBoats(prevBoats => {
+        return prevBoats.map(boat => 
+          updateBoat(boat, dt, coastline, island, prevBoats)
+        );
+      });
+      
+      // Clear destination marker when boat arrives
+      const selectedBoatObj = freeRoamBoats.find(b => b.id === selectedBoat);
+      if (selectedBoatObj && !selectedBoatObj.isMoving && destinationMarker) {
+        setDestinationMarker(null);
+      }
+      
+      boatUpdateRef.current = requestAnimationFrame(updateBoats);
+    };
+    
+    lastUpdateTimeRef.current = Date.now();
+    boatUpdateRef.current = requestAnimationFrame(updateBoats);
+    
+    return () => {
+      if (boatUpdateRef.current) {
+        cancelAnimationFrame(boatUpdateRef.current);
+      }
+    };
+  }, [coastline, island, freeRoamBoats.length > 0, selectedBoat, destinationMarker]);
+
   const startRound = () => {
     Sounds.buttonClick();
     if (round >= maxRounds) {
@@ -292,11 +350,10 @@ export default function App() {
     if (!island) return;
     
     const tiles = island.tiles;
-    const boats = island.boats;
     const factories = tiles.filter(t => t.building === 'factory').length;
     const schools = tiles.filter(t => t.building === 'school').length;
     const hospitals = tiles.filter(t => t.building === 'hospital').length;
-    const fishingBoats = boats.filter(b => b.type === 'fishing').length;
+    const fishingBoats = freeRoamBoats.filter(b => b.type === 'fishing').length;
     const crops = tiles.filter(t => t.building === 'farm').length;
     const houses = tiles.filter(t => t.building === 'house').length;
     const forts = tiles.filter(t => t.building === 'fort').length;
@@ -324,12 +381,14 @@ export default function App() {
     setScore(totalScore);
     
     // Rebel spawning (low score = more rebels)
+    // Authentic Utopia behavior: rebels destroy buildings on the tile
     let updatedTiles = [...tiles];
     if (totalScore < BALANCE.rebellionLowScore && Math.random() < 0.4) {
       // Spawn rebel on random non-fort-protected tile
       const fortPositions = tiles.filter(t => t.building === 'fort').map(t => t.position);
       const unprotectedTiles = tiles.filter(t => {
         if (t.hasRebel) return false;
+        if (t.building === 'fort') return false; // Forts can't be rebelled
         // Check if within fort radius
         for (const fort of fortPositions) {
           if (Math.abs(t.position.x - fort.x) <= BALANCE.fortRadius && 
@@ -342,11 +401,17 @@ export default function App() {
       
       if (unprotectedTiles.length > 0) {
         const rebelTile = unprotectedTiles[Math.floor(Math.random() * unprotectedTiles.length)];
+        const destroyedBuilding = rebelTile.building;
         updatedTiles = updatedTiles.map(t => 
-          t.id === rebelTile.id ? { ...t, hasRebel: true } : t
+          t.id === rebelTile.id ? { ...t, hasRebel: true, building: undefined } : t
         );
         Sounds.rebelAppear();
-        showToast('Rebel appeared!', 'rebel');
+        if (destroyedBuilding) {
+          const buildingName = BUILDINGS.find(b => b.type === destroyedBuilding)?.name || destroyedBuilding;
+          showToast(`Rebels destroyed ${buildingName}!`, 'rebel');
+        } else {
+          showToast('Rebel appeared!', 'rebel');
+        }
       }
     }
     
@@ -416,6 +481,10 @@ export default function App() {
       showToast(b?.name || '', 'build');
       return; 
     }
+    if (tile.hasRebel) {
+      showToast('Rebels occupy this tile!', 'rebel');
+      return;
+    }
     if (round === 0) {
       showToast('Press START to begin', 'round');
       return;
@@ -432,63 +501,44 @@ export default function App() {
     setShowBuildMenu(true);
   };
 
-  const handleWaterPress = (position: Position) => {
-    if (!island || !selectedBoat) return;
+  // Handle tap on water for free-roam boat movement
+  const handleWaterTap = (waterPosition: WaterPosition, screenX: number, screenY: number) => {
+    if (!island || !coastline) return;
     
-    const boat = island.boats.find(b => b.id === selectedBoat);
-    if (!boat) return;
-    
-    // Check if destination is valid water
-    const tileSet = new Set(island.tiles.map(t => `${t.position.x},${t.position.y}`));
-    if (tileSet.has(`${position.x},${position.y}`)) return;
-    
-    // Check if destination is occupied by another boat
-    if (island.boats.find(b => b.id !== selectedBoat && b.position.x === position.x && b.position.y === position.y)) {
-      Sounds.buildError();
-      showToast('Occupied', 'error');
-      return;
+    // If a boat is selected, set its destination
+    if (selectedBoat) {
+      const boat = freeRoamBoats.find(b => b.id === selectedBoat);
+      if (!boat) return;
+      
+      // Try to set the destination (will use pathfinding)
+      const updatedBoat = setBoatDestination(boat, waterPosition, island);
+      
+      // Check if path was found (waypoints would be set)
+      if (updatedBoat.waypoints.length === 0) {
+        Sounds.buildError();
+        showToast('No path', 'error');
+        return;
+      }
+      
+      Sounds.boatMove();
+      setFreeRoamBoats(prev => prev.map(b => 
+        b.id === selectedBoat ? updatedBoat : b
+      ));
+      setDestinationMarker(waterPosition);
+      setSelectedBoat(null);
     }
-    
-    // Find path using BFS
-    const path = findPath(boat.position, position, island, boat.id);
-    
-    if (!path || path.length === 0) {
-      Sounds.buildError();
-      showToast('No path', 'error');
-      return;
-    }
-    
-    // Start animated movement
-    Sounds.boatMove();
-    setBoatPaths(prev => new Map(prev).set(boat.id, path));
-    setSelectedBoat(null);
   };
 
-  // Handle boat movement updates during animation
-  const handleBoatMoveComplete = useCallback((boatId: string, newPosition: Position) => {
-    setIsland(prev => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        boats: prev.boats.map(b => 
-          b.id === boatId ? { ...b, position: newPosition } : b
-        ),
-      };
-    });
-  }, []);
-
-  // Handle when boat finishes entire path
-  const handleBoatPathComplete = useCallback((boatId: string) => {
-    setBoatPaths(prev => {
-      const next = new Map(prev);
-      next.delete(boatId);
-      return next;
-    });
-  }, []);
-
-  const handleBoatPress = (boat: Boat) => {
+  // Handle tapping on a free-roam boat
+  const handleBoatPress = (boat: FreeRoamBoatType) => {
     Sounds.boatSelect();
-    setSelectedBoat(selectedBoat === boat.id ? null : boat.id);
+    if (selectedBoat === boat.id) {
+      setSelectedBoat(null);
+      setDestinationMarker(null);
+    } else {
+      setSelectedBoat(boat.id);
+      setDestinationMarker(boat.destination);
+    }
     setSelectedTile(null);
   };
 
@@ -496,6 +546,17 @@ export default function App() {
     if (!island || !selectedTile) return;
     const building = BUILDINGS.find(b => b.type === type);
     if (!building || gold < building.cost) return;
+    
+    // Check if tile has rebel - can't build until rebel is cleared
+    const tile = island.tiles.find(t => 
+      t.position.x === selectedTile.x && t.position.y === selectedTile.y
+    );
+    if (tile?.hasRebel) {
+      Sounds.buildError();
+      showToast('Clear rebels first!', 'error');
+      closeBuildMenu();
+      return;
+    }
     
     Sounds.buildPlace();
     setIsland({ ...island, tiles: island.tiles.map(tile => 
@@ -515,21 +576,23 @@ export default function App() {
     if (gold < cost) { Sounds.buildError(); showToast('Need more gold', 'error'); closeBuildMenu(); return; }
     if (!isCoastalTile(selectedTile)) { Sounds.buildError(); showToast('Coast tiles only', 'error'); closeBuildMenu(); return; }
     
-    const spawnPos = findAdjacentWater(selectedTile);
-    if (!spawnPos) { Sounds.buildError(); showToast('No water nearby', 'error'); closeBuildMenu(); return; }
+    // Create free-roam boat
+    const newBoat = createFreeRoamBoat(
+      `boat-${Date.now()}`,
+      type,
+      selectedTile,
+      island
+    );
+    
+    if (!newBoat) { 
+      Sounds.buildError(); 
+      showToast('No water nearby', 'error'); 
+      closeBuildMenu(); 
+      return; 
+    }
     
     Sounds.buildPlace();
-    setIsland({ 
-      ...island, 
-      boats: [...island.boats, { 
-        id: `boat-${Date.now()}`, 
-        type, 
-        position: spawnPos, 
-        owner: 'player', 
-        isMoving: false, 
-        destination: null 
-      }] 
-    });
+    setFreeRoamBoats(prev => [...prev, newBoat]);
     setGold(gold - cost);
     closeBuildMenu();
     showToast(`${type === 'fishing' ? 'Fishing boat' : 'PT boat'} launched`, 'build');
@@ -643,28 +706,29 @@ export default function App() {
               island={island}
               tileSize={tileSize}
               selectedTile={selectedTile}
-              selectedBoat={selectedBoat}
-              animationsEnabled={animationsEnabled}
+              selectedBoatId={selectedBoat}
               onTilePress={handleTilePress}
-              onWaterPress={handleWaterPress}
-              onBoatPress={handleBoatPress}
-            />
-            
-            {/* Animated Boats Layer */}
-            <View style={styles.boatsLayer} pointerEvents="box-none">
-              {island.boats.map(boat => (
-                <AnimatedBoat
+              onWaterTap={handleWaterTap}
+            >
+              {/* Free-roam boats rendered as children */}
+              {freeRoamBoats.map(boat => (
+                <FreeRoamBoat
                   key={boat.id}
                   boat={boat}
                   tileSize={tileSize}
                   selected={selectedBoat === boat.id}
-                  path={boatPaths.get(boat.id) || null}
                   onPress={() => handleBoatPress(boat)}
-                  onMoveComplete={handleBoatMoveComplete}
-                  onPathComplete={handleBoatPathComplete}
                 />
               ))}
-            </View>
+              
+              {/* Destination marker for selected boat */}
+              {destinationMarker && selectedBoat && (
+                <DestinationMarker
+                  destination={destinationMarker}
+                  tileSize={tileSize}
+                />
+              )}
+            </Island>
           </View>
         )}
       </View>
@@ -730,8 +794,8 @@ export default function App() {
             forts: island.tiles.filter(t => t.building === 'fort').length,
           }}
           boats={{
-            fishing: island.boats.filter(b => b.type === 'fishing').length,
-            pt: island.boats.filter(b => b.type === 'pt').length,
+            fishing: freeRoamBoats.filter(b => b.type === 'fishing').length,
+            pt: freeRoamBoats.filter(b => b.type === 'pt').length,
           }}
           aiScore={aiScore}
           aiScoreBreakdown={aiScoreBreakdown}

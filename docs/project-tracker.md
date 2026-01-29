@@ -447,6 +447,69 @@ game_score1.mp3, gamePlay1.mp3
 - All logic is local - no API calls or costs
 - AI uses same scoring/income formulas as player
 
+### Phase 7.5: Free-Roam Water System 🚧 IN PROGRESS
+
+**Architecture Overview**
+- Two-layer system: Tile Grid (Land) + Water Surface (Sea)
+- Land remains discrete tile-based (integers)
+- Water uses continuous coordinates (floats)
+- Boats move freely anywhere on water, bounded by coastline
+
+**Baseline Preserved**
+- Git tag: `v0.7-tile-based` (pre-free-roam state)
+- Branch: `tile-based-backup`
+- Local backup: `eutopia-baseline-phase7.zip`
+
+**Boat Movement Changes**
+- [ ] Convert boat coordinates from integers to floats
+- [ ] Velocity-based movement with heading/direction
+- [ ] Coastline boundary detection (polygon from land tiles)
+- [ ] Smooth animation toward destination
+- [ ] Boat rotation toward heading
+
+**User Interaction Changes**
+- [ ] Tap anywhere on water to set boat destination
+- [ ] Destination marker on water surface
+- [ ] Path preview line (optional)
+
+**Game Mechanics Updates**
+- [ ] Fishing zones: area-based (radius) instead of tile-based
+- [ ] PT boat combat: distance-based targeting
+- [ ] Rain/fish school interaction with continuous positions
+- [ ] Dock spawn points (boats emerge from dock tiles)
+
+**Rendering Changes**
+- [ ] Boats render at any position on water layer
+- [ ] Coastline edge detection for collision
+- [ ] Smooth interpolated movement (not tile-snapping)
+
+**Files to Modify/Create**
+- `src/types/index.ts` - New boat position types (float coords, velocity, heading)
+- `src/services/boatMovement.ts` - New continuous movement system
+- `src/services/coastlineDetection.ts` - Boundary polygon from land tiles
+- `src/components/game/Island.tsx` - Separate water layer rendering
+- `src/components/game/FreeRoamBoat.tsx` - New boat component
+- `App.tsx` - Updated boat state management
+
+### Phase 7.6: Modern Building Icons ✅ COMPLETE
+
+**Icon Style Upgrade**
+- [x] Replaced flat 1997-style icons with modern detailed SVGs
+- [x] Added LinearGradient for depth on walls/roofs
+- [x] Added drop shadows (ellipse beneath buildings)
+- [x] Added edge highlights for lighting direction
+- [x] Added window reflections and architectural details
+- [x] All 12 buildings + 2 boats + construction icon updated
+
+**Technical Changes**
+- [x] Unified icon source: Island.tsx now imports all icons from Icons.tsx
+- [x] Removed dependency on AnimatedIcons.tsx for game board
+- [x] Fixed gradient ID conflicts (schoolWindowGrad, ptWaterGrad)
+
+**Files Updated**
+- `src/components/game/Icons.tsx` - Complete rewrite with modern style
+- `src/components/game/Island.tsx` - Updated imports to use Icons.tsx
+
 ### Phase 8: Multiplayer
 - [ ] Room-based lobby (leverage existing IJBA infra)
 - [ ] WebSocket state sync
@@ -529,9 +592,9 @@ C:\dev\Eutopia\
 ├── src/
 │   ├── components/
 │   │   ├── game/
-│   │   │   ├── Icons.tsx            # All building/boat SVG icons
-│   │   │   ├── AnimatedIcons.tsx    # Detailed static building SVGs
-│   │   │   ├── AnimatedBoat.tsx     # Boat with path animation
+│   │   │   ├── Icons.tsx            # All building/boat SVG icons (modern style)
+│   │   │   ├── AnimatedIcons.tsx    # DEPRECATED - old style icons
+│   │   │   ├── AnimatedBoat.tsx     # Boat with path animation (tile-based)
 │   │   │   ├── AnimatedBuildMenu.tsx # Sliding build menu
 │   │   │   ├── AnimatedResourceBar.tsx # Flash effects on value change
 │   │   │   ├── Island.tsx           # Map renderer with tiles
@@ -540,6 +603,7 @@ C:\dev\Eutopia\
 │   │   │   ├── EndGameSummary.tsx
 │   │   │   ├── Toast.tsx
 │   │   │   ├── RoundTransition.tsx
+│   │   │   ├── AIIslandMinimap.tsx  # AI opponent island minimap
 │   │   │   └── ResourceBar.tsx
 │   │   ├── settings/
 │   │   │   └── SettingsScreen.tsx   # Audio settings overlay
@@ -554,7 +618,7 @@ C:\dev\Eutopia\
 │   ├── services/
 │   │   ├── islandGenerator.ts
 │   │   ├── soundManager.ts          # Sound & music manager
-│   │   ├── boatPathfinding.ts       # BFS pathfinding for boats
+│   │   ├── boatPathfinding.ts       # BFS pathfinding for boats (tile-based, pre-free-roam)
 │   │   └── aiOpponent.ts            # AI decision engine
 │   └── types/
 │       └── index.ts
@@ -566,16 +630,18 @@ C:\dev\Eutopia\
 ## Notes
 
 - ~~Mode selection (Original vs Enhanced) will move to setup screen~~ ✅ Done
-- PT boat combat mechanics TBD
+- PT boat combat mechanics TBD (will be distance-based with free-roam water)
 - Enhanced mode building effects TBD (dock bonus, lighthouse radius, etc.)
 - Consider haptic feedback for mobile
 - Rain could affect specific tiles visually, not just gold bonus
 - expo-av is deprecated in SDK 54 - may need migration to expo-audio in future
 - SVG SMIL animations not supported in React Native - use Reanimated for future animations
+- **Two-layer architecture:** Land (tile grid) + Water (continuous coordinates) for authentic Utopia feel
+- **Baseline tag:** `v0.7-tile-based` preserves pre-free-roam state for potential revert
 
 ---
 
-*Last Updated: Session 7 (Jan 26, 2026)*
+*Last Updated: Session 8 (Jan 27, 2026)*
 
 ---
 
@@ -591,6 +657,8 @@ C:\dev\Eutopia\
 | 5 | Setup Screen | ✅ Complete |
 | 6 | Animations & Polish | ✅ Complete |
 | 7 | AI Opponent | ✅ Complete |
+| 7.5 | Free-Roam Water System | 🚧 In Progress |
+| 7.6 | Modern Building Icons | ✅ Complete |
 | 8 | Multiplayer | ⏳ Next |
 | 9 | Enhanced Mode Features | 🔜 Planned |
 | 10 | Final Polish | 🔜 Planned |
@@ -600,4 +668,4 @@ C:\dev\Eutopia\
 - PT boat combat not yet implemented (AI PT boats track but don't destroy)
 - Enhanced mode building effects not yet implemented
 - Weather animations (storms, lightning, hurricanes) not yet implemented
-- AI minimap needs integration into App.tsx (components ready)
+- ~~AI minimap needs integration into App.tsx~~ ✅ Fixed

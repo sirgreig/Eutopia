@@ -1,5 +1,5 @@
 // src/components/game/AnimatedBuildMenu.tsx
-// Compact build menu with slide animation
+// Compact build menu with slide animation - responsive for all screen sizes
 
 import React, { useEffect, useRef } from 'react';
 import {
@@ -11,6 +11,7 @@ import {
   Animated,
   Easing,
   ScrollView,
+  useWindowDimensions,
 } from 'react-native';
 import { BuildingType, BoatType, GameMode } from '../../types';
 import { BUILDINGS, BOAT_COSTS, getAvailableBuildings } from '../../constants/game';
@@ -70,8 +71,15 @@ export const AnimatedBuildMenu: React.FC<AnimatedBuildMenuProps> = ({
   onSelectBoat,
   onClose,
 }) => {
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const slideAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  
+  // Responsive sizing
+  const isSmallScreen = screenWidth < 400;
+  const itemWidth = isSmallScreen ? Math.floor((screenWidth - 40) / 5) : 70;
+  const boatItemWidth = isSmallScreen ? Math.floor((screenWidth - 40) / 3) : 90;
+  const maxMenuHeight = Math.min(screenHeight * 0.55, 400);
   
   useEffect(() => {
     if (visible) {
@@ -147,7 +155,10 @@ export const AnimatedBuildMenu: React.FC<AnimatedBuildMenuProps> = ({
       <Animated.View 
         style={[
           styles.menu,
-          { transform: [{ translateY }] },
+          { 
+            transform: [{ translateY }],
+            maxHeight: maxMenuHeight,
+          },
         ]}
       >
         {/* Header */}
@@ -172,7 +183,11 @@ export const AnimatedBuildMenu: React.FC<AnimatedBuildMenuProps> = ({
               return (
                 <TouchableOpacity
                   key={b.type}
-                  style={[styles.item, disabled && styles.itemDisabled]}
+                  style={[
+                    styles.item, 
+                    { width: itemWidth },
+                    disabled && styles.itemDisabled
+                  ]}
                   onPress={() => handleBuildingPress(b.type)}
                   activeOpacity={0.7}
                 >
@@ -188,7 +203,11 @@ export const AnimatedBuildMenu: React.FC<AnimatedBuildMenuProps> = ({
           <Text style={styles.sectionLabel}>BOATS</Text>
           <View style={styles.boatRow}>
             <TouchableOpacity
-              style={[styles.boatItem, gold < BOAT_COSTS.fishing && styles.itemDisabled]}
+              style={[
+                styles.boatItem, 
+                { width: boatItemWidth },
+                gold < BOAT_COSTS.fishing && styles.itemDisabled
+              ]}
               onPress={() => handleBoatPress('fishing')}
               activeOpacity={0.7}
             >
@@ -200,7 +219,11 @@ export const AnimatedBuildMenu: React.FC<AnimatedBuildMenuProps> = ({
             </TouchableOpacity>
             
             <TouchableOpacity
-              style={[styles.boatItem, gold < BOAT_COSTS.pt && styles.itemDisabled]}
+              style={[
+                styles.boatItem, 
+                { width: boatItemWidth },
+                gold < BOAT_COSTS.pt && styles.itemDisabled
+              ]}
               onPress={() => handleBoatPress('pt')}
               activeOpacity={0.7}
             >
@@ -231,7 +254,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#1a2a3a',
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
-    maxHeight: '50%',
     borderTopWidth: 1,
     borderLeftWidth: 1,
     borderRightWidth: 1,
@@ -270,7 +292,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   scroll: {
-    maxHeight: 300,
+    flexGrow: 0,
   },
   content: {
     padding: 8,
@@ -287,14 +309,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     marginBottom: 8,
+    justifyContent: 'flex-start',
   },
   item: {
-    width: 70,
     backgroundColor: '#2a3a4a',
     borderRadius: 8,
     padding: 6,
     margin: 3,
     alignItems: 'center',
+    minWidth: 55,
   },
   itemDisabled: {
     opacity: 0.4,
@@ -316,14 +339,15 @@ const styles = StyleSheet.create({
   },
   boatRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
   },
   boatItem: {
-    width: 90,
     backgroundColor: '#2a3a4a',
     borderRadius: 8,
     padding: 8,
     margin: 3,
     alignItems: 'center',
+    minWidth: 70,
   },
 });
 
