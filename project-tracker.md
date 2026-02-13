@@ -367,6 +367,39 @@ Eutopía uses a **freemium model** with four non-intrusive revenue streams desig
 - **Receipt validation:** Server-side validation recommended for Premium unlock
 - **Restore purchases:** Required button in Settings for IAP recovery
 
+### Infrastructure Configuration (Confirmed)
+
+#### Tartan Studios Brand Integration
+| Attribute | Value |
+|-----------|-------|
+| Parent Brand | Tartan Studios |
+| Division | Entertainment |
+| Brand Position | Direct child (no sub-brand) |
+| Website | Listed at tartan-studios.com |
+| Support Email | `support@tartan-studios.com` |
+| Privacy Policy | `https://tartan-studios.com/privacy.html` |
+| Terms of Service | `https://tartan-studios.com/terms.html` |
+
+#### Firebase Configuration
+| Attribute | Value |
+|-----------|-------|
+| Project | **Own dedicated Firebase project** |
+| Project Name | `eutopia` or `tartan-eutopia` (TBD) |
+| Sharing | Not shared with other apps |
+| Services | Auth, Analytics, Crashlytics |
+
+#### AdMob Configuration
+| Attribute | Value |
+|-----------|-------|
+| Publisher ID | `pub-7909587764339962` (shared Tartan Studios account) |
+| App ID | `ca-app-pub-7909587764339962~6992047932` |
+| Ad Unit (Interstitial) | TBD — create in AdMob console |
+| Ad Format | Interstitial video (between rounds) |
+
+*Sibling apps in same AdMob account:*
+- Inside Joke Battle Arena (`ca-app-pub-...3767973080`)
+- Sojourner's Path (`ca-app-pub-...1406802546`)
+
 ### Metrics to Track
 
 | Metric | Purpose |
@@ -576,6 +609,48 @@ C:\Dev\Eutopia\
 - `src/components/game/ScoreDisplay.tsx` — Score breakdown UI
 - `src/components/game/EndGameSummary.tsx` — Game over screen
 - `App.tsx` — Full gameplay loop integration
+
+### Session 4 (Feb 12, 2026)
+**Completed:**
+
+**Bug Fixes:**
+- ✅ Fixed Island component tap handling (unified tap layer architecture)
+- ✅ Fixed competing Pressables causing land tile taps to be ignored
+- ✅ Fixed responsive layout for Build Menu on iPhone (dynamic item widths)
+- ✅ Fixed responsive layout for AI Minimap popup on iPhone (ScrollView + dynamic sizing)
+- ✅ Implemented authentic rebel mechanics (rebels destroy buildings, block construction)
+
+**Monetization & Infrastructure:**
+- ✅ Created Portfolio Overview document for Tartan Studios master project integration
+- ✅ Defined monetization strategy: Freemium with 4 revenue streams
+  - Video ads between rounds (free tier)
+  - Ad-Free IAP ($2.99)
+  - Premium IAP ($4.99) - Enhanced Mode + Ad-Free
+  - Tip Jar ($0.99-$9.99) - non-intrusive in Settings
+- ✅ Created Firebase project for Eutopia (with Google Analytics)
+- ✅ Created Google Analytics account for Tartan Studios
+- ✅ Registered iOS app in Firebase (bundle ID: com.tartanstudios.eutopia)
+- ✅ Created AdMob app entry (ca-app-pub-7909587764339962~6992047932)
+- ✅ Configured EAS Build for development and production
+- ✅ Successfully built iOS development client via EAS
+- ✅ Created AdService with graceful Expo Go fallback
+- ✅ Created useAds hook for easy component integration
+
+**Configuration Files Updated:**
+- `app.json` — Added bundle IDs, AdMob config, SKAdNetwork identifiers, EAS config
+- `eas.json` — Build profiles for development, development-device, preview, production
+
+**Files Added:**
+- `src/services/adService.ts` — Ad service with Expo Go detection, interstitial ad management
+- `src/hooks/useAds.ts` — React hook for ad integration in components
+- `PORTFOLIO_OVERVIEW.md` — Portfolio document for Tartan Studios integration
+- `GoogleService-Info.plist` — Firebase configuration (iOS)
+
+**Infrastructure Decisions Confirmed:**
+- Support email: support@tartan-studios.com
+- Brand position: Direct child of Tartan Studios (Entertainment division)
+- Firebase: Own dedicated project (not shared)
+- Privacy/Terms: Use Tartan Studios pages
 
 ---
 
