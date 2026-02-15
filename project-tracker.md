@@ -654,6 +654,109 @@ C:\Dev\Eutopia\
 
 ---
 
+## ⚠️ BEFORE TESTFLIGHT CHECKLIST
+
+**IMPORTANT: Complete these steps before your first TestFlight build!**
+
+### 1. Create AdMob Interstitial Ad Unit
+- [ ] Go to [AdMob Console](https://admob.google.com)
+- [ ] Select Eutopia app (ca-app-pub-7909587764339962~6992047932)
+- [ ] Click **Ad units** → **Add ad unit** → **Interstitial**
+- [ ] Name it: "Between Rounds Interstitial"
+- [ ] Copy the Ad Unit ID (format: `ca-app-pub-7909587764339962/XXXXXXXXXX`)
+
+### 2. Update adService.ts with Real Ad Unit ID
+- [ ] Open `src/services/adService.ts`
+- [ ] Find line ~15: `: 'ca-app-pub-7909587764339962/XXXXXXXXXX', // TODO: Replace with real ad unit ID`
+- [ ] Replace `XXXXXXXXXX` with your actual Ad Unit ID from step 1
+- [ ] Do this for both iOS and Android sections
+
+### 3. Integrate Ads into Game Flow
+- [ ] In App.tsx, import: `import { useAds } from './src/hooks/useAds';`
+- [ ] Add hook: `const { showAd } = useAds();`
+- [ ] Call `await showAd();` at round end, before starting next round
+
+### 4. Test Ad Integration
+- [ ] Build for TestFlight: `eas build --profile production --platform ios`
+- [ ] Submit to TestFlight: `eas submit --platform ios`
+- [ ] Install via TestFlight and verify ads appear between rounds
+
+### 5. App Store Preparation
+- [ ] Create app listing in App Store Connect
+- [ ] Upload screenshots (iPhone & iPad, landscape)
+- [ ] Write app description
+- [ ] Set privacy policy URL: https://tartan-studios.com/privacy.html
+- [ ] Set support URL: support@tartan-studios.com
+
+---
+
+## Firebase Project (Parked for Future Use)
+
+A Firebase project has been created and configured but is **not currently integrated** into the app due to build compatibility issues with Expo. AdMob alone handles ads + basic analytics for launch.
+
+**Project Details:**
+- Firebase Project: `eutopia` (in Firebase Console)
+- Google Analytics Account: `Tartan Studios`
+- iOS Bundle ID: `com.tartanstudios.eutopia` (registered)
+- Config File: `GoogleService-Info.plist` (downloaded, in project root)
+
+**Available When Needed:**
+- Firebase Analytics (detailed custom event tracking)
+- Crashlytics (crash reporting)
+- Remote Config (A/B testing, feature flags)
+- Authentication (user accounts for multiplayer)
+- Firestore (cloud saves, leaderboards)
+
+**To Activate Later:** Revisit `@react-native-firebase` package integration when Expo compatibility improves or when these features become necessary.
+
+---
+
+### Session 5 (Feb 13, 2026)
+**Completed:**
+
+**Build Menu Fix:**
+- ✅ Redesigned AnimatedBuildMenu for iPhone landscape
+- ✅ Horizontal scrolling single-row layout for screens with height < 450px
+- ✅ All buildings + boats in one swipeable strip with divider
+- ✅ Compact icons (20px) and tighter padding for landscape
+- ✅ Standard layout preserved for iPad/larger screens
+
+**Interactive Tutorial System:**
+- ✅ Created `useTutorial` hook with AsyncStorage persistence
+- ✅ Tutorial only shows for first-time players
+- ✅ "Skip Tutorial" button on every step
+- ✅ Created `TutorialOverlay` component with spotlight effect
+- ✅ Pulsing highlight border on target elements
+- ✅ Position-aware tooltips (above/below/center)
+- ✅ Progress dots showing current step
+- ✅ 6-step tutorial flow:
+  1. Welcome message (auto-advance 2.5s)
+  2. "Tap any green land tile to build" (waits for tap, highlights tile)
+  3. "Now select Crops from the menu below" (centered, waits for selection)
+  4. Gold display explanation (auto-advance 3s)
+  5. Timer explanation (auto-advance 3s)
+  6. Completion message (auto-advance 2s)
+- ✅ Integrated into App.tsx with tutorial action triggers
+- ✅ Tutorial allows building before round starts (for learning)
+- ✅ Interactive steps use `pointerEvents="box-none"` to allow taps through
+- ✅ Added "Replay Tutorial" button to SettingsScreen
+- ✅ Replay immediately starts tutorial and closes settings
+
+**Files Added:**
+- `src/hooks/useTutorial.ts` — Tutorial state management and persistence
+- `src/components/game/TutorialOverlay.tsx` — Spotlight overlay and tooltips
+
+**Files Modified:**
+- `src/components/game/AnimatedBuildMenu.tsx` — Landscape-optimized layout
+- `src/components/settings/SettingsScreen.tsx` — Added Help section with Replay Tutorial
+- `App.tsx` — Tutorial integration, handleReplayTutorial function
+
+**Known Issues / Future Improvements:**
+- Tutorial element positions for spotlight are approximate/hardcoded
+- Could add more tutorial steps for boats, score display, etc.
+
+---
+
 ## Development Task Backlog
 
 ### Phase 1: Core Loop ✅ COMPLETE

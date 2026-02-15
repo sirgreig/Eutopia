@@ -1,21 +1,24 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing } from 'react-native';
-import Svg, { Path, Circle, Ellipse, Line, G } from 'react-native-svg';
+import Svg, { Ellipse, Line, G } from 'react-native-svg';
 
 interface RainCloudProps {
   size: number;
   startX: number;
-  y: number;
+  startY: number;
+  endX: number;
+  endY: number;
   duration?: number;
   onComplete?: () => void;
 }
 
-export function RainCloud({ size, startX, y, duration = 8000, onComplete }: RainCloudProps) {
+export function RainCloud({ size, startX, startY, endX, endY, duration = 10000, onComplete }: RainCloudProps) {
   const translateX = useRef(new Animated.Value(startX)).current;
+  const translateY = useRef(new Animated.Value(startY)).current;
   const rainOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Rain animation
+    // Rain drop flicker animation
     const rainAnim = Animated.loop(
       Animated.sequence([
         Animated.timing(rainOpacity, {
@@ -32,13 +35,21 @@ export function RainCloud({ size, startX, y, duration = 8000, onComplete }: Rain
     );
     rainAnim.start();
 
-    // Movement animation
-    const moveAnim = Animated.timing(translateX, {
-      toValue: startX + 500,
-      duration: duration,
-      easing: Easing.linear,
-      useNativeDriver: false,
-    });
+    // Movement animation — both axes simultaneously
+    const moveAnim = Animated.parallel([
+      Animated.timing(translateX, {
+        toValue: endX,
+        duration,
+        easing: Easing.linear,
+        useNativeDriver: false,
+      }),
+      Animated.timing(translateY, {
+        toValue: endY,
+        duration,
+        easing: Easing.linear,
+        useNativeDriver: false,
+      }),
+    ]);
     
     moveAnim.start(() => {
       rainAnim.stop();
@@ -55,9 +66,9 @@ export function RainCloud({ size, startX, y, duration = 8000, onComplete }: Rain
     <Animated.View
       style={{
         position: 'absolute',
-        top: y,
+        top: 0,
         left: 0,
-        transform: [{ translateX }],
+        transform: [{ translateX }, { translateY }],
         zIndex: 500,
       }}
     >

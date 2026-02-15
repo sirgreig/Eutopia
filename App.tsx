@@ -66,6 +66,10 @@ import { SetupScreen, GameConfig } from './src/components/setup/SetupScreen';
 import { useAIOpponent } from './src/hooks/useAIOpponent';
 import { AIIslandMinimap } from './src/components/game/AIIslandMinimap';
 
+// Tutorial imports
+import { useTutorial } from './src/hooks/useTutorial';
+import { TutorialOverlay } from './src/components/game/TutorialOverlay';
+
 const MENU_ICON_SIZE = 28;
 
 const MenuBuildingIcon = ({ type }: { type: string }) => {
@@ -112,8 +116,11 @@ export default function App() {
   const [selectedBoat, setSelectedBoat] = useState<string | null>(null);
   const [showBuildMenu, setShowBuildMenu] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'gold' | 'population' | 'rebel' | 'rain' | 'round' | 'build' | 'error' | 'stability' } | null>(null);
-  const [showRainCloud, setShowRainCloud] = useState(false);
-  const [rainCloudY, setRainCloudY] = useState(50);
+  const [rainCloud, setRainCloud] = useState<{
+    startX: number; startY: number;
+    endX: number; endY: number;
+    duration: number;
+  } | null>(null);
   const [showGameOver, setShowGameOver] = useState(false);
   const [showRoundTransition, setShowRoundTransition] = useState<'start' | 'end' | null>(null);
   const [showSettings, setShowSettings] = useState(false);
@@ -153,6 +160,28 @@ export default function App() {
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const rainTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const rainStartTimeRef = useRef<number>(0);
+  const rainGoldIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const rainGoldAccumRef = useRef(0);
+
+  // Tutorial hook
+  const {
+    isActive: isTutorialActive,
+    currentStep: tutorialStep,
+    stepIndex: tutorialStepIndex,
+    totalSteps: tutorialTotalSteps,
+    nextStep: tutorialNextStep,
+    skipTutorial,
+    resetTutorial,
+    startTutorial,
+    onTutorialAction,
+  } = useTutorial();
+
+  // Combined function to reset and immediately start tutorial
+  const handleReplayTutorial = useCallback(async () => {
+    await resetTutorial();
+    startTutorial();
+  }, [resetTutorial, startTutorial]);
 
   const showToast = (message: string, type: 'gold' | 'population' | 'rebel' | 'rain' | 'round' | 'build' | 'error' | 'stability' = 'round') => {
     setToast({ message, type });
@@ -174,7 +203,7 @@ export default function App() {
     setSelectedBoat(null);
     setDestinationMarker(null);
     setShowBuildMenu(false);
-    setShowRainCloud(false);
+    setRainCloud(null);
     setShowGameOver(false);
     setShowRoundTransition(null);
     setToast(null);
@@ -204,7 +233,7 @@ export default function App() {
     setSelectedBoat(null);
     setDestinationMarker(null);
     setShowBuildMenu(false);
-    setShowRainCloud(false);
+    setRainCloud(null);
     setShowGameOver(false);
     setShowRoundTransition(null);
     setToast(null);
@@ -261,26 +290,140 @@ export default function App() {
   useEffect(() => {
     if (isRoundActive) {
       const spawnRain = () => {
+        if (rainCloud) return; // Only one cloud at a time
         if (Math.random() < 0.3) { // 30% chance each check
-          setRainCloudY(50 + Math.random() * (GRID_HEIGHT * tileSize - 100));
-          setShowRainCloud(true);
-          Sounds.rainStorm();
+          const cloudWidth = tileSize * 2;
+          const cloudHeight = tileSize * 1.5;
+          const margin = 20; // Start just off-screen
           
-          // Give gold for farms under rain
-          if (island) {
-            const farms = island.tiles.filter(t => t.building === 'farm').length;
-            if (farms > 0) {
-              setGold(g => g + farms);
-              showToast(`+${farms}g from rain!`, 'rain');
-            }
+          // Grid area bounds for targeting cloud path through island
+          const gridW = GRID_WIDTH * tileSize;
+          const gridH = GRID_HEIGHT * tileSize;
+          const gridX = (screenWidth - gridW) / 2;
+          const gridY = 56 + ((screenHeight - 56) - gridH) / 2;
+          
+          // Random position within island area for perpendicular axis
+          const randIslandY = gridY + Math.random() * gridH - cloudHeight / 2;
+          const randIslandX = gridX + Math.random() * gridW - cloudWidth / 2;
+          
+          // Slight angle variation so paths aren't perfectly straight
+          const angleVariation = (Math.random() - 0.5) * screenHeight * 0.15;
+          
+          // Pick random direction: 0-3 cardinal, 4-7 diagonal
+          const dir = Math.floor(Math.random() * 8);
+          let sX: number, sY: number, eX: number, eY: number;
+          
+          switch (dir) {
+            case 0: // Left to right
+              sX = -margin; sY = randIslandY;
+              eX = screenWidth + margin; eY = randIslandY + angleVariation;
+              break;
+            case 1: // Right to left
+              sX = screenWidth + margin; sY = randIslandY;
+              eX = -margin; eY = randIslandY + angleVariation;
+              break;
+            case 2: // Top to bottom
+              sX = randIslandX; sY = -margin;
+              eX = randIslandX + angleVariation; eY = screenHeight + margin;
+              break;
+            case 3: // Bottom to top
+              sX = randIslandX; sY = screenHeight + margin;
+              eX = randIslandX + angleVariation; eY = -margin;
+              break;
+            case 4: // Top-left to bottom-right
+              sX = -margin; sY = -margin;
+              eX = screenWidth + margin; eY = screenHeight + margin;
+              break;
+            case 5: // Top-right to bottom-left
+              sX = screenWidth + margin; sY = -margin;
+              eX = -margin; eY = screenHeight + margin;
+              break;
+            case 6: // Bottom-left to top-right
+              sX = -margin; sY = screenHeight + margin;
+              eX = screenWidth + margin; eY = -margin;
+              break;
+            case 7: // Bottom-right to top-left
+            default:
+              sX = screenWidth + margin; sY = screenHeight + margin;
+              eX = -margin; eY = -margin;
+              break;
           }
+          
+          // Duration proportional to path length for consistent speed
+          const pathLength = Math.sqrt(Math.pow(eX - sX, 2) + Math.pow(eY - sY, 2));
+          const speed = 25; // pixels per second
+          const dur = Math.max(10000, Math.min(60000, (pathLength / speed) * 1000));
+          
+          rainStartTimeRef.current = Date.now();
+          rainGoldAccumRef.current = 0;
+          setRainCloud({ startX: sX, startY: sY, endX: eX, endY: eY, duration: dur });
         }
       };
       
       rainTimerRef.current = setInterval(spawnRain, 5000);
       return () => { if (rainTimerRef.current) clearInterval(rainTimerRef.current); };
     }
-  }, [isRoundActive, island, tileSize]);
+  }, [isRoundActive, island, tileSize, screenWidth, screenHeight, rainCloud]);
+
+  // Rain gold detection — check crop overlap every second while cloud is active
+  useEffect(() => {
+    if (!rainCloud || !island) {
+      if (rainGoldIntervalRef.current) {
+        clearInterval(rainGoldIntervalRef.current);
+        rainGoldIntervalRef.current = null;
+      }
+      return;
+    }
+    
+    const cloudWidth = tileSize * 2;
+    const cloudHeight = tileSize * 1.5;
+    const gridW = GRID_WIDTH * tileSize;
+    const gridH = GRID_HEIGHT * tileSize;
+    const gridOriginX = (screenWidth - gridW) / 2;
+    const gridOriginY = 56 + ((screenHeight - 56) - gridH) / 2;
+    
+    rainGoldIntervalRef.current = setInterval(() => {
+      const elapsed = Date.now() - rainStartTimeRef.current;
+      const progress = Math.min(1, elapsed / rainCloud.duration);
+      
+      // Calculate current cloud position
+      const cloudX = rainCloud.startX + (rainCloud.endX - rainCloud.startX) * progress;
+      const cloudY = rainCloud.startY + (rainCloud.endY - rainCloud.startY) * progress;
+      
+      // Check which crop tiles the cloud overlaps
+      const cropTiles = island.tiles.filter(t => t.building === 'farm');
+      let wateredCrops = 0;
+      
+      for (const crop of cropTiles) {
+        const tileScreenX = gridOriginX + crop.position.x * tileSize;
+        const tileScreenY = gridOriginY + crop.position.y * tileSize;
+        
+        // Bounding box overlap check
+        if (
+          cloudX < tileScreenX + tileSize &&
+          cloudX + cloudWidth > tileScreenX &&
+          cloudY < tileScreenY + tileSize &&
+          cloudY + cloudHeight > tileScreenY
+        ) {
+          wateredCrops++;
+        }
+      }
+      
+      if (wateredCrops > 0) {
+        Sounds.rainStorm();
+        setGold(g => g + wateredCrops);
+        rainGoldAccumRef.current += wateredCrops;
+        showToast(`+${wateredCrops}g from rain!`, 'rain');
+      }
+    }, 1000);
+    
+    return () => {
+      if (rainGoldIntervalRef.current) {
+        clearInterval(rainGoldIntervalRef.current);
+        rainGoldIntervalRef.current = null;
+      }
+    };
+  }, [rainCloud, island, tileSize, screenWidth, screenHeight]);
 
   // Free-roam boat physics game loop
   useEffect(() => {
@@ -345,7 +488,7 @@ export default function App() {
 
   const endRound = () => {
     setIsRoundActive(false);
-    setShowRainCloud(false);
+    setRainCloud(null);
     Sounds.roundEnd();
     if (!island) return;
     
@@ -471,6 +614,7 @@ export default function App() {
 
   const handleTilePress = (position: Position, tile: Tile) => {
     Sounds.tileClick();
+    
     if (selectedBoat) { 
       setSelectedBoat(null); 
       showToast('Boats move on water', 'error');
@@ -485,6 +629,16 @@ export default function App() {
       showToast('Rebels occupy this tile!', 'rebel');
       return;
     }
+    
+    // During tutorial "tap_tile" step, allow building even before round starts
+    if (isTutorialActive && tutorialStep?.id === 'tap_tile') {
+      setSelectedTile(position);
+      setShowBuildMenu(true);
+      // Advance tutorial AFTER opening build menu
+      onTutorialAction('tile_tapped');
+      return;
+    }
+    
     if (round === 0) {
       showToast('Press START to begin', 'round');
       return;
@@ -558,6 +712,11 @@ export default function App() {
       return;
     }
     
+    // Tutorial: notify that a building was selected
+    if (isTutorialActive) {
+      onTutorialAction('building_selected');
+    }
+    
     Sounds.buildPlace();
     setIsland({ ...island, tiles: island.tiles.map(tile => 
       tile.position.x === selectedTile.x && tile.position.y === selectedTile.y 
@@ -608,6 +767,34 @@ export default function App() {
   const timerColor = !isRoundActive ? '#888' : timeRemaining <= 10 ? '#e53935' : timeRemaining <= 30 ? '#ffc107' : '#4ade80';
 
   const buildings = getAvailableBuildings(mode);
+
+  // Tutorial element positions for spotlight effect
+  const tutorialElementPositions = island ? {
+    land_tile: {
+      x: (screenWidth - GRID_WIDTH * tileSize) / 2 + island.tiles[Math.floor(island.tiles.length / 2)].position.x * tileSize,
+      y: 60 + island.tiles[Math.floor(island.tiles.length / 2)].position.y * tileSize,
+      width: tileSize,
+      height: tileSize,
+    },
+    gold_display: {
+      x: 10,
+      y: 8,
+      width: 80,
+      height: 40,
+    },
+    timer: {
+      x: screenWidth / 2 - 50,
+      y: 8,
+      width: 100,
+      height: 44,
+    },
+    building_crops: {
+      x: 20,
+      y: screenHeight - 120,
+      width: 60,
+      height: 70,
+    },
+  } : {};
 
   // Show setup screen before game starts
   if (showSetup) {
@@ -744,13 +931,15 @@ export default function App() {
       />
       
       {/* Rain Cloud */}
-      {showRainCloud && (
+      {rainCloud && (
         <RainCloud 
           size={tileSize}
-          startX={-100}
-          y={rainCloudY}
-          duration={8000}
-          onComplete={() => setShowRainCloud(false)}
+          startX={rainCloud.startX}
+          startY={rainCloud.startY}
+          endX={rainCloud.endX}
+          endY={rainCloud.endY}
+          duration={rainCloud.duration}
+          onComplete={() => setRainCloud(null)}
         />
       )}
       
@@ -818,8 +1007,21 @@ export default function App() {
       {/* Settings Screen */}
       <SettingsScreen 
         visible={showSettings} 
-        onClose={() => setShowSettings(false)} 
+        onClose={() => setShowSettings(false)}
+        onResetTutorial={handleReplayTutorial}
       />
+      
+      {/* Tutorial Overlay */}
+      {isTutorialActive && tutorialStep && (
+        <TutorialOverlay
+          step={tutorialStep}
+          stepIndex={tutorialStepIndex}
+          totalSteps={tutorialTotalSteps}
+          onNext={tutorialNextStep}
+          onSkip={skipTutorial}
+          elementPositions={tutorialElementPositions}
+        />
+      )}
       
       {/* Quit Confirmation Dialog */}
       {showQuitConfirm && (

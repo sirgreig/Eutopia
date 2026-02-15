@@ -1,5 +1,5 @@
 // src/components/game/AnimatedBuildMenu.tsx
-// Compact build menu with slide animation - responsive for all screen sizes
+// Compact build menu optimized for landscape mode on all screen sizes
 
 import React, { useEffect, useRef } from 'react';
 import {
@@ -34,23 +34,21 @@ import {
 } from './Icons';
 import { Sounds } from '../../services/soundManager';
 
-const ICON_SIZE = 24;
-
-const MenuBuildingIcon = ({ type }: { type: string }) => {
+const MenuBuildingIcon = ({ type, size }: { type: string; size: number }) => {
   switch (type) {
-    case 'house': return <HouseIcon size={ICON_SIZE} />;
-    case 'farm': return <FarmIcon size={ICON_SIZE} />;
-    case 'factory': return <FactoryIcon size={ICON_SIZE} />;
-    case 'hospital': return <HospitalIcon size={ICON_SIZE} />;
-    case 'school': return <SchoolIcon size={ICON_SIZE} />;
-    case 'fort': return <FortIcon size={ICON_SIZE} />;
-    case 'apartment': return <ApartmentIcon size={ICON_SIZE} />;
-    case 'dock': return <DockIcon size={ICON_SIZE} />;
-    case 'lighthouse': return <LighthouseIcon size={ICON_SIZE} />;
-    case 'granary': return <GranaryIcon size={ICON_SIZE} />;
-    case 'marketplace': return <MarketplaceIcon size={ICON_SIZE} />;
-    case 'watchtower': return <WatchtowerIcon size={ICON_SIZE} />;
-    default: return <ConstructionIcon size={ICON_SIZE} />;
+    case 'house': return <HouseIcon size={size} />;
+    case 'farm': return <FarmIcon size={size} />;
+    case 'factory': return <FactoryIcon size={size} />;
+    case 'hospital': return <HospitalIcon size={size} />;
+    case 'school': return <SchoolIcon size={size} />;
+    case 'fort': return <FortIcon size={size} />;
+    case 'apartment': return <ApartmentIcon size={size} />;
+    case 'dock': return <DockIcon size={size} />;
+    case 'lighthouse': return <LighthouseIcon size={size} />;
+    case 'granary': return <GranaryIcon size={size} />;
+    case 'marketplace': return <MarketplaceIcon size={size} />;
+    case 'watchtower': return <WatchtowerIcon size={size} />;
+    default: return <ConstructionIcon size={size} />;
   }
 };
 
@@ -75,11 +73,10 @@ export const AnimatedBuildMenu: React.FC<AnimatedBuildMenuProps> = ({
   const slideAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   
-  // Responsive sizing
-  const isSmallScreen = screenWidth < 400;
-  const itemWidth = isSmallScreen ? Math.floor((screenWidth - 40) / 5) : 70;
-  const boatItemWidth = isSmallScreen ? Math.floor((screenWidth - 40) / 3) : 90;
-  const maxMenuHeight = Math.min(screenHeight * 0.55, 400);
+  // Detect if we're in landscape with limited height (iPhone landscape)
+  const isLandscapeLimited = screenHeight < 450;
+  const iconSize = isLandscapeLimited ? 20 : 24;
+  const itemPadding = isLandscapeLimited ? 4 : 6;
   
   useEffect(() => {
     if (visible) {
@@ -116,7 +113,7 @@ export const AnimatedBuildMenu: React.FC<AnimatedBuildMenuProps> = ({
   
   const translateY = slideAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [300, 0],
+    outputRange: [200, 0],
   });
   
   if (!visible) return null;
@@ -145,7 +142,99 @@ export const AnimatedBuildMenu: React.FC<AnimatedBuildMenuProps> = ({
     Sounds.buttonClick();
     onClose();
   };
+
+  // Compact single-row layout for landscape iPhone
+  if (isLandscapeLimited) {
+    return (
+      <View style={styles.overlay}>
+        <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={handleClose} />
+        </Animated.View>
+        
+        <Animated.View 
+          style={[
+            styles.compactMenu,
+            { transform: [{ translateY }] },
+          ]}
+        >
+          {/* Header row */}
+          <View style={styles.compactHeader}>
+            <Text style={styles.compactTitle}>BUILD</Text>
+            <Text style={styles.compactGold}>💰 {gold}</Text>
+            <TouchableOpacity style={styles.compactCloseBtn} onPress={handleClose}>
+              <Text style={styles.closeText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+          
+          {/* Single scrollable row with all items */}
+          <ScrollView 
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.compactScrollContent}
+          >
+            {/* Buildings */}
+            {buildings.map((b) => {
+              const disabled = gold < b.cost;
+              return (
+                <TouchableOpacity
+                  key={b.type}
+                  style={[
+                    styles.compactItem,
+                    { padding: itemPadding },
+                    disabled && styles.itemDisabled
+                  ]}
+                  onPress={() => handleBuildingPress(b.type)}
+                  activeOpacity={0.7}
+                >
+                  <MenuBuildingIcon type={b.type} size={iconSize} />
+                  <Text style={styles.compactItemName} numberOfLines={1}>{b.name}</Text>
+                  <Text style={[styles.compactItemCost, disabled && styles.costDisabled]}>{b.cost}g</Text>
+                </TouchableOpacity>
+              );
+            })}
+            
+            {/* Divider */}
+            <View style={styles.divider} />
+            
+            {/* Boats */}
+            <TouchableOpacity
+              style={[
+                styles.compactItem,
+                { padding: itemPadding },
+                gold < BOAT_COSTS.fishing && styles.itemDisabled
+              ]}
+              onPress={() => handleBoatPress('fishing')}
+              activeOpacity={0.7}
+            >
+              <FishingBoatIcon size={iconSize} />
+              <Text style={styles.compactItemName}>Fishing</Text>
+              <Text style={[styles.compactItemCost, gold < BOAT_COSTS.fishing && styles.costDisabled]}>
+                {BOAT_COSTS.fishing}g
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[
+                styles.compactItem,
+                { padding: itemPadding },
+                gold < BOAT_COSTS.pt && styles.itemDisabled
+              ]}
+              onPress={() => handleBoatPress('pt')}
+              activeOpacity={0.7}
+            >
+              <PTBoatIcon size={iconSize} />
+              <Text style={styles.compactItemName}>PT Boat</Text>
+              <Text style={[styles.compactItemCost, gold < BOAT_COSTS.pt && styles.costDisabled]}>
+                {BOAT_COSTS.pt}g
+              </Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </Animated.View>
+      </View>
+    );
+  }
   
+  // Standard layout for iPad / larger screens
   return (
     <View style={styles.overlay}>
       <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
@@ -155,10 +244,7 @@ export const AnimatedBuildMenu: React.FC<AnimatedBuildMenuProps> = ({
       <Animated.View 
         style={[
           styles.menu,
-          { 
-            transform: [{ translateY }],
-            maxHeight: maxMenuHeight,
-          },
+          { transform: [{ translateY }] },
         ]}
       >
         {/* Header */}
@@ -171,69 +257,54 @@ export const AnimatedBuildMenu: React.FC<AnimatedBuildMenuProps> = ({
         </View>
         
         <ScrollView 
-          style={styles.scroll}
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
         >
           {/* Buildings */}
-          <Text style={styles.sectionLabel}>BUILDINGS</Text>
-          <View style={styles.grid}>
-            {buildings.map((b) => {
-              const disabled = gold < b.cost;
-              return (
-                <TouchableOpacity
-                  key={b.type}
-                  style={[
-                    styles.item, 
-                    { width: itemWidth },
-                    disabled && styles.itemDisabled
-                  ]}
-                  onPress={() => handleBuildingPress(b.type)}
-                  activeOpacity={0.7}
-                >
-                  <MenuBuildingIcon type={b.type} />
-                  <Text style={styles.itemName} numberOfLines={1}>{b.name}</Text>
-                  <Text style={[styles.itemCost, disabled && styles.costDisabled]}>{b.cost}g</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+          {buildings.map((b) => {
+            const disabled = gold < b.cost;
+            return (
+              <TouchableOpacity
+                key={b.type}
+                style={[styles.item, disabled && styles.itemDisabled]}
+                onPress={() => handleBuildingPress(b.type)}
+                activeOpacity={0.7}
+              >
+                <MenuBuildingIcon type={b.type} size={iconSize} />
+                <Text style={styles.itemName} numberOfLines={1}>{b.name}</Text>
+                <Text style={[styles.itemCost, disabled && styles.costDisabled]}>{b.cost}g</Text>
+              </TouchableOpacity>
+            );
+          })}
+          
+          {/* Divider */}
+          <View style={styles.divider} />
           
           {/* Boats */}
-          <Text style={styles.sectionLabel}>BOATS</Text>
-          <View style={styles.boatRow}>
-            <TouchableOpacity
-              style={[
-                styles.boatItem, 
-                { width: boatItemWidth },
-                gold < BOAT_COSTS.fishing && styles.itemDisabled
-              ]}
-              onPress={() => handleBoatPress('fishing')}
-              activeOpacity={0.7}
-            >
-              <FishingBoatIcon size={ICON_SIZE} />
-              <Text style={styles.itemName}>Fishing</Text>
-              <Text style={[styles.itemCost, gold < BOAT_COSTS.fishing && styles.costDisabled]}>
-                {BOAT_COSTS.fishing}g
-              </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[
-                styles.boatItem, 
-                { width: boatItemWidth },
-                gold < BOAT_COSTS.pt && styles.itemDisabled
-              ]}
-              onPress={() => handleBoatPress('pt')}
-              activeOpacity={0.7}
-            >
-              <PTBoatIcon size={ICON_SIZE} />
-              <Text style={styles.itemName}>PT Boat</Text>
-              <Text style={[styles.itemCost, gold < BOAT_COSTS.pt && styles.costDisabled]}>
-                {BOAT_COSTS.pt}g
-              </Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={[styles.item, gold < BOAT_COSTS.fishing && styles.itemDisabled]}
+            onPress={() => handleBoatPress('fishing')}
+            activeOpacity={0.7}
+          >
+            <FishingBoatIcon size={iconSize} />
+            <Text style={styles.itemName}>Fishing</Text>
+            <Text style={[styles.itemCost, gold < BOAT_COSTS.fishing && styles.costDisabled]}>
+              {BOAT_COSTS.fishing}g
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[styles.item, gold < BOAT_COSTS.pt && styles.itemDisabled]}
+            onPress={() => handleBoatPress('pt')}
+            activeOpacity={0.7}
+          >
+            <PTBoatIcon size={iconSize} />
+            <Text style={styles.itemName}>PT Boat</Text>
+            <Text style={[styles.itemCost, gold < BOAT_COSTS.pt && styles.costDisabled]}>
+              {BOAT_COSTS.pt}g
+            </Text>
+          </TouchableOpacity>
         </ScrollView>
       </Animated.View>
     </View>
@@ -250,6 +321,71 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.5)',
   },
+  
+  // Compact layout for landscape iPhone
+  compactMenu: {
+    backgroundColor: '#1a2a3a',
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    borderTopWidth: 1,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: '#3a5a6a',
+    paddingBottom: 8,
+  },
+  compactHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#2a3a4a',
+  },
+  compactTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  compactGold: {
+    fontSize: 12,
+    color: '#ffc107',
+    fontWeight: 'bold',
+  },
+  compactCloseBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#3a4a5a',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  compactScrollContent: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    alignItems: 'center',
+  },
+  compactItem: {
+    backgroundColor: '#2a3a4a',
+    borderRadius: 6,
+    marginHorizontal: 3,
+    alignItems: 'center',
+    minWidth: 52,
+  },
+  compactItemName: {
+    fontSize: 8,
+    color: '#ccc',
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  compactItemCost: {
+    fontSize: 9,
+    color: '#ffc107',
+    fontWeight: 'bold',
+    marginTop: 1,
+  },
+  
+  // Standard layout for iPad
   menu: {
     backgroundColor: '#1a2a3a',
     borderTopLeftRadius: 16,
@@ -258,6 +394,7 @@ const styles = StyleSheet.create({
     borderLeftWidth: 1,
     borderRightWidth: 1,
     borderColor: '#3a5a6a',
+    paddingBottom: 16,
   },
   header: {
     flexDirection: 'row',
@@ -291,33 +428,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
   },
-  scroll: {
-    flexGrow: 0,
-  },
-  content: {
-    padding: 8,
-    paddingBottom: 20,
-  },
-  sectionLabel: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#6a8a9a',
-    marginBottom: 8,
-    letterSpacing: 1,
-  },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 8,
-    justifyContent: 'flex-start',
+  scrollContent: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    alignItems: 'center',
   },
   item: {
     backgroundColor: '#2a3a4a',
     borderRadius: 8,
-    padding: 6,
-    margin: 3,
+    padding: 8,
+    marginHorizontal: 4,
     alignItems: 'center',
-    minWidth: 55,
+    minWidth: 65,
   },
   itemDisabled: {
     opacity: 0.4,
@@ -337,17 +459,11 @@ const styles = StyleSheet.create({
   costDisabled: {
     color: '#666',
   },
-  boatRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  boatItem: {
-    backgroundColor: '#2a3a4a',
-    borderRadius: 8,
-    padding: 8,
-    margin: 3,
-    alignItems: 'center',
-    minWidth: 70,
+  divider: {
+    width: 1,
+    height: '80%',
+    backgroundColor: '#3a5a6a',
+    marginHorizontal: 8,
   },
 });
 
