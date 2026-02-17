@@ -1,6 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing } from 'react-native';
-import Svg, { Ellipse, Line, Circle, Path, G } from 'react-native-svg';
+import Svg, { Ellipse, Line, Circle, Path, G, ClipPath, Rect, Defs } from 'react-native-svg';
+
+const AnimatedG = Animated.createAnimatedComponent(G);
 
 interface HurricaneCloudProps {
   size: number;
@@ -20,7 +22,12 @@ export function HurricaneCloud({ size, startX, startY, endX, endY, duration = 10
   const lightningOpacity = useRef(new Animated.Value(0)).current;
   const pulseScale = useRef(new Animated.Value(1)).current;
 
-  // Track animation state for pause/resume
+  // Cascading rain rows — fastest for hurricane
+  const rainRow1 = useRef(new Animated.Value(0)).current;
+  const rainRow2 = useRef(new Animated.Value(0)).current;
+  const rainRow3 = useRef(new Animated.Value(0)).current;
+
+  // Pause/resume tracking
   const moveAnimRef = useRef<Animated.CompositeAnimation | null>(null);
   const loopAnimsRef = useRef<Animated.CompositeAnimation[]>([]);
   const savedXRef = useRef(startX);
@@ -29,8 +36,8 @@ export function HurricaneCloud({ size, startX, startY, endX, endY, duration = 10
   const startedAtRef = useRef(Date.now());
   const elapsedBeforePauseRef = useRef(0);
 
-  // Start/restart loop animations (rotation, pulse, lightning)
   const startLoopAnims = () => {
+    // Rotation — spiral effect
     const rotateAnim = Animated.loop(
       Animated.timing(rotation, {
         toValue: 1,
@@ -40,68 +47,52 @@ export function HurricaneCloud({ size, startX, startY, endX, endY, duration = 10
       })
     );
 
+    // Pulsing scale — breathing effect
     const pulseAnim = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseScale, {
-          toValue: 1.08,
-          duration: 800,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: false,
-        }),
-        Animated.timing(pulseScale, {
-          toValue: 0.95,
-          duration: 800,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: false,
-        }),
+        Animated.timing(pulseScale, { toValue: 1.08, duration: 800, easing: Easing.inOut(Easing.ease), useNativeDriver: false }),
+        Animated.timing(pulseScale, { toValue: 0.95, duration: 800, easing: Easing.inOut(Easing.ease), useNativeDriver: false }),
       ])
     );
 
+    // Lightning — frequent intense flashes
     const lightningAnim = Animated.loop(
       Animated.sequence([
         Animated.delay(400 + Math.random() * 800),
-        Animated.timing(lightningOpacity, {
-          toValue: 1,
-          duration: 40,
-          useNativeDriver: false,
-        }),
-        Animated.timing(lightningOpacity, {
-          toValue: 0,
-          duration: 60,
-          useNativeDriver: false,
-        }),
+        Animated.timing(lightningOpacity, { toValue: 1, duration: 40, useNativeDriver: false }),
+        Animated.timing(lightningOpacity, { toValue: 0, duration: 60, useNativeDriver: false }),
         Animated.delay(50),
-        Animated.timing(lightningOpacity, {
-          toValue: 0.9,
-          duration: 30,
-          useNativeDriver: false,
-        }),
-        Animated.timing(lightningOpacity, {
-          toValue: 0,
-          duration: 50,
-          useNativeDriver: false,
-        }),
+        Animated.timing(lightningOpacity, { toValue: 0.9, duration: 30, useNativeDriver: false }),
+        Animated.timing(lightningOpacity, { toValue: 0, duration: 50, useNativeDriver: false }),
         Animated.delay(80),
-        Animated.timing(lightningOpacity, {
-          toValue: 0.6,
-          duration: 40,
-          useNativeDriver: false,
-        }),
-        Animated.timing(lightningOpacity, {
-          toValue: 0,
-          duration: 100,
-          useNativeDriver: false,
-        }),
+        Animated.timing(lightningOpacity, { toValue: 0.6, duration: 40, useNativeDriver: false }),
+        Animated.timing(lightningOpacity, { toValue: 0, duration: 100, useNativeDriver: false }),
       ])
     );
+
+    // Fastest rain cascade for torrential downpour
+    const makeRainCycle = (anim: Animated.Value, delay: number) => 
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(anim, { toValue: 1, duration: 120, useNativeDriver: false }),
+          Animated.timing(anim, { toValue: 0.05, duration: 180, useNativeDriver: false }),
+        ])
+      );
+
+    const r1 = makeRainCycle(rainRow1, 0);
+    const r2 = makeRainCycle(rainRow2, 100);
+    const r3 = makeRainCycle(rainRow3, 200);
 
     rotateAnim.start();
     pulseAnim.start();
     lightningAnim.start();
-    loopAnimsRef.current = [rotateAnim, pulseAnim, lightningAnim];
+    r1.start();
+    r2.start();
+    r3.start();
+    loopAnimsRef.current = [rotateAnim, pulseAnim, lightningAnim, r1, r2, r3];
   };
 
-  // Start/restart movement animation from current position
   const startMoveAnim = (fromX: number, fromY: number, remainingMs: number) => {
     translateX.setValue(fromX);
     translateY.setValue(fromY);
@@ -132,32 +123,25 @@ export function HurricaneCloud({ size, startX, startY, endX, endY, duration = 10
     });
   };
 
-  // Initial start
   useEffect(() => {
     startLoopAnims();
     startMoveAnim(startX, startY, duration);
-
     return () => {
       loopAnimsRef.current.forEach(a => a.stop());
       moveAnimRef.current?.stop();
     };
   }, []);
 
-  // Handle pause/resume
   useEffect(() => {
     if (paused) {
-      // Freeze: capture current position, stop all animations
       translateX.stopAnimation(val => { savedXRef.current = val; });
       translateY.stopAnimation(val => { savedYRef.current = val; });
       moveAnimRef.current?.stop();
       loopAnimsRef.current.forEach(a => a.stop());
-
-      // Calculate how much time was spent moving since last resume
       const elapsedThisSegment = Date.now() - startedAtRef.current;
       elapsedBeforePauseRef.current += elapsedThisSegment;
       remainingDurationRef.current = Math.max(0, duration - elapsedBeforePauseRef.current);
     } else {
-      // Resume: restart from saved position with remaining duration
       if (remainingDurationRef.current > 0) {
         startLoopAnims();
         startMoveAnim(savedXRef.current, savedYRef.current, remainingDurationRef.current);
@@ -240,56 +224,56 @@ export function HurricaneCloud({ size, startX, startY, endX, endY, duration = 10
         }}
       >
         <Svg width={size * 3} height={size * 3} viewBox="0 0 150 150">
-          {/* Lightning bolts */}
-          <G opacity={lightningOpacity as any}>
-            {/* Left bolt */}
-            <Path
-              d="M 55 60 L 60 80 L 56 80 L 63 100 L 52 82 L 57 82 L 50 60"
-              fill="#fff9c4"
-              stroke="#ffee58"
-              strokeWidth="0.5"
-            />
-            <Path
-              d="M 55 60 L 60 80 L 56 80 L 63 100 L 52 82 L 57 82 L 50 60"
-              fill="#ffff00"
-              opacity="0.4"
-              strokeWidth="4"
-              stroke="#ffff00"
-            />
-            {/* Right bolt */}
-            <Path
-              d="M 90 58 L 94 75 L 91 75 L 97 95 L 87 77 L 92 77 L 87 58"
-              fill="#fff9c4"
-              stroke="#ffee58"
-              strokeWidth="0.5"
-            />
-            {/* Center bolt */}
-            <Path
-              d="M 72 65 L 76 82 L 73 82 L 79 105 L 69 85 L 74 85 L 68 65"
-              fill="#fff9c4"
-              stroke="#ffee58"
-              strokeWidth="0.5"
-            />
-          </G>
+          <Defs>
+            <ClipPath id="hurRainClip">
+              <Rect x="10" y="85" width="130" height="65" />
+            </ClipPath>
+          </Defs>
           
-          {/* Torrential rain */}
-          <G opacity="0.85">
-            <Line x1="20" y1="95" x2="14" y2="125" stroke="#1e88e5" strokeWidth="3" strokeLinecap="round" />
-            <Line x1="32" y1="92" x2="26" y2="128" stroke="#1e88e5" strokeWidth="3" strokeLinecap="round" />
-            <Line x1="45" y1="94" x2="39" y2="130" stroke="#1e88e5" strokeWidth="3" strokeLinecap="round" />
-            <Line x1="55" y1="96" x2="49" y2="132" stroke="#1e88e5" strokeWidth="3" strokeLinecap="round" />
-            <Line x1="68" y1="93" x2="62" y2="128" stroke="#1e88e5" strokeWidth="3" strokeLinecap="round" />
-            <Line x1="80" y1="95" x2="74" y2="130" stroke="#1e88e5" strokeWidth="3" strokeLinecap="round" />
-            <Line x1="92" y1="92" x2="86" y2="126" stroke="#1e88e5" strokeWidth="3" strokeLinecap="round" />
-            <Line x1="105" y1="94" x2="99" y2="128" stroke="#1e88e5" strokeWidth="3" strokeLinecap="round" />
-            <Line x1="118" y1="93" x2="112" y2="125" stroke="#1e88e5" strokeWidth="3" strokeLinecap="round" />
-            <Line x1="130" y1="95" x2="124" y2="124" stroke="#1e88e5" strokeWidth="3" strokeLinecap="round" />
-            {/* Second row */}
-            <Line x1="26" y1="100" x2="20" y2="135" stroke="#42a5f5" strokeWidth="2.5" strokeLinecap="round" />
-            <Line x1="50" y1="98" x2="44" y2="138" stroke="#42a5f5" strokeWidth="2.5" strokeLinecap="round" />
-            <Line x1="74" y1="100" x2="68" y2="140" stroke="#42a5f5" strokeWidth="2.5" strokeLinecap="round" />
-            <Line x1="98" y1="99" x2="92" y2="136" stroke="#42a5f5" strokeWidth="2.5" strokeLinecap="round" />
-            <Line x1="122" y1="98" x2="116" y2="132" stroke="#42a5f5" strokeWidth="2.5" strokeLinecap="round" />
+          {/* Lightning bolts */}
+          <AnimatedG opacity={lightningOpacity}>
+            <Path d="M 55 60 L 60 80 L 56 80 L 63 100 L 52 82 L 57 82 L 50 60" fill="#fff9c4" stroke="#ffee58" strokeWidth="0.5" />
+            <Path d="M 55 60 L 60 80 L 56 80 L 63 100 L 52 82 L 57 82 L 50 60" fill="#ffff00" opacity="0.4" strokeWidth="4" stroke="#ffff00" />
+            <Path d="M 90 58 L 94 75 L 91 75 L 97 95 L 87 77 L 92 77 L 87 58" fill="#fff9c4" stroke="#ffee58" strokeWidth="0.5" />
+            <Path d="M 72 65 L 76 82 L 73 82 L 79 105 L 69 85 L 74 85 L 68 65" fill="#fff9c4" stroke="#ffee58" strokeWidth="0.5" />
+          </AnimatedG>
+          
+          {/* Torrential rain — 3 cascading rows */}
+          <G clipPath="url(#hurRainClip)">
+            {/* Row 1 — top */}
+            <AnimatedG opacity={rainRow1}>
+              <Line x1="20" y1="88" x2="14" y2="103" stroke="#1e88e5" strokeWidth="3" strokeLinecap="round" />
+              <Line x1="35" y1="87" x2="29" y2="102" stroke="#1e88e5" strokeWidth="3" strokeLinecap="round" />
+              <Line x1="50" y1="88" x2="44" y2="103" stroke="#1e88e5" strokeWidth="3" strokeLinecap="round" />
+              <Line x1="65" y1="87" x2="59" y2="102" stroke="#1e88e5" strokeWidth="3" strokeLinecap="round" />
+              <Line x1="80" y1="88" x2="74" y2="103" stroke="#1e88e5" strokeWidth="3" strokeLinecap="round" />
+              <Line x1="95" y1="87" x2="89" y2="102" stroke="#1e88e5" strokeWidth="3" strokeLinecap="round" />
+              <Line x1="110" y1="88" x2="104" y2="103" stroke="#1e88e5" strokeWidth="3" strokeLinecap="round" />
+              <Line x1="125" y1="87" x2="119" y2="102" stroke="#1e88e5" strokeWidth="3" strokeLinecap="round" />
+            </AnimatedG>
+            
+            {/* Row 2 — middle */}
+            <AnimatedG opacity={rainRow2}>
+              <Line x1="15" y1="105" x2="9" y2="122" stroke="#42a5f5" strokeWidth="2.5" strokeLinecap="round" />
+              <Line x1="30" y1="106" x2="24" y2="123" stroke="#42a5f5" strokeWidth="2.5" strokeLinecap="round" />
+              <Line x1="45" y1="105" x2="39" y2="122" stroke="#42a5f5" strokeWidth="2.5" strokeLinecap="round" />
+              <Line x1="60" y1="106" x2="54" y2="123" stroke="#42a5f5" strokeWidth="2.5" strokeLinecap="round" />
+              <Line x1="75" y1="105" x2="69" y2="122" stroke="#42a5f5" strokeWidth="2.5" strokeLinecap="round" />
+              <Line x1="90" y1="106" x2="84" y2="123" stroke="#42a5f5" strokeWidth="2.5" strokeLinecap="round" />
+              <Line x1="105" y1="105" x2="99" y2="122" stroke="#42a5f5" strokeWidth="2.5" strokeLinecap="round" />
+              <Line x1="120" y1="106" x2="114" y2="123" stroke="#42a5f5" strokeWidth="2.5" strokeLinecap="round" />
+            </AnimatedG>
+            
+            {/* Row 3 — bottom */}
+            <AnimatedG opacity={rainRow3}>
+              <Line x1="22" y1="124" x2="16" y2="142" stroke="#64b5f6" strokeWidth="2" strokeLinecap="round" />
+              <Line x1="40" y1="125" x2="34" y2="143" stroke="#64b5f6" strokeWidth="2" strokeLinecap="round" />
+              <Line x1="58" y1="124" x2="52" y2="142" stroke="#64b5f6" strokeWidth="2" strokeLinecap="round" />
+              <Line x1="76" y1="125" x2="70" y2="143" stroke="#64b5f6" strokeWidth="2" strokeLinecap="round" />
+              <Line x1="94" y1="124" x2="88" y2="142" stroke="#64b5f6" strokeWidth="2" strokeLinecap="round" />
+              <Line x1="112" y1="125" x2="106" y2="143" stroke="#64b5f6" strokeWidth="2" strokeLinecap="round" />
+              <Line x1="130" y1="124" x2="124" y2="142" stroke="#64b5f6" strokeWidth="2" strokeLinecap="round" />
+            </AnimatedG>
           </G>
         </Svg>
       </Animated.View>

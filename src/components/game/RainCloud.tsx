@@ -1,6 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing } from 'react-native';
-import Svg, { Ellipse, Line, G } from 'react-native-svg';
+import Svg, { Ellipse, Line, G, ClipPath, Rect, Defs } from 'react-native-svg';
+
+const AnimatedG = Animated.createAnimatedComponent(G);
 
 interface RainCloudProps {
   size: number;
@@ -16,34 +18,40 @@ interface RainCloudProps {
 export function RainCloud({ size, startX, startY, endX, endY, duration = 10000, paused = false, onComplete }: RainCloudProps) {
   const translateX = useRef(new Animated.Value(startX)).current;
   const translateY = useRef(new Animated.Value(startY)).current;
-  const rainOpacity = useRef(new Animated.Value(0)).current;
+  
+  // Three rain rows with staggered opacity for falling effect
+  const rainRow1 = useRef(new Animated.Value(0)).current;
+  const rainRow2 = useRef(new Animated.Value(0)).current;
+  const rainRow3 = useRef(new Animated.Value(0)).current;
 
   // Pause/resume tracking
   const moveAnimRef = useRef<Animated.CompositeAnimation | null>(null);
-  const loopAnimRef = useRef<Animated.CompositeAnimation | null>(null);
+  const loopAnimsRef = useRef<Animated.CompositeAnimation[]>([]);
   const savedXRef = useRef(startX);
   const savedYRef = useRef(startY);
   const remainingDurationRef = useRef(duration);
   const startedAtRef = useRef(Date.now());
   const elapsedBeforePauseRef = useRef(0);
 
-  const startLoopAnim = () => {
-    const rainAnim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(rainOpacity, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: false,
-        }),
-        Animated.timing(rainOpacity, {
-          toValue: 0.3,
-          duration: 300,
-          useNativeDriver: false,
-        }),
-      ])
-    );
-    rainAnim.start();
-    loopAnimRef.current = rainAnim;
+  const startLoopAnims = () => {
+    // Cascading rain: each row fades in top-to-bottom then out, staggered
+    const makeRainCycle = (anim: Animated.Value, delay: number) => 
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(anim, { toValue: 1, duration: 250, useNativeDriver: false }),
+          Animated.timing(anim, { toValue: 0.15, duration: 350, useNativeDriver: false }),
+        ])
+      );
+
+    const r1 = makeRainCycle(rainRow1, 0);
+    const r2 = makeRainCycle(rainRow2, 200);
+    const r3 = makeRainCycle(rainRow3, 400);
+    
+    r1.start();
+    r2.start();
+    r3.start();
+    loopAnimsRef.current = [r1, r2, r3];
   };
 
   const startMoveAnim = (fromX: number, fromY: number, remainingMs: number) => {
@@ -70,37 +78,33 @@ export function RainCloud({ size, startX, startY, endX, endY, duration = 10000, 
     moveAnimRef.current = moveAnim;
     moveAnim.start(({ finished }) => {
       if (finished) {
-        loopAnimRef.current?.stop();
+        loopAnimsRef.current.forEach(a => a.stop());
         onComplete?.();
       }
     });
   };
 
-  // Initial start
   useEffect(() => {
-    startLoopAnim();
+    startLoopAnims();
     startMoveAnim(startX, startY, duration);
-
     return () => {
-      loopAnimRef.current?.stop();
+      loopAnimsRef.current.forEach(a => a.stop());
       moveAnimRef.current?.stop();
     };
   }, []);
 
-  // Handle pause/resume
   useEffect(() => {
     if (paused) {
       translateX.stopAnimation(val => { savedXRef.current = val; });
       translateY.stopAnimation(val => { savedYRef.current = val; });
       moveAnimRef.current?.stop();
-      loopAnimRef.current?.stop();
-
+      loopAnimsRef.current.forEach(a => a.stop());
       const elapsedThisSegment = Date.now() - startedAtRef.current;
       elapsedBeforePauseRef.current += elapsedThisSegment;
       remainingDurationRef.current = Math.max(0, duration - elapsedBeforePauseRef.current);
     } else {
       if (remainingDurationRef.current > 0) {
-        startLoopAnim();
+        startLoopAnims();
         startMoveAnim(savedXRef.current, savedYRef.current, remainingDurationRef.current);
       }
     }
@@ -117,29 +121,49 @@ export function RainCloud({ size, startX, startY, endX, endY, duration = 10000, 
       }}
     >
       <Svg width={size * 2} height={size * 1.5} viewBox="0 0 100 75">
+        <Defs>
+          <ClipPath id="rainClipArea">
+            <Rect x="15" y="40" width="70" height="35" />
+          </ClipPath>
+        </Defs>
+        
         {/* Cloud body */}
         <G>
           <Ellipse cx="50" cy="25" rx="30" ry="18" fill="#78909c" />
           <Ellipse cx="30" cy="30" rx="20" ry="15" fill="#90a4ae" />
           <Ellipse cx="70" cy="30" rx="22" ry="14" fill="#90a4ae" />
           <Ellipse cx="50" cy="35" rx="35" ry="12" fill="#78909c" />
-          {/* Cloud highlights */}
           <Ellipse cx="40" cy="20" rx="12" ry="8" fill="#b0bec5" opacity="0.6" />
           <Ellipse cx="60" cy="22" rx="10" ry="6" fill="#b0bec5" opacity="0.5" />
         </G>
         
-        {/* Rain drops */}
-        <G opacity="0.7">
-          <Line x1="25" y1="45" x2="22" y2="60" stroke="#64b5f6" strokeWidth="2" strokeLinecap="round" />
-          <Line x1="35" y1="48" x2="32" y2="68" stroke="#64b5f6" strokeWidth="2" strokeLinecap="round" />
-          <Line x1="45" y1="45" x2="42" y2="63" stroke="#64b5f6" strokeWidth="2" strokeLinecap="round" />
-          <Line x1="55" y1="47" x2="52" y2="67" stroke="#64b5f6" strokeWidth="2" strokeLinecap="round" />
-          <Line x1="65" y1="45" x2="62" y2="62" stroke="#64b5f6" strokeWidth="2" strokeLinecap="round" />
-          <Line x1="75" y1="46" x2="72" y2="58" stroke="#64b5f6" strokeWidth="2" strokeLinecap="round" />
-          {/* Second row of drops */}
-          <Line x1="30" y1="52" x2="27" y2="70" stroke="#42a5f5" strokeWidth="1.5" strokeLinecap="round" />
-          <Line x1="50" y1="50" x2="47" y2="72" stroke="#42a5f5" strokeWidth="1.5" strokeLinecap="round" />
-          <Line x1="70" y1="51" x2="67" y2="68" stroke="#42a5f5" strokeWidth="1.5" strokeLinecap="round" />
+        {/* Rain — 3 cascading rows clipped to rain zone */}
+        <G clipPath="url(#rainClipArea)">
+          {/* Row 1 — top, falls first */}
+          <AnimatedG opacity={rainRow1}>
+            <Line x1="25" y1="42" x2="22" y2="52" stroke="#64b5f6" strokeWidth="2" strokeLinecap="round" />
+            <Line x1="38" y1="41" x2="35" y2="51" stroke="#64b5f6" strokeWidth="2" strokeLinecap="round" />
+            <Line x1="50" y1="42" x2="47" y2="52" stroke="#64b5f6" strokeWidth="2" strokeLinecap="round" />
+            <Line x1="62" y1="41" x2="59" y2="51" stroke="#64b5f6" strokeWidth="2" strokeLinecap="round" />
+            <Line x1="75" y1="42" x2="72" y2="52" stroke="#64b5f6" strokeWidth="2" strokeLinecap="round" />
+          </AnimatedG>
+          
+          {/* Row 2 — middle */}
+          <AnimatedG opacity={rainRow2}>
+            <Line x1="30" y1="52" x2="27" y2="62" stroke="#42a5f5" strokeWidth="1.8" strokeLinecap="round" />
+            <Line x1="44" y1="53" x2="41" y2="63" stroke="#42a5f5" strokeWidth="1.8" strokeLinecap="round" />
+            <Line x1="56" y1="52" x2="53" y2="62" stroke="#42a5f5" strokeWidth="1.8" strokeLinecap="round" />
+            <Line x1="68" y1="53" x2="65" y2="63" stroke="#42a5f5" strokeWidth="1.8" strokeLinecap="round" />
+          </AnimatedG>
+          
+          {/* Row 3 — bottom, falls last */}
+          <AnimatedG opacity={rainRow3}>
+            <Line x1="22" y1="62" x2="19" y2="72" stroke="#90caf9" strokeWidth="1.5" strokeLinecap="round" />
+            <Line x1="36" y1="63" x2="33" y2="73" stroke="#90caf9" strokeWidth="1.5" strokeLinecap="round" />
+            <Line x1="50" y1="62" x2="47" y2="72" stroke="#90caf9" strokeWidth="1.5" strokeLinecap="round" />
+            <Line x1="64" y1="63" x2="61" y2="73" stroke="#90caf9" strokeWidth="1.5" strokeLinecap="round" />
+            <Line x1="78" y1="62" x2="75" y2="72" stroke="#90caf9" strokeWidth="1.5" strokeLinecap="round" />
+          </AnimatedG>
         </G>
       </Svg>
     </Animated.View>

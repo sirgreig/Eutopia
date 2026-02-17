@@ -11,9 +11,6 @@ interface ToastProps {
   onHide?: () => void;
 }
 
-// Compact types show as small floating pill near gold counter
-const COMPACT_TYPES: ToastType[] = ['gold', 'rain'];
-
 const ToastIcon = ({ type, size = 24 }: { type: ToastType; size?: number }) => {
   switch (type) {
     case 'gold':
@@ -123,76 +120,44 @@ const getTextColor = (type: ToastType): string => {
 };
 
 export function Toast({ message, type = 'round', duration = 2000, onHide }: ToastProps) {
-  const isCompact = COMPACT_TYPES.includes(type);
-  const translateY = useRef(new Animated.Value(isCompact ? -20 : -100)).current;
+  const translateY = useRef(new Animated.Value(100)).current;
   const opacity = useRef(new Animated.Value(0)).current;
-  const scale = useRef(new Animated.Value(isCompact ? 0.8 : 1)).current;
 
   useEffect(() => {
-    const compactDuration = Math.min(duration, 1200);
-    const effectiveDuration = isCompact ? compactDuration : duration;
-
-    // Animate in
+    // Slide in
     Animated.parallel([
       Animated.timing(translateY, {
         toValue: 0,
-        duration: isCompact ? 150 : 300,
-        easing: isCompact ? Easing.out(Easing.ease) : Easing.out(Easing.back(1.5)),
+        duration: 300,
+        easing: Easing.out(Easing.back(1.5)),
         useNativeDriver: true,
       }),
       Animated.timing(opacity, {
         toValue: 1,
-        duration: isCompact ? 100 : 200,
+        duration: 200,
         useNativeDriver: true,
       }),
-      ...(isCompact ? [Animated.spring(scale, {
-        toValue: 1,
-        friction: 6,
-        tension: 200,
-        useNativeDriver: true,
-      })] : []),
     ]).start();
 
-    // Animate out
+    // Slide out after duration
     const timer = setTimeout(() => {
       Animated.parallel([
         Animated.timing(translateY, {
-          toValue: isCompact ? -10 : -100,
-          duration: isCompact ? 200 : 250,
+          toValue: 100,
+          duration: 250,
           easing: Easing.in(Easing.ease),
           useNativeDriver: true,
         }),
         Animated.timing(opacity, {
           toValue: 0,
-          duration: isCompact ? 150 : 200,
+          duration: 200,
           useNativeDriver: true,
         }),
       ]).start(() => onHide?.());
-    }, effectiveDuration);
+    }, duration);
 
     return () => clearTimeout(timer);
   }, []);
-
-  if (isCompact) {
-    return (
-      <Animated.View
-        style={[
-          styles.compactContainer,
-          {
-            backgroundColor: type === 'rain' ? 'rgba(100, 181, 246, 0.9)' : 'rgba(255, 193, 7, 0.9)',
-            transform: [{ translateY }, { scale }],
-            opacity,
-          },
-        ]}
-        pointerEvents="none"
-      >
-        <ToastIcon type={type} size={18} />
-        <Text style={[styles.compactMessage, { color: type === 'rain' ? '#fff' : '#5d4037' }]}>
-          {message}
-        </Text>
-      </Animated.View>
-    );
-  }
 
   return (
     <Animated.View
@@ -212,10 +177,10 @@ export function Toast({ message, type = 'round', duration = 2000, onHide }: Toas
 }
 
 const styles = StyleSheet.create({
-  // Full-width banner for important events
   container: {
     position: 'absolute',
-    top: 60,
+    top: undefined,
+    bottom: 30,
     left: 20,
     right: 20,
     flexDirection: 'row',
@@ -235,27 +200,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     flex: 1,
-  },
-  // Compact floating pill for gold-earning events
-  compactContainer: {
-    position: 'absolute',
-    top: 52,
-    left: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: 16,
-    zIndex: 1500,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 6,
-    gap: 6,
-  },
-  compactMessage: {
-    fontSize: 13,
-    fontWeight: '700',
   },
 });

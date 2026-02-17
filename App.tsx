@@ -846,6 +846,22 @@ export default function App() {
       const cloudX = hurricaneCloud.startX + (hurricaneCloud.endX - hurricaneCloud.startX) * progress;
       const cloudY = hurricaneCloud.startY + (hurricaneCloud.endY - hurricaneCloud.startY) * progress;
       
+      // Water crops for gold (hurricane rain still benefits surviving farms)
+      const cropTiles = island.tiles.filter(t => t.building === 'farm');
+      let wateredCrops = 0;
+      for (const crop of cropTiles) {
+        const tileScreenX = gridOriginX + crop.position.x * tileSize;
+        const tileScreenY = gridOriginY + crop.position.y * tileSize;
+        if (cloudX < tileScreenX + tileSize && cloudX + cloudSize > tileScreenX &&
+            cloudY < tileScreenY + tileSize && cloudY + cloudSize > tileScreenY) {
+          wateredCrops++;
+        }
+      }
+      if (wateredCrops > 0) {
+        setGold(g => g + wateredCrops);
+        showToast(`+${wateredCrops}g from hurricane rain!`, 'rain');
+      }
+      
       // Check building damage — hurricanes can destroy forts too (max 3 per pass)
       if (hurricaneBuildingsDestroyedRef.current < 3) {
         const buildingTiles = island.tiles.filter(t => t.building);
