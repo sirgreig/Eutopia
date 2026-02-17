@@ -1,7 +1,7 @@
 # Portfolio Overview: Eutopía
 
 *Document Purpose: Single source of truth for portfolio unification decisions*
-*Last Updated: January 2025*
+*Last Updated: February 2026*
 
 ---
 
@@ -21,23 +21,30 @@
 
 | Attribute | Value |
 |-----------|-------|
-| **Current Stage** | **Development (Beta)** |
+| **Current Stage** | **Development (Alpha)** — Core single-player gameplay complete, polish and multiplayer remaining |
 | **Platform** | iOS (iPhone/iPad), Android |
 | **Tech Stack** | React Native, TypeScript, Expo |
 | **Repository** | Local development |
 
 ### Completion Status
-- ✅ Core gameplay loop
-- ✅ Building system (12 building types)
-- ✅ AI opponent with difficulty levels
-- ✅ Weather system (rain, storms)
-- ✅ Rebel mechanics (authentic Utopia behavior)
-- ✅ Boat navigation with pathfinding
-- ✅ Sound effects and music
-- ✅ Responsive design (iPhone/iPad)
+- ✅ Core gameplay loop (rounds, timer, scoring, population dynamics)
+- ✅ Building system (12 building types with placement, costs, info toasts)
+- ✅ AI opponent with difficulty levels (easy/normal/hard)
+- ✅ Weather system (rain clouds, tropical storms, hurricanes with damage/hierarchy)
+- ✅ Rebel mechanics (authentic Utopia behavior, fort protection)
+- ✅ Boat navigation (waypoint movement, landlocked prevention via BFS)
+- ✅ Fish schools (spawning, movement, fishing boat gold detection)
+- ✅ Pirate ships (AI targeting, combat collisions, difficulty scaling)
+- ✅ Sound effects and music (menu/gameplay themes, 12+ SFX, mute/volume controls)
+- ✅ Setup screen (mode, rounds, difficulty selection)
+- ✅ Settings screen (audio, help, quit, replay tutorial)
+- ✅ Interactive tutorial system (6-step, spotlight overlay, first-time only)
+- ✅ Victory/defeat screen (score comparison, breakdown, ratings)
+- ✅ Responsive design (iPhone landscape optimized)
+- ✅ Round transitions (animations, object persistence between rounds)
+- 🔲 Building animations (smoke, flags, swaying crops)
 - 🔲 Multiplayer networking
-- 🔲 Enhanced fog-of-war mode
-- 🔲 Tutorial system
+- 🔲 Enhanced mode building mechanics (fog of war, dock/lighthouse/etc. effects)
 - 🔲 App Store deployment
 
 ---
@@ -50,10 +57,13 @@
 |--------|-------------|------------|
 | **Island** | Player's landmass | `id`, `tiles[]`, `boats[]` |
 | **Tile** | Single buildable land cell | `id`, `position{x,y}`, `building?`, `hasRebel?` |
-| **Building** | Structure on a tile | `type`, `cost`, `name`, `description` |
+| **Building** | Structure on a tile | `type`, `cost`, `name`, `description`, `enhanced` |
 | **Boat** | Naval vessel | `id`, `type`, `position`, `velocity`, `destination` |
-| **Player** | Game participant | `gold`, `population`, `score` |
-| **Round** | Timed game segment | `number`, `duration`, `maxRounds` |
+| **FishSchool** | Mobile fishing target | `id`, `x`, `y`, `dx`, `dy` |
+| **PirateShip** | Enemy vessel with AI | `id`, `x`, `y`, `dx`, `dy`, `target` |
+| **Player** | Game participant | `gold`, `population`, `score`, `scoreBreakdown` |
+| **Round** | Timed game segment | `number`, `duration`, `maxRounds`, `isActive` |
+| **WeatherEvent** | Rain/storm/hurricane | `startX/Y`, `endX/Y`, `duration`, type-specific damage |
 
 ### Building Types
 - House, Farm, Factory, Hospital, School, Fort
@@ -122,7 +132,7 @@
 
 | Stream | Price | Description |
 |--------|-------|-------------|
-| **Video Ads** | Free | Interstitial ads between rounds (natural break point) |
+| **Video Ads** | Free | Interstitial ads between rounds (starts after round 3) |
 | **Ad-Free IAP** | $2.99 | One-time purchase to remove all ads |
 | **Premium IAP** | $4.99 | Enhanced Mode + Ad-Free (fog of war, 6 extra buildings) |
 | **Tip Jar IAP** | $0.99-9.99 | Optional support in Settings menu, no gameplay benefit |
@@ -131,7 +141,7 @@
 
 | Tier | Access | Ads |
 |------|--------|-----|
-| **Free** | Original Mode | Yes (between rounds) |
+| **Free** | Original Mode | Yes (after round 3) |
 | **Ad-Free** | Original Mode | No |
 | **Premium** | Original + Enhanced Mode | No |
 
@@ -143,9 +153,9 @@
 - ❌ Aggressive ad popups
 
 ### Technical Dependencies
-- Google AdMob (react-native-google-mobile-ads)
-- react-native-iap (App Store + Google Play)
-- **AdMob App ID:** TBD (new app to be created in AdMob console)
+- Google AdMob (react-native-google-mobile-ads) — configured, ad unit TBD
+- react-native-iap (App Store + Google Play) — not yet integrated
+- **AdMob App ID:** `ca-app-pub-7909587764339962~6992047932` (confirmed)
 
 ---
 
@@ -160,11 +170,11 @@
 ### Firebase Configuration
 | Attribute | Decision |
 |-----------|----------|
-| Firebase Project | **Own dedicated project** (not shared with IJBA) |
-| Project Name | `eutopia` or `tartan-eutopia` |
-| Auth | To be implemented |
-| Analytics | Enabled |
-| Crashlytics | Enabled |
+| Firebase Project | **Own dedicated project** (created, parked for future use) |
+| Project Name | `eutopia` |
+| Auth | To be implemented (multiplayer) |
+| Analytics | Configured but not integrated into app |
+| Crashlytics | Configured but not integrated into app |
 
 ### AdMob Configuration
 | Attribute | Value |
@@ -190,19 +200,22 @@
 
 | Touchpoint | Status | Details |
 |------------|--------|---------|
-| In-app Help | 🔲 Planned | Tutorial, tooltips |
-| Settings | ✅ Implemented | Sound, music, difficulty |
+| In-app Tutorial | ✅ Implemented | 6-step interactive tutorial with spotlight overlay, first-time only |
+| How to Play | ✅ Implemented | Comprehensive game guide accessible from settings |
+| Settings | ✅ Implemented | Sound/music controls, quit, replay tutorial |
+| Building Info | ✅ Implemented | Tap any building to see name and benefit description |
 | Feedback | 🔲 Planned | Thumbs up/down on game end |
-| External Support | 🔲 Not implemented | No website/email yet |
+| External Support | 🔲 Not implemented | support@tartan-studios.com configured but no in-app link |
 
 ---
 
 ## 9. Dependencies & Integrations
 
 ### External Dependencies
-- **expo-av**: Audio playback
-- **react-native-svg**: Vector graphics
-- **AsyncStorage**: Local settings persistence
+- **expo-av**: Audio playback (music tracks, sound effects)
+- **react-native-svg**: Vector graphics (building/boat icons, weather effects)
+- **@react-native-async-storage/async-storage**: Local settings persistence (audio, tutorial state)
+- **react-native-reanimated**: Animations (weather, transitions)
 
 ### Potential Shared Infrastructure
 - Multiplayer room system (if other apps have similar needs)
@@ -222,8 +235,11 @@
 1. **Tribute to gaming history** — faithful recreation of 1981 classic
 2. **Educational value** — teaches the origin of the city-builder genre
 3. **Dual mode**: Authentic "Original" mode + modern "Enhanced" mode
-4. **AI opponent** — solo play against adaptive difficulty
+4. **AI opponent** — solo play against adaptive difficulty (easy/normal/hard)
 5. **Asymmetric island generation** — replayability through procedural maps
+6. **Full weather system** — rain, tropical storms, and hurricanes with escalating danger
+7. **Living ocean** — fish schools, pirate ships, and naval combat
+8. **Interactive tutorial** — approachable for new players without disrupting experienced ones
 
 ### Design Pillars
 1. **Vintage Fidelity** — Obvious to retro gamers this is a loving remake
@@ -258,12 +274,22 @@
 | Purpose | Path |
 |---------|------|
 | Main App | `App.tsx` |
-| Types/Entities | `src/types/index.ts` |
+| Types/Entities | `src/types/game.ts` |
 | Game Constants | `src/constants/game.ts` |
 | Sound Manager | `src/services/soundManager.ts` |
+| Audio Settings | `src/hooks/useAudioSettings.ts` |
 | AI Logic | `src/hooks/useAI.ts` |
+| Tutorial System | `src/hooks/useTutorial.ts` |
 | Building Icons | `src/components/game/Icons.tsx` |
-| Project Tracker | `project-tracker.md` |
+| Island Renderer | `src/components/game/Island.tsx` |
+| Weather (Rain) | `src/components/game/RainCloud.tsx` |
+| Weather (Storm) | `src/components/game/StormCloud.tsx` |
+| Weather (Hurricane) | `src/components/game/HurricaneCloud.tsx` |
+| Victory Screen | `src/components/game/EndGameSummary.tsx` |
+| Build Menu | `src/components/ui/BuildMenu.tsx` |
+| Settings | `src/components/settings/SettingsScreen.tsx` |
+| How to Play | `src/components/settings/HowToPlay.tsx` |
+| Project Tracker | `docs/project-tracker.md` |
 
 ---
 

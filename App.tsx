@@ -8,6 +8,7 @@ import {
   Pressable,
   Animated,
   Easing,
+  AppState,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Island } from './src/components/game/Island';
@@ -320,22 +321,49 @@ export default function App() {
     init(); 
   }, []);
 
+  // Pause/resume music when app goes to background/foreground
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'background' || nextAppState === 'inactive') {
+        Sounds.pauseMusic();
+        Sounds.pauseOceanWaves();
+      } else if (nextAppState === 'active') {
+        Sounds.resumeMusic();
+        Sounds.resumeOceanWaves();
+      }
+    });
+    return () => subscription.remove();
+  }, []);
+
   // Toggle music based on game state
   // Menu music: setup screen, before game starts, between rounds
-  // Gameplay music: during active rounds
+  // Gameplay/tension music: during active rounds (score/rebel-dependent)
+  // Victory/defeat music: game over
+  const hasRebels = island?.tiles.some(t => t.hasRebel) ?? false;
   useEffect(() => {
-    if (!isAudioEnabled) return; // Don't try to play when muted
+    if (!isAudioEnabled) {
+      Sounds.stopOceanWaves();
+      return;
+    }
     if (showSetup) {
       Sounds.playMusic('menu');
+      Sounds.stopOceanWaves();
+    } else if (showGameOver) {
+      const hasAI = aiScore !== undefined;
+      const playerWins = hasAI ? score > aiScore : score >= 70;
+      Sounds.playMusic(playerWins ? 'victory' : 'defeat');
+      Sounds.stopOceanWaves();
     } else if (isRoundActive) {
-      Sounds.playMusic('gameplay');
+      Sounds.playMusic((hasRebels || score < 30) ? 'tension' : 'gameplay');
+      Sounds.startOceanWaves();
     } else if (round < maxRounds) {
       Sounds.playMusic('menu');
+      Sounds.startOceanWaves(); // Keep waves during between-round pause
     } else {
-      // Game over - stop music
       Sounds.stopMusic();
+      Sounds.stopOceanWaves();
     }
-  }, [showSetup, isRoundActive, round, maxRounds, isAudioEnabled]);
+  }, [showSetup, isRoundActive, round, maxRounds, isAudioEnabled, showGameOver, score, hasRebels]);
 
   // Timer effect
   useEffect(() => {
@@ -420,6 +448,7 @@ export default function App() {
           rainStartTimeRef.current = Date.now();
           rainGoldAccumRef.current = 0;
           setRainCloud({ startX: sX, startY: sY, endX: eX, endY: eY, duration: dur });
+          Sounds.thunderCrack();
         }
       };
       
@@ -536,6 +565,7 @@ export default function App() {
         setStormCloud({ startX: sX, startY: sY, endX: eX, endY: eY, duration: dur });
         showToast('⛈️ Tropical storm approaching!', 'rebel');
         Sounds.rebelAppear();
+        Sounds.thunderCrack();
       };
       
       stormTimerRef.current = setInterval(spawnStorm, BALANCE.stormSpawnInterval);
@@ -734,6 +764,7 @@ export default function App() {
         setHurricaneCloud({ startX: sX, startY: sY, endX: eX, endY: eY, duration: dur });
         showToast('🌀 HURRICANE approaching!', 'rebel');
         Sounds.rebelAppear();
+        Sounds.thunderCrack();
       };
       
       hurricaneTimerRef.current = setInterval(spawnHurricane, BALANCE.hurricaneSpawnInterval);
@@ -1349,6 +1380,9 @@ export default function App() {
     const fertility = Math.max(BALANCE.minFertility, BALANCE.baseFertility + crops * BALANCE.fertilityPerCrop + hospitals * BALANCE.fertilityPerHospital + houses * BALANCE.fertilityPerHouse + schools * BALANCE.fertilityPerSchool) / 100;
     const mortality = Math.min(BALANCE.maxMortality, Math.max(BALANCE.minMortality, BALANCE.baseMortality + hospitals * BALANCE.mortalityPerHospital + factories * BALANCE.mortalityPerFactory)) / 100;
     const newPopulation = Math.min(BALANCE.maxPopulation, Math.max(1, Math.floor(population + population * fertility - population * mortality)));
+    if (newPopulation > population) {
+      Sounds.populationBoost();
+    }
     setPopulation(newPopulation);
     
     // Score breakdown calculation
@@ -1413,14 +1447,6 @@ export default function App() {
     
     // Check for game over
     if (round >= maxRounds) {
-      // Determine winner: player vs AI
-      const playerWins = totalScore > aiScore;
-      const tie = totalScore === aiScore;
-      if (playerWins || (tie && totalScore >= 70)) {
-        Sounds.gameOverWin();
-      } else {
-        Sounds.gameOverLose();
-      }
       setTimeout(() => setShowGameOver(true), 1500);
     } else {
       showToast(`+${income}g income`, 'gold');
@@ -1473,6 +1499,7 @@ export default function App() {
     if (isTutorialActive && tutorialStep?.id === 'tap_tile') {
       setSelectedTile(position);
       setShowBuildMenu(true);
+      Sounds.menuOpen();
       // Advance tutorial AFTER opening build menu
       onTutorialAction('tile_tapped');
       return;
@@ -1492,6 +1519,7 @@ export default function App() {
     }
     setSelectedTile(position);
     setShowBuildMenu(true);
+    Sounds.menuOpen();
   };
 
   // Handle tap on water for free-roam boat movement
@@ -1599,7 +1627,7 @@ export default function App() {
       return; 
     }
     
-    Sounds.buildPlace();
+    Sounds.boatLaunch();
     setFreeRoamBoats(prev => [...prev, newBoat]);
     setGold(gold - cost);
     closeBuildMenu();
