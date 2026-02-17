@@ -21,6 +21,7 @@ import {
   getBoatSpawnPosition,
 } from './coastlineDetection';
 import { findPath } from './boatPathfinding';
+import { GRID_WIDTH as GRID_WIDTH_IMPORT, GRID_HEIGHT as GRID_HEIGHT_IMPORT } from '../constants/game';
 
 /**
  * Create a new free-roam boat at a spawn position
@@ -130,7 +131,7 @@ export function stopBoat(boat: FreeRoamBoat): FreeRoamBoat {
 }
 
 /**
- * Update boat position based on physics and waypoints
+ * Update boat position — direct movement toward waypoints
  * Call this every frame with deltaTime in seconds
  */
 export function updateBoat(
@@ -142,9 +143,9 @@ export function updateBoat(
 ): FreeRoamBoat {
   const physics = DEFAULT_BOAT_PHYSICS[boat.type];
   
-  // If not moving or no waypoints, apply deceleration
+  // If not moving or no waypoints, just return as-is
   if (!boat.isMoving || boat.waypoints.length === 0) {
-    return applyDeceleration(boat, deltaTime, physics);
+    return boat;
   }
   
   // Get current waypoint
@@ -153,13 +154,11 @@ export function updateBoat(
     return stopBoat(boat);
   }
   
-  // Calculate distance and angle to current waypoint
+  // Calculate distance to current waypoint
   const distToWaypoint = waterDistance(boat.position, currentWaypoint);
-  const angleToWaypoint = waterAngle(boat.position, currentWaypoint);
   
   // Check if we've reached current waypoint
   if (distToWaypoint < physics.arrivalThreshold) {
-    // Move to next waypoint
     const nextIndex = boat.currentWaypointIndex + 1;
     
     if (nextIndex >= boat.waypoints.length) {
@@ -172,64 +171,70 @@ export function updateBoat(
         currentWaypointIndex: 0,
         isMoving: false,
         velocity: { vx: 0, vy: 0 },
+        heading: boat.heading,
       };
     }
     
-    // Continue to next waypoint
+    // Snap to waypoint and advance
     return {
       ...boat,
+      position: currentWaypoint,
       currentWaypointIndex: nextIndex,
     };
   }
   
-  // Update heading toward waypoint
-  let newHeading = steerToward(boat.heading, angleToWaypoint, physics.turnRate, deltaTime);
-  
-  // Calculate speed
-  const currentSpeed = Math.sqrt(boat.velocity.vx ** 2 + boat.velocity.vy ** 2);
-  
-  // Slow down when approaching waypoint (especially final one)
+  // Move directly toward waypoint
   const isFinalWaypoint = boat.currentWaypointIndex === boat.waypoints.length - 1;
-  const slowdownDistance = isFinalWaypoint ? physics.maxSpeed * 0.5 : physics.maxSpeed * 0.2;
-  const targetSpeed = distToWaypoint < slowdownDistance
-    ? physics.maxSpeed * (distToWaypoint / slowdownDistance)
-    : physics.maxSpeed;
+  const slowdownDistance = isFinalWaypoint ? 0.3 : 0.1;
   
-  // Accelerate or decelerate toward target speed
-  let newSpeed: number;
-  if (currentSpeed < targetSpeed) {
-    newSpeed = Math.min(currentSpeed + physics.acceleration * deltaTime, targetSpeed);
-  } else {
-    newSpeed = Math.max(currentSpeed - physics.deceleration * deltaTime, targetSpeed);
+  let speed = physics.maxSpeed;
+  if (distToWaypoint < slowdownDistance) {
+    speed = Math.max(physics.maxSpeed * 0.3, physics.maxSpeed * (distToWaypoint / slowdownDistance));
   }
   
-  // Ensure minimum speed when moving
-  newSpeed = Math.max(newSpeed, physics.maxSpeed * 0.3);
+  // Direction vector toward waypoint
+  const dx = currentWaypoint.x - boat.position.x;
+  const dy = currentWaypoint.y - boat.position.y;
+  const dist = Math.max(0.001, Math.sqrt(dx * dx + dy * dy));
+  const dirX = dx / dist;
+  const dirY = dy / dist;
   
-  // Calculate new velocity from heading and speed
-  const newVelocity: Velocity = {
-    vx: Math.cos(newHeading) * newSpeed,
-    vy: Math.sin(newHeading) * newSpeed,
+  // Calculate movement this frame (don't overshoot)
+  const moveDistance = Math.min(speed * deltaTime, distToWaypoint);
+  
+  const newPosition: WaterPosition = {
+    x: boat.position.x + dirX * moveDistance,
+    y: boat.position.y + dirY * moveDistance,
   };
   
-  // Calculate new position
-  let newPosition: WaterPosition = {
-    x: boat.position.x + newVelocity.vx * deltaTime,
-    y: boat.position.y + newVelocity.vy * deltaTime,
+  // Update heading to face direction of movement (for visual rotation)
+  const newHeading = Math.atan2(dirY, dirX);
+  
+  // Boundary safety — clamp to valid water area instead of stopping
+  const clampedPosition: WaterPosition = {
+    x: Math.max(0.05, Math.min(GRID_WIDTH_IMPORT - 0.05, newPosition.x)),
+    y: Math.max(0.05, Math.min(GRID_HEIGHT_IMPORT - 0.05, newPosition.y)),
   };
   
-  // Verify new position is valid water (shouldn't hit land if pathfinding is correct)
-  if (!isPointInWater(newPosition, island)) {
-    // This shouldn't happen with proper pathfinding, but handle it
-    console.warn('Boat tried to enter land - stopping');
+  // If new position is on land, skip to next waypoint or stop
+  if (!isPointInWater(clampedPosition, island)) {
+    const nextIndex = boat.currentWaypointIndex + 1;
+    if (nextIndex < boat.waypoints.length) {
+      // Skip this waypoint and try the next one
+      return {
+        ...boat,
+        currentWaypointIndex: nextIndex,
+      };
+    }
+    // No more waypoints — stop at current position (don't move into land)
     return stopBoat(boat);
   }
   
   return {
     ...boat,
-    position: newPosition,
+    position: clampedPosition,
     heading: newHeading,
-    velocity: newVelocity,
+    velocity: { vx: dirX * speed, vy: dirY * speed },
   };
 }
 

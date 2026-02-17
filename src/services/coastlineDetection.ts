@@ -259,6 +259,58 @@ export function clampToWater(
 }
 
 /**
+ * Check if a water tile can reach the map edge via connected water tiles (BFS).
+ * Prevents boats from spawning in landlocked pools.
+ */
+export function canReachOpenOcean(
+  startX: number,
+  startY: number,
+  island: Island
+): boolean {
+  const landSet = new Set<string>();
+  island.tiles.forEach(tile => {
+    landSet.add(`${tile.position.x},${tile.position.y}`);
+  });
+
+  const tileX = Math.floor(startX);
+  const tileY = Math.floor(startY);
+
+  // BFS through water tiles
+  const visited = new Set<string>();
+  const queue: [number, number][] = [[tileX, tileY]];
+  visited.add(`${tileX},${tileY}`);
+
+  while (queue.length > 0) {
+    const [cx, cy] = queue.shift()!;
+
+    // If this tile is on the map edge, we can reach open ocean
+    if (cx <= 0 || cx >= GRID_WIDTH - 1 || cy <= 0 || cy >= GRID_HEIGHT - 1) {
+      return true;
+    }
+
+    // Check 4 neighbors
+    const neighbors: [number, number][] = [
+      [cx - 1, cy], [cx + 1, cy],
+      [cx, cy - 1], [cx, cy + 1],
+    ];
+
+    for (const [nx, ny] of neighbors) {
+      const key = `${nx},${ny}`;
+      if (visited.has(key)) continue;
+      if (nx < 0 || nx >= GRID_WIDTH || ny < 0 || ny >= GRID_HEIGHT) {
+        // Out of bounds = open ocean
+        return true;
+      }
+      if (landSet.has(key)) continue; // skip land
+      visited.add(key);
+      queue.push([nx, ny]);
+    }
+  }
+
+  return false; // Landlocked pool
+}
+
+/**
  * Get valid spawn position for a boat near a dock or coastal tile
  */
 export function getBoatSpawnPosition(
@@ -278,7 +330,8 @@ export function getBoatSpawnPosition(
     const waterX = coastalTile.x + 0.5 + dir.x;
     const waterY = coastalTile.y + 0.5 + dir.y;
     
-    if (isPointInWater({ x: waterX, y: waterY }, island)) {
+    if (isPointInWater({ x: waterX, y: waterY }, island) &&
+        canReachOpenOcean(waterX, waterY, island)) {
       return { x: waterX, y: waterY };
     }
   }
@@ -292,4 +345,5 @@ export default {
   checkCoastlineIntersection,
   clampToWater,
   getBoatSpawnPosition,
+  canReachOpenOcean,
 };

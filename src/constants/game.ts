@@ -162,6 +162,42 @@ export const BALANCE = {
   
   // PT boat scouting radius (tiles)
   ptScoutRadius: 3,
+  
+  // Fish schools
+  fishSchoolCount: 3,            // Number of active schools per round
+  fishSchoolSpeed: 0.15,         // Drift speed (world units/second)
+  fishSchoolSize: 0.75,          // Radius for overlap detection (world units)
+  fishingGoldPerTick: 1,         // Gold earned per boat per detection tick
+  fishGoldCheckInterval: 1500,   // ms between gold checks
+  
+  // Pirate ships
+  pirateSpawnInterval: 8000,     // ms between spawn checks
+  pirateMaxActive: 2,            // Max simultaneous pirates
+  pirateSinkRadius: 0.6,         // Overlap radius to sink/be sunk (world units)
+  pirateCasualtiesMin: 0,        // Min population lost when boat sunk
+  pirateCasualtiesMax: 50,       // Max population lost when boat sunk
+  // Difficulty-specific values set in PIRATE_DIFFICULTY below
+  
+  // Tropical storms
+  stormSpawnInterval: 15000,     // ms between spawn checks
+  stormDamageInterval: 1500,     // ms between damage checks while storm is active
+  stormCasualtiesMin: 0,         // Min population lost per boat sunk
+  stormCasualtiesMax: 30,        // Max population lost per boat sunk
+  // Difficulty-specific values set in STORM_DIFFICULTY below
+} as const;
+
+// Pirate difficulty scaling
+export const PIRATE_DIFFICULTY = {
+  easy:   { spawnChance: 0.10, maxActive: 1, speed: 0.6 },
+  normal: { spawnChance: 0.15, maxActive: 2, speed: 0.8 },
+  hard:   { spawnChance: 0.25, maxActive: 3, speed: 1.0 },
+} as const;
+
+// Tropical storm difficulty scaling
+export const STORM_DIFFICULTY = {
+  easy:   { spawnChance: 0.08, buildingDestroy: 0.10, boatSink: 0.15, speed: 20 },
+  normal: { spawnChance: 0.15, buildingDestroy: 0.15, boatSink: 0.20, speed: 25 },
+  hard:   { spawnChance: 0.25, buildingDestroy: 0.20, boatSink: 0.30, speed: 30 },
 } as const;
 
 // Color palette

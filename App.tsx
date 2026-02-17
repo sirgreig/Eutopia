@@ -29,6 +29,7 @@ import {
   ConstructionIcon,
 } from './src/components/game/Icons';
 import { RainCloud } from './src/components/game/RainCloud';
+import { StormCloud } from './src/components/game/StormCloud';
 import { ScoreDisplay } from './src/components/game/ScoreDisplay';
 import { EndGameSummary } from './src/components/game/EndGameSummary';
 import { Toast } from './src/components/game/Toast';
@@ -51,10 +52,13 @@ import {
   GameMode,
   BoatType,
   FreeRoamBoat as FreeRoamBoatType,
+  FishSchool as FishSchoolType,
+  PirateShip as PirateShipType,
   WaterPosition,
   Coastline,
+  waterDistance,
 } from './src/types';
-import { BUILDINGS, BOAT_COSTS, BALANCE, GRID_WIDTH, GRID_HEIGHT, getAvailableBuildings } from './src/constants/game';
+import { BUILDINGS, BOAT_COSTS, BALANCE, PIRATE_DIFFICULTY, STORM_DIFFICULTY, GRID_WIDTH, GRID_HEIGHT, getAvailableBuildings } from './src/constants/game';
 
 // Audio imports - simple system adapted from IJBA
 import { initializeSounds, Sounds } from './src/services/soundManager';
@@ -69,6 +73,11 @@ import { AIIslandMinimap } from './src/components/game/AIIslandMinimap';
 // Tutorial imports
 import { useTutorial } from './src/hooks/useTutorial';
 import { TutorialOverlay } from './src/components/game/TutorialOverlay';
+
+// Fish schools
+import { FishSchoolComponent } from './src/components/game/FishSchool';
+import { PirateShipComponent } from './src/components/game/PirateShip';
+import { isPointInWater } from './src/services/coastlineDetection';
 
 const MENU_ICON_SIZE = 28;
 
@@ -121,6 +130,11 @@ export default function App() {
     endX: number; endY: number;
     duration: number;
   } | null>(null);
+  const [stormCloud, setStormCloud] = useState<{
+    startX: number; startY: number;
+    endX: number; endY: number;
+    duration: number;
+  } | null>(null);
   const [showGameOver, setShowGameOver] = useState(false);
   const [showRoundTransition, setShowRoundTransition] = useState<'start' | 'end' | null>(null);
   const [showSettings, setShowSettings] = useState(false);
@@ -134,6 +148,21 @@ export default function App() {
   const [destinationMarker, setDestinationMarker] = useState<WaterPosition | null>(null);
   const boatUpdateRef = useRef<number | null>(null);
   const lastUpdateTimeRef = useRef<number>(Date.now());
+  
+  // Fish school state
+  const [fishSchools, setFishSchools] = useState<FishSchoolType[]>([]);
+  const fishSchoolsRef = useRef<FishSchoolType[]>([]);
+  const freeRoamBoatsRef = useRef<FreeRoamBoatType[]>([]);
+  const fishGoldIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const fishMoveIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const fishRenderSyncRef = useRef<number>(0);
+  
+  // Pirate ship state
+  const [pirates, setPirates] = useState<PirateShipType[]>([]);
+  const piratesRef = useRef<PirateShipType[]>([]);
+  const pirateSpawnIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pirateUpdateIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pirateRenderSyncRef = useRef<number>(0);
   
   // Audio settings hook
   const { isAudioEnabled, toggleAllAudio } = useAudioSettings();
@@ -159,10 +188,17 @@ export default function App() {
   });
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const isRoundActiveRef = useRef(false);
   const rainTimerRef = useRef<NodeJS.Timeout | null>(null);
   const rainStartTimeRef = useRef<number>(0);
   const rainGoldIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const rainGoldAccumRef = useRef(0);
+  
+  // Tropical storm refs
+  const stormTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const stormStartTimeRef = useRef<number>(0);
+  const stormDamageIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const stormDamagedTilesRef = useRef<Set<string>>(new Set()); // Track tiles already rolled this storm
 
   // Tutorial hook
   const {
@@ -192,6 +228,10 @@ export default function App() {
     setIsland(newIsland);
     setCoastline(generateCoastline(newIsland));
     setFreeRoamBoats([]);
+    setFishSchools([]);
+    fishSchoolsRef.current = [];
+    setPirates([]);
+    piratesRef.current = [];
     setGold(BALANCE.startingGold);
     setPopulation(BALANCE.startingPopulation);
     setScore(50);
@@ -204,6 +244,7 @@ export default function App() {
     setDestinationMarker(null);
     setShowBuildMenu(false);
     setRainCloud(null);
+    setStormCloud(null);
     setShowGameOver(false);
     setShowRoundTransition(null);
     setToast(null);
@@ -222,6 +263,10 @@ export default function App() {
     setIsland(newIsland);
     setCoastline(generateCoastline(newIsland));
     setFreeRoamBoats([]);
+    setFishSchools([]);
+    fishSchoolsRef.current = [];
+    setPirates([]);
+    piratesRef.current = [];
     setGold(BALANCE.startingGold);
     setPopulation(BALANCE.startingPopulation);
     setScore(50);
@@ -234,6 +279,7 @@ export default function App() {
     setDestinationMarker(null);
     setShowBuildMenu(false);
     setRainCloud(null);
+    setStormCloud(null);
     setShowGameOver(false);
     setShowRoundTransition(null);
     setToast(null);
@@ -291,6 +337,7 @@ export default function App() {
     if (isRoundActive) {
       const spawnRain = () => {
         if (rainCloud) return; // Only one cloud at a time
+        if (stormCloud) return; // Don't spawn rain during storm
         if (Math.random() < 0.3) { // 30% chance each check
           const cloudWidth = tileSize * 2;
           const cloudHeight = tileSize * 1.5;
@@ -363,7 +410,7 @@ export default function App() {
       rainTimerRef.current = setInterval(spawnRain, 5000);
       return () => { if (rainTimerRef.current) clearInterval(rainTimerRef.current); };
     }
-  }, [isRoundActive, island, tileSize, screenWidth, screenHeight, rainCloud]);
+  }, [isRoundActive, island, tileSize, screenWidth, screenHeight, rainCloud, stormCloud]);
 
   // Rain gold detection — check crop overlap every second while cloud is active
   useEffect(() => {
@@ -383,6 +430,7 @@ export default function App() {
     const gridOriginY = 56 + ((screenHeight - 56) - gridH) / 2;
     
     rainGoldIntervalRef.current = setInterval(() => {
+      if (!isRoundActiveRef.current) return; // No gold between rounds
       const elapsed = Date.now() - rainStartTimeRef.current;
       const progress = Math.min(1, elapsed / rainCloud.duration);
       
@@ -425,7 +473,213 @@ export default function App() {
     };
   }, [rainCloud, island, tileSize, screenWidth, screenHeight]);
 
+  // Tropical storm spawning during rounds (rarer than rain)
+  useEffect(() => {
+    if (isRoundActive && round > 1) { // No storms in round 1
+      const stormDiff = STORM_DIFFICULTY[difficulty] || STORM_DIFFICULTY.normal;
+      const spawnStorm = () => {
+        if (stormCloud) return; // Only one storm at a time
+        if (Math.random() >= stormDiff.spawnChance) return;
+        
+        // Storm overrides active rain
+        setRainCloud(null);
+        
+        const cloudWidth = tileSize * 2.4;
+        const cloudHeight = tileSize * 2;
+        const margin = 20;
+        
+        const gridW = GRID_WIDTH * tileSize;
+        const gridH = GRID_HEIGHT * tileSize;
+        const gridX = (screenWidth - gridW) / 2;
+        const gridY = 56 + ((screenHeight - 56) - gridH) / 2;
+        
+        const randIslandY = gridY + Math.random() * gridH - cloudHeight / 2;
+        const randIslandX = gridX + Math.random() * gridW - cloudWidth / 2;
+        const angleVariation = (Math.random() - 0.5) * screenHeight * 0.15;
+        
+        const dir = Math.floor(Math.random() * 8);
+        let sX: number, sY: number, eX: number, eY: number;
+        
+        switch (dir) {
+          case 0: sX = -margin; sY = randIslandY; eX = screenWidth + margin; eY = randIslandY + angleVariation; break;
+          case 1: sX = screenWidth + margin; sY = randIslandY; eX = -margin; eY = randIslandY + angleVariation; break;
+          case 2: sX = randIslandX; sY = -margin; eX = randIslandX + angleVariation; eY = screenHeight + margin; break;
+          case 3: sX = randIslandX; sY = screenHeight + margin; eX = randIslandX + angleVariation; eY = -margin; break;
+          case 4: sX = -margin; sY = -margin; eX = screenWidth + margin; eY = screenHeight + margin; break;
+          case 5: sX = screenWidth + margin; sY = -margin; eX = -margin; eY = screenHeight + margin; break;
+          case 6: sX = -margin; sY = screenHeight + margin; eX = screenWidth + margin; eY = -margin; break;
+          case 7: default: sX = screenWidth + margin; sY = screenHeight + margin; eX = -margin; eY = -margin; break;
+        }
+        
+        const pathLength = Math.sqrt(Math.pow(eX - sX, 2) + Math.pow(eY - sY, 2));
+        const dur = Math.max(10000, Math.min(60000, (pathLength / stormDiff.speed) * 1000));
+        
+        stormStartTimeRef.current = Date.now();
+        stormDamagedTilesRef.current = new Set();
+        setStormCloud({ startX: sX, startY: sY, endX: eX, endY: eY, duration: dur });
+        showToast('⛈️ Tropical storm approaching!', 'rebel');
+        Sounds.rebelAppear();
+      };
+      
+      stormTimerRef.current = setInterval(spawnStorm, BALANCE.stormSpawnInterval);
+      return () => { if (stormTimerRef.current) clearInterval(stormTimerRef.current); };
+    }
+  }, [isRoundActive, round, island, tileSize, screenWidth, screenHeight, stormCloud, difficulty]);
+
+  // Tropical storm damage detection
+  useEffect(() => {
+    if (!stormCloud || !island) {
+      if (stormDamageIntervalRef.current) {
+        clearInterval(stormDamageIntervalRef.current);
+        stormDamageIntervalRef.current = null;
+      }
+      return;
+    }
+    
+    const stormDiff = STORM_DIFFICULTY[difficulty] || STORM_DIFFICULTY.normal;
+    const cloudWidth = tileSize * 2.4;
+    const cloudHeight = tileSize * 2;
+    const gridW = GRID_WIDTH * tileSize;
+    const gridH = GRID_HEIGHT * tileSize;
+    const gridOriginX = (screenWidth - gridW) / 2;
+    const gridOriginY = 56 + ((screenHeight - 56) - gridH) / 2;
+    
+    // Get fort positions for protection checks
+    const fortPositions = island.tiles
+      .filter(t => t.building === 'fort')
+      .map(t => t.position);
+    
+    const isTileProtected = (pos: { x: number; y: number }): boolean => {
+      for (const fort of fortPositions) {
+        if (Math.abs(pos.x - fort.x) <= BALANCE.fortRadius &&
+            Math.abs(pos.y - fort.y) <= BALANCE.fortRadius) {
+          return true;
+        }
+      }
+      return false;
+    };
+    
+    stormDamageIntervalRef.current = setInterval(() => {
+      if (!isRoundActiveRef.current) return; // No damage between rounds
+      const elapsed = Date.now() - stormStartTimeRef.current;
+      const progress = Math.min(1, elapsed / stormCloud.duration);
+      
+      const cloudX = stormCloud.startX + (stormCloud.endX - stormCloud.startX) * progress;
+      const cloudY = stormCloud.startY + (stormCloud.endY - stormCloud.startY) * progress;
+      
+      // Also water crops like rain does
+      const cropTiles = island.tiles.filter(t => t.building === 'farm');
+      let wateredCrops = 0;
+      for (const crop of cropTiles) {
+        const tileScreenX = gridOriginX + crop.position.x * tileSize;
+        const tileScreenY = gridOriginY + crop.position.y * tileSize;
+        if (cloudX < tileScreenX + tileSize && cloudX + cloudWidth > tileScreenX &&
+            cloudY < tileScreenY + tileSize && cloudY + cloudHeight > tileScreenY) {
+          wateredCrops++;
+        }
+      }
+      if (wateredCrops > 0) {
+        setGold(g => g + wateredCrops);
+        showToast(`+${wateredCrops}g from storm rain!`, 'rain');
+      }
+      
+      // Check building damage — only roll once per tile per storm
+      let tilesDestroyed = 0;
+      const buildingTiles = island.tiles.filter(t => t.building && t.building !== 'fort');
+      
+      for (const tile of buildingTiles) {
+        const tileKey = `${tile.position.x},${tile.position.y}`;
+        if (stormDamagedTilesRef.current.has(tileKey)) continue; // Already rolled
+        
+        const tileScreenX = gridOriginX + tile.position.x * tileSize;
+        const tileScreenY = gridOriginY + tile.position.y * tileSize;
+        
+        // Check if storm overlaps this tile
+        if (cloudX < tileScreenX + tileSize && cloudX + cloudWidth > tileScreenX &&
+            cloudY < tileScreenY + tileSize && cloudY + cloudHeight > tileScreenY) {
+          stormDamagedTilesRef.current.add(tileKey); // Mark as rolled
+          
+          if (isTileProtected(tile.position)) continue; // Fort protected
+          
+          if (Math.random() < stormDiff.buildingDestroy) {
+            tilesDestroyed++;
+            const buildingName = BUILDINGS.find(b => b.type === tile.building)?.name || tile.building;
+            setIsland(prev => ({
+              ...prev,
+              tiles: prev.tiles.map(t =>
+                t.id === tile.id ? { ...t, building: undefined } : t
+              ),
+            }));
+            showToast(`⛈️ Storm destroyed ${buildingName}!`, 'rebel');
+            Sounds.boatCrash();
+          }
+        }
+      }
+      
+      // Check boat damage
+      const currentBoats = freeRoamBoatsRef.current;
+      const boatsToSink: string[] = [];
+      
+      for (const boat of currentBoats) {
+        const boatScreenX = gridOriginX + boat.position.x * tileSize;
+        const boatScreenY = gridOriginY + boat.position.y * tileSize;
+        
+        if (cloudX < boatScreenX + tileSize && cloudX + cloudWidth > boatScreenX &&
+            cloudY < boatScreenY + tileSize && cloudY + cloudHeight > boatScreenY) {
+          
+          // Check fort protection for boats
+          const fortCenter = { x: boat.position.x, y: boat.position.y };
+          let boatProtected = false;
+          for (const fort of fortPositions) {
+            const dx = boat.position.x - (fort.x + 0.5);
+            const dy = boat.position.y - (fort.y + 0.5);
+            if (Math.sqrt(dx * dx + dy * dy) <= BALANCE.fortRadius + 0.5) {
+              boatProtected = true;
+              break;
+            }
+          }
+          if (boatProtected) continue;
+          
+          if (Math.random() < stormDiff.boatSink) {
+            boatsToSink.push(boat.id);
+          }
+        }
+      }
+      
+      if (boatsToSink.length > 0) {
+        setFreeRoamBoats(prev => prev.filter(b => !boatsToSink.includes(b.id)));
+        freeRoamBoatsRef.current = freeRoamBoatsRef.current.filter(b => !boatsToSink.includes(b.id));
+        
+        for (const boatId of boatsToSink) {
+          const sunkBoat = currentBoats.find(b => b.id === boatId);
+          const casualties = Math.floor(Math.random() * (BALANCE.stormCasualtiesMax - BALANCE.stormCasualtiesMin + 1)) + BALANCE.stormCasualtiesMin;
+          if (casualties > 0) {
+            setPopulation(p => Math.max(0, p - casualties));
+          }
+          const boatLabel = sunkBoat?.type === 'fishing' ? 'fishing boat' : 'PT boat';
+          showToast(`⛈️ Storm sank your ${boatLabel}!${casualties > 0 ? ` -${casualties} people` : ''}`, 'rebel');
+          Sounds.boatCrash();
+        }
+      }
+    }, BALANCE.stormDamageInterval);
+    
+    return () => {
+      if (stormDamageIntervalRef.current) {
+        clearInterval(stormDamageIntervalRef.current);
+        stormDamageIntervalRef.current = null;
+      }
+    };
+  }, [stormCloud, island, tileSize, screenWidth, screenHeight, difficulty]);
+
   // Free-roam boat physics game loop
+  const selectedBoatRef = useRef<string | null>(null);
+  const destinationMarkerRef = useRef<WaterPosition | null>(null);
+  
+  // Keep refs in sync
+  useEffect(() => { selectedBoatRef.current = selectedBoat; }, [selectedBoat]);
+  useEffect(() => { destinationMarkerRef.current = destinationMarker; }, [destinationMarker]);
+  useEffect(() => { isRoundActiveRef.current = isRoundActive; }, [isRoundActive]);
+  
   useEffect(() => {
     if (!coastline || !island || freeRoamBoats.length === 0) {
       return;
@@ -433,23 +687,31 @@ export default function App() {
     
     const updateBoats = () => {
       const now = Date.now();
-      const deltaTime = (now - lastUpdateTimeRef.current) / 1000; // Convert to seconds
+      const deltaTime = (now - lastUpdateTimeRef.current) / 1000;
       lastUpdateTimeRef.current = now;
       
       // Cap deltaTime to prevent huge jumps
-      const dt = Math.min(deltaTime, 0.1);
+      const dt = Math.min(deltaTime, 0.05);
       
       setFreeRoamBoats(prevBoats => {
-        return prevBoats.map(boat => 
+        const updated = prevBoats.map(boat => 
           updateBoat(boat, dt, coastline, island, prevBoats)
         );
+        
+        // Clear destination marker when selected boat arrives (using refs for current values)
+        const selId = selectedBoatRef.current;
+        if (selId && destinationMarkerRef.current) {
+          const selBoat = updated.find(b => b.id === selId);
+          if (selBoat && !selBoat.isMoving) {
+            setDestinationMarker(null);
+          }
+        }
+        
+        // Keep boats ref in sync for fish gold detection
+        freeRoamBoatsRef.current = updated;
+        
+        return updated;
       });
-      
-      // Clear destination marker when boat arrives
-      const selectedBoatObj = freeRoamBoats.find(b => b.id === selectedBoat);
-      if (selectedBoatObj && !selectedBoatObj.isMoving && destinationMarker) {
-        setDestinationMarker(null);
-      }
       
       boatUpdateRef.current = requestAnimationFrame(updateBoats);
     };
@@ -462,7 +724,416 @@ export default function App() {
         cancelAnimationFrame(boatUpdateRef.current);
       }
     };
-  }, [coastline, island, freeRoamBoats.length > 0, selectedBoat, destinationMarker]);
+  }, [coastline, island, freeRoamBoats.length > 0]);
+
+  // ============================================
+  // FISH SCHOOL SYSTEM
+  // ============================================
+  
+  /**
+   * Spawn fish schools at random valid water positions
+   */
+  const spawnFishSchools = useCallback(() => {
+    if (!island) return;
+    
+    const schools: FishSchoolType[] = [];
+    const gridW = GRID_WIDTH;
+    const gridH = GRID_HEIGHT;
+    
+    for (let i = 0; i < BALANCE.fishSchoolCount; i++) {
+      let attempts = 0;
+      let pos: WaterPosition | null = null;
+      
+      // Try random positions until we find valid water
+      while (attempts < 50) {
+        const candidate: WaterPosition = {
+          x: Math.random() * gridW,
+          y: Math.random() * gridH,
+        };
+        if (isPointInWater(candidate, island)) {
+          pos = candidate;
+          break;
+        }
+        attempts++;
+      }
+      
+      if (!pos) continue;
+      
+      // Random drift direction
+      const angle = Math.random() * Math.PI * 2;
+      const speed = BALANCE.fishSchoolSpeed;
+      
+      schools.push({
+        id: `fish-${Date.now()}-${i}`,
+        position: pos,
+        velocity: {
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+        },
+        size: BALANCE.fishSchoolSize,
+      });
+    }
+    
+    setFishSchools(schools);
+    fishSchoolsRef.current = schools;
+  }, [island]);
+  
+  // Spawn fish when round becomes active
+  useEffect(() => {
+    if (isRoundActive && island) {
+      spawnFishSchools();
+    }
+  }, [isRoundActive, island]);
+  
+  // Fish movement — update ref every 100ms, sync to state every 500ms for rendering
+  useEffect(() => {
+    if (!isRoundActive || fishSchoolsRef.current.length === 0 || !island) return;
+    
+    fishRenderSyncRef.current = 0;
+    
+    fishMoveIntervalRef.current = setInterval(() => {
+      fishSchoolsRef.current = fishSchoolsRef.current.map(school => {
+        const dt = 0.1; // 100ms
+        let newX = school.position.x + school.velocity.vx * dt;
+        let newY = school.position.y + school.velocity.vy * dt;
+        let newVx = school.velocity.vx;
+        let newVy = school.velocity.vy;
+        
+        // Bounce off grid boundaries with padding
+        const pad = 0.5;
+        if (newX < pad || newX > GRID_WIDTH - pad) {
+          newVx = -newVx;
+          newX = Math.max(pad, Math.min(GRID_WIDTH - pad, newX));
+        }
+        if (newY < pad || newY > GRID_HEIGHT - pad) {
+          newVy = -newVy;
+          newY = Math.max(pad, Math.min(GRID_HEIGHT - pad, newY));
+        }
+        
+        const newPos: WaterPosition = { x: newX, y: newY };
+        
+        // If new position is on land, reverse direction and stay put
+        if (!isPointInWater(newPos, island)) {
+          const angle = Math.atan2(-newVy, -newVx) + (Math.random() - 0.5) * Math.PI * 0.5;
+          const speed = BALANCE.fishSchoolSpeed;
+          return {
+            ...school,
+            velocity: {
+              vx: Math.cos(angle) * speed,
+              vy: Math.sin(angle) * speed,
+            },
+          };
+        }
+        
+        return {
+          ...school,
+          position: newPos,
+          velocity: { vx: newVx, vy: newVy },
+        };
+      });
+      
+      // Sync to React state every ~500ms (every 5th tick) for rendering
+      fishRenderSyncRef.current++;
+      if (fishRenderSyncRef.current >= 5) {
+        fishRenderSyncRef.current = 0;
+        setFishSchools([...fishSchoolsRef.current]);
+      }
+    }, 100);
+    
+    return () => {
+      if (fishMoveIntervalRef.current) {
+        clearInterval(fishMoveIntervalRef.current);
+        fishMoveIntervalRef.current = null;
+      }
+    };
+  }, [isRoundActive, fishSchools.length > 0, island]);
+  
+  // Fish gold detection — reads current positions from refs
+  useEffect(() => {
+    if (!isRoundActive || fishSchoolsRef.current.length === 0 || freeRoamBoats.length === 0) {
+      if (fishGoldIntervalRef.current) {
+        clearInterval(fishGoldIntervalRef.current);
+        fishGoldIntervalRef.current = null;
+      }
+      return;
+    }
+    
+    fishGoldIntervalRef.current = setInterval(() => {
+      const currentBoats = freeRoamBoatsRef.current;
+      const currentFish = fishSchoolsRef.current;
+      
+      const fishingBoats = currentBoats.filter(b => b.type === 'fishing');
+      if (fishingBoats.length === 0 || currentFish.length === 0) return;
+      
+      let totalGold = 0;
+      
+      for (const boat of fishingBoats) {
+        for (const school of currentFish) {
+          const dist = waterDistance(boat.position, school.position);
+          // Boat must be directly over the fish school to earn gold
+          if (dist < school.size) {
+            totalGold += BALANCE.fishingGoldPerTick;
+            break; // One boat can only fish from one school per tick
+          }
+        }
+      }
+      
+      if (totalGold > 0) {
+        setGold(g => g + totalGold);
+        showToast(`+${totalGold}g fishing!`, 'gold');
+        Sounds.boatFishing();
+      }
+    }, BALANCE.fishGoldCheckInterval);
+    
+    return () => {
+      if (fishGoldIntervalRef.current) {
+        clearInterval(fishGoldIntervalRef.current);
+        fishGoldIntervalRef.current = null;
+      }
+    };
+  }, [isRoundActive, fishSchools.length > 0, freeRoamBoats.length > 0]);
+
+  // ============================================
+  // PIRATE SHIP SYSTEM
+  // ============================================
+  
+  // Pirate spawning — check every interval, spawn at random water edge
+  useEffect(() => {
+    if (!isRoundActive || !island) {
+      if (pirateSpawnIntervalRef.current) {
+        clearInterval(pirateSpawnIntervalRef.current);
+        pirateSpawnIntervalRef.current = null;
+      }
+      return;
+    }
+    
+    const diffSettings = PIRATE_DIFFICULTY[difficulty] || PIRATE_DIFFICULTY.normal;
+    
+    pirateSpawnIntervalRef.current = setInterval(() => {
+      // Check max active
+      if (piratesRef.current.length >= diffSettings.maxActive) return;
+      
+      // Random spawn chance
+      if (Math.random() > diffSettings.spawnChance) return;
+      
+      // Spawn at random edge water position
+      const edge = Math.floor(Math.random() * 4); // 0=top, 1=bottom, 2=left, 3=right
+      let spawnPos: WaterPosition;
+      
+      switch (edge) {
+        case 0: // top
+          spawnPos = { x: Math.random() * GRID_WIDTH, y: 0.1 };
+          break;
+        case 1: // bottom
+          spawnPos = { x: Math.random() * GRID_WIDTH, y: GRID_HEIGHT - 0.1 };
+          break;
+        case 2: // left
+          spawnPos = { x: 0.1, y: Math.random() * GRID_HEIGHT };
+          break;
+        case 3: // right
+        default:
+          spawnPos = { x: GRID_WIDTH - 0.1, y: Math.random() * GRID_HEIGHT };
+          break;
+      }
+      
+      // Only spawn in water
+      if (!isPointInWater(spawnPos, island)) return;
+      
+      const newPirate: PirateShipType = {
+        id: `pirate-${Date.now()}`,
+        position: spawnPos,
+        velocity: { vx: 0, vy: 0 },
+        speed: diffSettings.speed,
+        targetFishId: null,
+      };
+      
+      piratesRef.current = [...piratesRef.current, newPirate];
+      setPirates([...piratesRef.current]);
+      showToast('Pirates spotted!', 'rebel');
+    }, BALANCE.pirateSpawnInterval);
+    
+    return () => {
+      if (pirateSpawnIntervalRef.current) {
+        clearInterval(pirateSpawnIntervalRef.current);
+        pirateSpawnIntervalRef.current = null;
+      }
+    };
+  }, [isRoundActive, island, difficulty]);
+  
+  // Pirate movement + collision — update every 100ms
+  useEffect(() => {
+    if (!isRoundActive || !island) {
+      if (pirateUpdateIntervalRef.current) {
+        clearInterval(pirateUpdateIntervalRef.current);
+        pirateUpdateIntervalRef.current = null;
+      }
+      return;
+    }
+    
+    pirateRenderSyncRef.current = 0;
+    
+    pirateUpdateIntervalRef.current = setInterval(() => {
+      if (piratesRef.current.length === 0) return;
+      
+      const dt = 0.1;
+      const currentFish = fishSchoolsRef.current;
+      const currentBoats = freeRoamBoatsRef.current;
+      const sinkRadius = BALANCE.pirateSinkRadius;
+      
+      let piratesSunk: string[] = [];
+      let boatsSunk: string[] = [];
+      let casualties = 0;
+      
+      // Update each pirate
+      piratesRef.current = piratesRef.current.map(pirate => {
+        // Check collision with PT boats — pirate gets sunk
+        for (const boat of currentBoats) {
+          if (boat.type !== 'pt') continue;
+          const dist = waterDistance(pirate.position, boat.position);
+          if (dist < sinkRadius) {
+            piratesSunk.push(pirate.id);
+            return pirate; // Will be filtered out below
+          }
+        }
+        
+        // Check collision with fishing boats — fishing boat gets sunk
+        for (const boat of currentBoats) {
+          if (boat.type !== 'fishing') continue;
+          // Don't target boats near forts
+          if (isBoatFortProtected(boat, island)) continue;
+          const dist = waterDistance(pirate.position, boat.position);
+          if (dist < sinkRadius) {
+            boatsSunk.push(boat.id);
+            casualties += BALANCE.pirateCasualtiesMin + 
+              Math.floor(Math.random() * (BALANCE.pirateCasualtiesMax - BALANCE.pirateCasualtiesMin));
+          }
+        }
+        
+        // Navigate toward nearest fish school (where fishing boats likely are)
+        let targetPos: WaterPosition | null = null;
+        
+        if (currentFish.length > 0) {
+          // Find closest fish school, but avoid PT boats
+          let bestDist = Infinity;
+          for (const fish of currentFish) {
+            // Check if a PT boat is near this fish school
+            const ptNearby = currentBoats.some(b => 
+              b.type === 'pt' && waterDistance(b.position, fish.position) < 2.0
+            );
+            if (ptNearby) continue; // Pirates avoid PT boats (original behavior)
+            
+            const d = waterDistance(pirate.position, fish.position);
+            if (d < bestDist) {
+              bestDist = d;
+              targetPos = fish.position;
+            }
+          }
+        }
+        
+        // If no safe fish target, wander randomly
+        if (!targetPos) {
+          targetPos = {
+            x: GRID_WIDTH / 2 + (Math.random() - 0.5) * GRID_WIDTH * 0.6,
+            y: GRID_HEIGHT / 2 + (Math.random() - 0.5) * GRID_HEIGHT * 0.6,
+          };
+        }
+        
+        // Move toward target
+        const dx = targetPos.x - pirate.position.x;
+        const dy = targetPos.y - pirate.position.y;
+        const dist = Math.max(0.001, Math.sqrt(dx * dx + dy * dy));
+        const dirX = dx / dist;
+        const dirY = dy / dist;
+        
+        const moveDistance = pirate.speed * dt;
+        let newX = pirate.position.x + dirX * moveDistance;
+        let newY = pirate.position.y + dirY * moveDistance;
+        
+        // Clamp to grid
+        newX = Math.max(0.1, Math.min(GRID_WIDTH - 0.1, newX));
+        newY = Math.max(0.1, Math.min(GRID_HEIGHT - 0.1, newY));
+        
+        const newPos: WaterPosition = { x: newX, y: newY };
+        
+        // If on land, reverse and randomize
+        if (!isPointInWater(newPos, island)) {
+          const angle = Math.atan2(-dirY, -dirX) + (Math.random() - 0.5) * Math.PI * 0.5;
+          return {
+            ...pirate,
+            velocity: { vx: Math.cos(angle) * pirate.speed, vy: Math.sin(angle) * pirate.speed },
+          };
+        }
+        
+        return {
+          ...pirate,
+          position: newPos,
+          velocity: { vx: dirX * pirate.speed, vy: dirY * pirate.speed },
+        };
+      });
+      
+      // Remove sunk pirates
+      if (piratesSunk.length > 0) {
+        piratesRef.current = piratesRef.current.filter(p => !piratesSunk.includes(p.id));
+        Sounds.boatCrash();
+        showToast('PT boat sank the pirates!', 'stability');
+      }
+      
+      // Remove sunk fishing boats
+      if (boatsSunk.length > 0) {
+        setFreeRoamBoats(prev => {
+          const updated = prev.filter(b => !boatsSunk.includes(b.id));
+          freeRoamBoatsRef.current = updated;
+          return updated;
+        });
+        Sounds.boatCrash();
+        if (casualties > 0) {
+          setPopulation(p => Math.max(1, p - casualties));
+        }
+        showToast(`Pirates sank your fishing boat!${casualties > 0 ? ` -${casualties} people` : ''}`, 'rebel');
+      }
+      
+      // Sync to React state periodically
+      pirateRenderSyncRef.current++;
+      if (pirateRenderSyncRef.current >= 5 || piratesSunk.length > 0 || boatsSunk.length > 0) {
+        pirateRenderSyncRef.current = 0;
+        setPirates([...piratesRef.current]);
+      }
+    }, 100);
+    
+    return () => {
+      if (pirateUpdateIntervalRef.current) {
+        clearInterval(pirateUpdateIntervalRef.current);
+        pirateUpdateIntervalRef.current = null;
+      }
+    };
+  }, [isRoundActive, island, difficulty]);
+  
+  // Helper: check if a boat is near a fort (protected from pirates)
+  const isBoatFortProtected = useCallback((boat: FreeRoamBoatType, island: IslandType) => {
+    const fortTiles = island.tiles.filter(t => t.building === 'fort');
+    for (const fort of fortTiles) {
+      // Fort protects within ~1.5 tile radius in water units
+      const fortCenter: WaterPosition = { x: fort.position.x + 0.5, y: fort.position.y + 0.5 };
+      if (waterDistance(boat.position, fortCenter) <= BALANCE.fortRadius + 0.5) {
+        return true;
+      }
+    }
+    return false;
+  }, []);
+  
+  // Cleanup pirate intervals on round end
+  useEffect(() => {
+    if (!isRoundActive) {
+      if (pirateSpawnIntervalRef.current) {
+        clearInterval(pirateSpawnIntervalRef.current);
+        pirateSpawnIntervalRef.current = null;
+      }
+      if (pirateUpdateIntervalRef.current) {
+        clearInterval(pirateUpdateIntervalRef.current);
+        pirateUpdateIntervalRef.current = null;
+      }
+    }
+  }, [isRoundActive]);
 
   const startRound = () => {
     Sounds.buttonClick();
@@ -488,7 +1159,6 @@ export default function App() {
 
   const endRound = () => {
     setIsRoundActive(false);
-    setRainCloud(null);
     Sounds.roundEnd();
     if (!island) return;
     
@@ -503,7 +1173,7 @@ export default function App() {
     
     // Income calculation
     const productivity = Math.min(BALANCE.maxProductivityBonus, (schools + hospitals) * factories + hospitals);
-    const income = BALANCE.baseRoundIncome + factories * BALANCE.factoryIncome + fishingBoats * BALANCE.fishingBoatIncome + productivity;
+    const income = BALANCE.baseRoundIncome + factories * BALANCE.factoryIncome + productivity;
     setGold(g => g + income);
     Sounds.goldReceive();
     
@@ -659,6 +1329,11 @@ export default function App() {
   const handleWaterTap = (waterPosition: WaterPosition, screenX: number, screenY: number) => {
     if (!island || !coastline) return;
     
+    // Block interaction when round is not active
+    if (round === 0) { showToast('Press START to begin', 'round'); return; }
+    if (!isRoundActive && round > 0 && round < maxRounds) { showToast('Start next round', 'round'); return; }
+    if (round >= maxRounds) { showToast('Game Over', 'round'); return; }
+    
     // If a boat is selected, set its destination
     if (selectedBoat) {
       const boat = freeRoamBoats.find(b => b.id === selectedBoat);
@@ -685,6 +1360,11 @@ export default function App() {
 
   // Handle tapping on a free-roam boat
   const handleBoatPress = (boat: FreeRoamBoatType) => {
+    // Block interaction when round is not active
+    if (round === 0) { showToast('Press START to begin', 'round'); return; }
+    if (!isRoundActive && round > 0 && round < maxRounds) { showToast('Start next round', 'round'); return; }
+    if (round >= maxRounds) { showToast('Game Over', 'round'); return; }
+    
     Sounds.boatSelect();
     if (selectedBoat === boat.id) {
       setSelectedBoat(null);
@@ -789,10 +1469,10 @@ export default function App() {
       height: 44,
     },
     building_crops: {
-      x: 20,
-      y: screenHeight - 120,
-      width: 60,
-      height: 70,
+      x: 16,
+      y: screenHeight - 68,
+      width: 70,
+      height: 58,
     },
   } : {};
 
@@ -897,6 +1577,24 @@ export default function App() {
               onTilePress={handleTilePress}
               onWaterTap={handleWaterTap}
             >
+              {/* Fish schools rendered on water */}
+              {fishSchools.map(school => (
+                <FishSchoolComponent
+                  key={school.id}
+                  school={school}
+                  tileSize={tileSize}
+                />
+              ))}
+              
+              {/* Pirate ships */}
+              {pirates.map(pirate => (
+                <PirateShipComponent
+                  key={pirate.id}
+                  pirate={pirate}
+                  tileSize={tileSize}
+                />
+              ))}
+              
               {/* Free-roam boats rendered as children */}
               {freeRoamBoats.map(boat => (
                 <FreeRoamBoat
@@ -940,6 +1638,19 @@ export default function App() {
           endY={rainCloud.endY}
           duration={rainCloud.duration}
           onComplete={() => setRainCloud(null)}
+        />
+      )}
+      
+      {/* Tropical Storm Cloud */}
+      {stormCloud && (
+        <StormCloud 
+          size={tileSize}
+          startX={stormCloud.startX}
+          startY={stormCloud.startY}
+          endX={stormCloud.endX}
+          endY={stormCloud.endY}
+          duration={stormCloud.duration}
+          onComplete={() => setStormCloud(null)}
         />
       )}
       
@@ -1009,6 +1720,7 @@ export default function App() {
         visible={showSettings} 
         onClose={() => setShowSettings(false)}
         onResetTutorial={handleReplayTutorial}
+        maxRounds={maxRounds}
       />
       
       {/* Tutorial Overlay */}

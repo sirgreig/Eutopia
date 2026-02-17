@@ -92,6 +92,33 @@ export interface FreeRoamBoat {
   spawnTile: Position;          // The dock/coastal tile this boat spawned from
 }
 
+// ============================================
+// FISH SCHOOL TYPES
+// ============================================
+
+/**
+ * A school of fish that drifts through water.
+ * Fishing boats earn gold while overlapping.
+ */
+export interface FishSchool {
+  id: string;
+  position: WaterPosition;     // Current position (continuous, world units)
+  velocity: Velocity;          // Drift direction and speed
+  size: number;                // Radius in world units (for overlap detection)
+}
+
+/**
+ * A pirate ship that targets fish schools and sinks fishing boats.
+ * PT boats destroy pirates on contact.
+ */
+export interface PirateShip {
+  id: string;
+  position: WaterPosition;     // Current position (continuous, world units)
+  velocity: Velocity;          // Current movement direction
+  speed: number;               // Movement speed (world units/sec)
+  targetFishId: string | null; // ID of fish school being pursued
+}
+
 /**
  * A line segment representing part of the coastline boundary
  */

@@ -20,7 +20,9 @@ export type SoundEffect =
     | 'gameOverWin'
     | 'gameOverLose'
     | 'rainStorm'
-    | 'tripleBeep';
+    | 'tripleBeep'
+    | 'boatCrash'
+    | 'boatFishing';
 
 // Sound file mappings
 const SOUND_FILES: Partial<Record<SoundEffect, AVPlaybackSource>> = {
@@ -39,6 +41,8 @@ const SOUND_FILES: Partial<Record<SoundEffect, AVPlaybackSource>> = {
     gameOverLose: require('../../assets/audio/gameOverLose.mp3'),
     rainStorm: require('../../assets/audio/_rainStorm.mp3'),
     tripleBeep: require('../../assets/audio/tripleBeep.mp3'),
+    boatCrash: require('../../assets/audio/boatCrash.mp3'),
+    boatFishing: require('../../assets/audio/boatFishing.mp3'),
 };
 
 // Music files
@@ -72,6 +76,8 @@ const SOUND_VOLUMES: Partial<Record<SoundEffect, number>> = {
     gameOverLose: 0.9,
     rainStorm: 0.6,
     tripleBeep: 0.8,
+    boatCrash: 1.0,
+    boatFishing: 0.7,
 };
 
 // Preloaded sound objects
@@ -366,6 +372,8 @@ export const Sounds = {
     // Weather & misc
     rainStorm: () => playSound('rainStorm'),
     tripleBeep: () => playSound('tripleBeep'),
+    boatCrash: () => playSound('boatCrash'),
+    boatFishing: () => playSound('boatFishing'),
 
     // Music
     playMusic,

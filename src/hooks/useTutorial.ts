@@ -39,21 +39,18 @@ const TUTORIAL_STEPS: TutorialStep[] = [
     target: 'gold_display',
     message: 'This is your gold. Buildings cost gold to build.',
     position: 'bottom',
-    autoAdvanceMs: 3000,
   },
   {
     id: 'timer_info',
     target: 'timer',
     message: 'Build your island before the round ends!',
     position: 'bottom',
-    autoAdvanceMs: 3000,
   },
   {
     id: 'complete',
     target: 'none',
     message: "You're ready! Good luck, Governor!",
     position: 'center',
-    autoAdvanceMs: 2000,
   },
 ];
 

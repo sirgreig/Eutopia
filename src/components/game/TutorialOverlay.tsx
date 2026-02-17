@@ -189,7 +189,7 @@ export const TutorialOverlay: React.FC<TutorialOverlayProps> = ({
               <Text style={styles.skipButtonText}>Skip Tutorial</Text>
             </TouchableOpacity>
 
-            {!step.autoAdvanceMs && step.target === 'none' && (
+            {!step.autoAdvanceMs && !isInteractiveStep && (
               <TouchableOpacity style={styles.nextButton} onPress={onNext}>
                 <Text style={styles.nextButtonText}>
                   {stepIndex === totalSteps - 1 ? "Let's Go!" : 'Next'}

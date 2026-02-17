@@ -3,7 +3,7 @@
 // Uses View instead of Modal to avoid crash issues
 // Responsive layout for landscape mode
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
     View,
     Text,
@@ -90,12 +90,14 @@ interface SettingsScreenProps {
     visible: boolean;
     onClose: () => void;
     onResetTutorial?: () => void;
+    maxRounds?: number;
 }
 
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     visible,
     onClose,
     onResetTutorial,
+    maxRounds = 15,
 }) => {
     const { width: screenWidth, height: screenHeight } = useWindowDimensions();
     const isLandscape = screenWidth > screenHeight;
@@ -106,6 +108,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         setMusicVolume,
         setSfxVolume,
     } = useAudioSettings();
+    
+    const [showHowToPlay, setShowHowToPlay] = useState(false);
 
     if (!visible) return null;
 
@@ -222,12 +226,20 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                                 <View style={[styles.section, styles.sectionCompact]}>
                                     <View style={styles.helpRow}>
                                         <Text style={[styles.sectionTitle, styles.sectionTitleCompact]}>❓ Help</Text>
-                                        <TouchableOpacity 
-                                            style={styles.resetTutorialButtonInline} 
-                                            onPress={handleResetTutorial}
-                                        >
-                                            <Text style={styles.resetTutorialTextCompact}>🎓 Replay Tutorial</Text>
-                                        </TouchableOpacity>
+                                        <View style={styles.helpButtonsRow}>
+                                            <TouchableOpacity 
+                                                style={styles.resetTutorialButtonInline} 
+                                                onPress={() => { Sounds.buttonClick(); setShowHowToPlay(true); }}
+                                            >
+                                                <Text style={styles.resetTutorialTextCompact}>📖 How to Play</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity 
+                                                style={styles.resetTutorialButtonInline} 
+                                                onPress={handleResetTutorial}
+                                            >
+                                                <Text style={styles.resetTutorialTextCompact}>🎓 Replay Tutorial</Text>
+                                            </TouchableOpacity>
+                                        </View>
                                     </View>
                                 </View>
                             )}
@@ -293,6 +305,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                                     </View>
                                     <TouchableOpacity 
                                         style={styles.resetTutorialButton} 
+                                        onPress={() => { Sounds.buttonClick(); setShowHowToPlay(true); }}
+                                    >
+                                        <Text style={styles.resetTutorialText}>📖 How to Play</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity 
+                                        style={[styles.resetTutorialButton, { marginTop: 8 }]} 
                                         onPress={handleResetTutorial}
                                     >
                                         <Text style={styles.resetTutorialText}>🎓 Replay Tutorial</Text>
@@ -314,6 +332,76 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                     <Text style={[styles.closeButtonText, isLandscape && styles.closeButtonTextLandscape]}>Done</Text>
                 </TouchableOpacity>
             </View>
+            
+            {/* How to Play Modal */}
+            {showHowToPlay && (
+                <View style={styles.howToPlayOverlay}>
+                    <Pressable style={styles.backdrop} onPress={() => setShowHowToPlay(false)} />
+                    <View style={[
+                        styles.howToPlayContainer,
+                        isLandscape && { maxHeight: screenHeight * 0.92, maxWidth: 520 },
+                    ]}>
+                        <View style={styles.howToPlayHeader}>
+                            <Text style={styles.howToPlayTitle}>📖 How to Play</Text>
+                            <TouchableOpacity onPress={() => setShowHowToPlay(false)}>
+                                <Text style={styles.howToPlayClose}>✕</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <ScrollView 
+                            style={styles.howToPlayScroll}
+                            showsVerticalScrollIndicator={true}
+                        >
+                            <Text style={styles.htpHeading}>🎯 Objective</Text>
+                            <Text style={styles.htpBody}>
+                                Build a thriving island nation across {maxRounds} rounds. Earn the highest score by growing your population, producing food, building infrastructure, and managing your economy. You compete against an AI opponent — highest score wins!
+                            </Text>
+                            
+                            <Text style={styles.htpHeading}>💰 Gold & Income</Text>
+                            <Text style={styles.htpBody}>
+                                Gold is your currency for everything. You earn gold each round from factories and productivity bonuses. Fishing boats earn gold in real-time when parked over fish schools. Rain clouds water your crops for bonus gold as they pass over farmland.
+                            </Text>
+                            
+                            <Text style={styles.htpHeading}>🏗️ Buildings</Text>
+                            <Text style={styles.htpBody}>
+                                Tap any land tile to open the build menu. Housing increases population. Farms grow food (needs rain to earn gold). Factories generate income each round. Hospitals improve welfare. Schools boost productivity. Forts protect nearby boats from pirates.
+                            </Text>
+                            
+                            <Text style={styles.htpHeading}>⛵ Boats</Text>
+                            <Text style={styles.htpBody}>
+                                Build boats from coastal tiles. Fishing boats earn gold when positioned over fish schools — tap a boat to select it, then tap water to set a destination. PT boats are military vessels that automatically destroy pirate ships on contact.
+                            </Text>
+                            
+                            <Text style={styles.htpHeading}>🐟 Fish & Pirates</Text>
+                            <Text style={styles.htpBody}>
+                                Fish schools drift around the ocean. Move fishing boats to them for income. Pirates spawn at map edges and hunt your fishing boats — deploy PT boats nearby to protect your fleet. Forts also shield boats in their radius.
+                            </Text>
+                            
+                            <Text style={styles.htpHeading}>🌧️ Weather</Text>
+                            <Text style={styles.htpBody}>
+                                Rain clouds appear randomly and drift across the map. When a cloud passes over your crop tiles, you earn bonus gold. Plan your farm placement to maximize rain coverage.
+                            </Text>
+                            
+                            <Text style={styles.htpHeading}>⚠️ Rebels</Text>
+                            <Text style={styles.htpBody}>
+                                If your population is unhappy (low food, welfare, or housing), rebels may appear and destroy buildings. Keep your people fed and housed to maintain stability.
+                            </Text>
+                            
+                            <Text style={styles.htpHeading}>⭐ Scoring</Text>
+                            <Text style={styles.htpBody}>
+                                Your score is calculated from four categories: housing capacity, food production, welfare services, and GDP (gold and factories). Balance all four for the best score. The game ends after the final round — highest score wins!
+                            </Text>
+                            
+                            <View style={{ height: 16 }} />
+                        </ScrollView>
+                        <TouchableOpacity 
+                            style={styles.howToPlayDone} 
+                            onPress={() => setShowHowToPlay(false)}
+                        >
+                            <Text style={styles.closeButtonText}>Got It!</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            )}
         </View>
     );
 };
@@ -510,6 +598,10 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         alignItems: 'center',
     },
+    helpButtonsRow: {
+        flexDirection: 'row',
+        gap: 8,
+    },
     resetTutorialButton: {
         backgroundColor: '#2a4a5a',
         paddingVertical: 12,
@@ -555,6 +647,68 @@ const styles = StyleSheet.create({
     },
     closeButtonTextLandscape: {
         fontSize: 15,
+    },
+    // How to Play modal
+    howToPlayOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 1100,
+    },
+    howToPlayContainer: {
+        backgroundColor: '#1a2a3a',
+        borderRadius: 16,
+        width: '92%',
+        maxWidth: 420,
+        maxHeight: '88%',
+        borderWidth: 2,
+        borderColor: '#2a4a5a',
+        zIndex: 1101,
+        overflow: 'hidden',
+    },
+    howToPlayHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingTop: 16,
+        paddingBottom: 8,
+    },
+    howToPlayTitle: {
+        fontSize: 22,
+        fontWeight: 'bold',
+        color: '#fff',
+    },
+    howToPlayClose: {
+        fontSize: 22,
+        color: '#6a8a9a',
+        paddingHorizontal: 8,
+    },
+    howToPlayScroll: {
+        paddingHorizontal: 20,
+    },
+    htpHeading: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#ffc107',
+        marginTop: 14,
+        marginBottom: 4,
+    },
+    htpBody: {
+        fontSize: 14,
+        lineHeight: 20,
+        color: '#c0d0e0',
+    },
+    howToPlayDone: {
+        backgroundColor: '#4A90D9',
+        paddingVertical: 12,
+        margin: 16,
+        borderRadius: 8,
+        alignItems: 'center',
     },
 });
 
