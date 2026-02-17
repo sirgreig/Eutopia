@@ -9,18 +9,28 @@ interface HurricaneCloudProps {
   endX: number;
   endY: number;
   duration?: number;
+  paused?: boolean;
   onComplete?: () => void;
 }
 
-export function HurricaneCloud({ size, startX, startY, endX, endY, duration = 10000, onComplete }: HurricaneCloudProps) {
+export function HurricaneCloud({ size, startX, startY, endX, endY, duration = 10000, paused = false, onComplete }: HurricaneCloudProps) {
   const translateX = useRef(new Animated.Value(startX)).current;
   const translateY = useRef(new Animated.Value(startY)).current;
   const rotation = useRef(new Animated.Value(0)).current;
   const lightningOpacity = useRef(new Animated.Value(0)).current;
   const pulseScale = useRef(new Animated.Value(1)).current;
 
-  useEffect(() => {
-    // Continuous rotation — spiral effect
+  // Track animation state for pause/resume
+  const moveAnimRef = useRef<Animated.CompositeAnimation | null>(null);
+  const loopAnimsRef = useRef<Animated.CompositeAnimation[]>([]);
+  const savedXRef = useRef(startX);
+  const savedYRef = useRef(startY);
+  const remainingDurationRef = useRef(duration);
+  const startedAtRef = useRef(Date.now());
+  const elapsedBeforePauseRef = useRef(0);
+
+  // Start/restart loop animations (rotation, pulse, lightning)
+  const startLoopAnims = () => {
     const rotateAnim = Animated.loop(
       Animated.timing(rotation, {
         toValue: 1,
@@ -29,9 +39,7 @@ export function HurricaneCloud({ size, startX, startY, endX, endY, duration = 10
         useNativeDriver: false,
       })
     );
-    rotateAnim.start();
 
-    // Pulsing scale — breathing effect
     const pulseAnim = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseScale, {
@@ -48,9 +56,7 @@ export function HurricaneCloud({ size, startX, startY, endX, endY, duration = 10
         }),
       ])
     );
-    pulseAnim.start();
 
-    // Lightning — frequent intense flashes
     const lightningAnim = Animated.loop(
       Animated.sequence([
         Animated.delay(400 + Math.random() * 800),
@@ -88,45 +94,81 @@ export function HurricaneCloud({ size, startX, startY, endX, endY, duration = 10
         }),
       ])
     );
-    lightningAnim.start();
 
-    // Movement animation
+    rotateAnim.start();
+    pulseAnim.start();
+    lightningAnim.start();
+    loopAnimsRef.current = [rotateAnim, pulseAnim, lightningAnim];
+  };
+
+  // Start/restart movement animation from current position
+  const startMoveAnim = (fromX: number, fromY: number, remainingMs: number) => {
+    translateX.setValue(fromX);
+    translateY.setValue(fromY);
+    startedAtRef.current = Date.now();
+    remainingDurationRef.current = remainingMs;
+
     const moveAnim = Animated.parallel([
       Animated.timing(translateX, {
         toValue: endX,
-        duration,
+        duration: remainingMs,
         easing: Easing.linear,
         useNativeDriver: false,
       }),
       Animated.timing(translateY, {
         toValue: endY,
-        duration,
+        duration: remainingMs,
         easing: Easing.linear,
         useNativeDriver: false,
       }),
     ]);
-    
-    moveAnim.start(() => {
-      rotateAnim.stop();
-      pulseAnim.stop();
-      lightningAnim.stop();
-      onComplete?.();
+
+    moveAnimRef.current = moveAnim;
+    moveAnim.start(({ finished }) => {
+      if (finished) {
+        loopAnimsRef.current.forEach(a => a.stop());
+        onComplete?.();
+      }
     });
+  };
+
+  // Initial start
+  useEffect(() => {
+    startLoopAnims();
+    startMoveAnim(startX, startY, duration);
 
     return () => {
-      rotateAnim.stop();
-      pulseAnim.stop();
-      lightningAnim.stop();
-      moveAnim.stop();
+      loopAnimsRef.current.forEach(a => a.stop());
+      moveAnimRef.current?.stop();
     };
   }, []);
+
+  // Handle pause/resume
+  useEffect(() => {
+    if (paused) {
+      // Freeze: capture current position, stop all animations
+      translateX.stopAnimation(val => { savedXRef.current = val; });
+      translateY.stopAnimation(val => { savedYRef.current = val; });
+      moveAnimRef.current?.stop();
+      loopAnimsRef.current.forEach(a => a.stop());
+
+      // Calculate how much time was spent moving since last resume
+      const elapsedThisSegment = Date.now() - startedAtRef.current;
+      elapsedBeforePauseRef.current += elapsedThisSegment;
+      remainingDurationRef.current = Math.max(0, duration - elapsedBeforePauseRef.current);
+    } else {
+      // Resume: restart from saved position with remaining duration
+      if (remainingDurationRef.current > 0) {
+        startLoopAnims();
+        startMoveAnim(savedXRef.current, savedYRef.current, remainingDurationRef.current);
+      }
+    }
+  }, [paused]);
 
   const rotateInterpolated = rotation.interpolate({
     inputRange: [0, 1],
     outputRange: ['0deg', '360deg'],
   });
-
-  const AnimatedSvg = Animated.createAnimatedComponent(Svg);
 
   return (
     <Animated.View

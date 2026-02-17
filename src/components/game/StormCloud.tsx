@@ -11,17 +11,26 @@ interface StormCloudProps {
   endX: number;
   endY: number;
   duration?: number;
+  paused?: boolean;
   onComplete?: () => void;
 }
 
-export function StormCloud({ size, startX, startY, endX, endY, duration = 10000, onComplete }: StormCloudProps) {
+export function StormCloud({ size, startX, startY, endX, endY, duration = 10000, paused = false, onComplete }: StormCloudProps) {
   const translateX = useRef(new Animated.Value(startX)).current;
   const translateY = useRef(new Animated.Value(startY)).current;
   const rainOpacity = useRef(new Animated.Value(0.5)).current;
   const lightningOpacity = useRef(new Animated.Value(0)).current;
 
-  useEffect(() => {
-    // Rain drop flicker — faster than normal rain
+  // Pause/resume tracking
+  const moveAnimRef = useRef<Animated.CompositeAnimation | null>(null);
+  const loopAnimsRef = useRef<Animated.CompositeAnimation[]>([]);
+  const savedXRef = useRef(startX);
+  const savedYRef = useRef(startY);
+  const remainingDurationRef = useRef(duration);
+  const startedAtRef = useRef(Date.now());
+  const elapsedBeforePauseRef = useRef(0);
+
+  const startLoopAnims = () => {
     const rainAnim = Animated.loop(
       Animated.sequence([
         Animated.timing(rainOpacity, {
@@ -36,9 +45,7 @@ export function StormCloud({ size, startX, startY, endX, endY, duration = 10000,
         }),
       ])
     );
-    rainAnim.start();
 
-    // Lightning flash — irregular bursts
     const lightningAnim = Animated.loop(
       Animated.sequence([
         Animated.delay(800 + Math.random() * 1500),
@@ -65,36 +72,71 @@ export function StormCloud({ size, startX, startY, endX, endY, duration = 10000,
         }),
       ])
     );
-    lightningAnim.start();
 
-    // Movement animation — both axes
+    rainAnim.start();
+    lightningAnim.start();
+    loopAnimsRef.current = [rainAnim, lightningAnim];
+  };
+
+  const startMoveAnim = (fromX: number, fromY: number, remainingMs: number) => {
+    translateX.setValue(fromX);
+    translateY.setValue(fromY);
+    startedAtRef.current = Date.now();
+    remainingDurationRef.current = remainingMs;
+
     const moveAnim = Animated.parallel([
       Animated.timing(translateX, {
         toValue: endX,
-        duration,
+        duration: remainingMs,
         easing: Easing.linear,
         useNativeDriver: false,
       }),
       Animated.timing(translateY, {
         toValue: endY,
-        duration,
+        duration: remainingMs,
         easing: Easing.linear,
         useNativeDriver: false,
       }),
     ]);
-    
-    moveAnim.start(() => {
-      rainAnim.stop();
-      lightningAnim.stop();
-      onComplete?.();
+
+    moveAnimRef.current = moveAnim;
+    moveAnim.start(({ finished }) => {
+      if (finished) {
+        loopAnimsRef.current.forEach(a => a.stop());
+        onComplete?.();
+      }
     });
+  };
+
+  // Initial start
+  useEffect(() => {
+    startLoopAnims();
+    startMoveAnim(startX, startY, duration);
 
     return () => {
-      rainAnim.stop();
-      lightningAnim.stop();
-      moveAnim.stop();
+      loopAnimsRef.current.forEach(a => a.stop());
+      moveAnimRef.current?.stop();
     };
   }, []);
+
+  // Handle pause/resume
+  useEffect(() => {
+    if (paused) {
+      translateX.stopAnimation(val => { savedXRef.current = val; });
+      translateY.stopAnimation(val => { savedYRef.current = val; });
+      moveAnimRef.current?.stop();
+      loopAnimsRef.current.forEach(a => a.stop());
+
+      const elapsedThisSegment = Date.now() - startedAtRef.current;
+      elapsedBeforePauseRef.current += elapsedThisSegment;
+      remainingDurationRef.current = Math.max(0, duration - elapsedBeforePauseRef.current);
+    } else {
+      if (remainingDurationRef.current > 0) {
+        startLoopAnims();
+        startMoveAnim(savedXRef.current, savedYRef.current, remainingDurationRef.current);
+      }
+    }
+  }, [paused]);
 
   return (
     <Animated.View

@@ -9,16 +9,25 @@ interface RainCloudProps {
   endX: number;
   endY: number;
   duration?: number;
+  paused?: boolean;
   onComplete?: () => void;
 }
 
-export function RainCloud({ size, startX, startY, endX, endY, duration = 10000, onComplete }: RainCloudProps) {
+export function RainCloud({ size, startX, startY, endX, endY, duration = 10000, paused = false, onComplete }: RainCloudProps) {
   const translateX = useRef(new Animated.Value(startX)).current;
   const translateY = useRef(new Animated.Value(startY)).current;
   const rainOpacity = useRef(new Animated.Value(0)).current;
 
-  useEffect(() => {
-    // Rain drop flicker animation
+  // Pause/resume tracking
+  const moveAnimRef = useRef<Animated.CompositeAnimation | null>(null);
+  const loopAnimRef = useRef<Animated.CompositeAnimation | null>(null);
+  const savedXRef = useRef(startX);
+  const savedYRef = useRef(startY);
+  const remainingDurationRef = useRef(duration);
+  const startedAtRef = useRef(Date.now());
+  const elapsedBeforePauseRef = useRef(0);
+
+  const startLoopAnim = () => {
     const rainAnim = Animated.loop(
       Animated.sequence([
         Animated.timing(rainOpacity, {
@@ -34,33 +43,68 @@ export function RainCloud({ size, startX, startY, endX, endY, duration = 10000, 
       ])
     );
     rainAnim.start();
+    loopAnimRef.current = rainAnim;
+  };
 
-    // Movement animation — both axes simultaneously
+  const startMoveAnim = (fromX: number, fromY: number, remainingMs: number) => {
+    translateX.setValue(fromX);
+    translateY.setValue(fromY);
+    startedAtRef.current = Date.now();
+    remainingDurationRef.current = remainingMs;
+
     const moveAnim = Animated.parallel([
       Animated.timing(translateX, {
         toValue: endX,
-        duration,
+        duration: remainingMs,
         easing: Easing.linear,
         useNativeDriver: false,
       }),
       Animated.timing(translateY, {
         toValue: endY,
-        duration,
+        duration: remainingMs,
         easing: Easing.linear,
         useNativeDriver: false,
       }),
     ]);
-    
-    moveAnim.start(() => {
-      rainAnim.stop();
-      onComplete?.();
+
+    moveAnimRef.current = moveAnim;
+    moveAnim.start(({ finished }) => {
+      if (finished) {
+        loopAnimRef.current?.stop();
+        onComplete?.();
+      }
     });
+  };
+
+  // Initial start
+  useEffect(() => {
+    startLoopAnim();
+    startMoveAnim(startX, startY, duration);
 
     return () => {
-      rainAnim.stop();
-      moveAnim.stop();
+      loopAnimRef.current?.stop();
+      moveAnimRef.current?.stop();
     };
   }, []);
+
+  // Handle pause/resume
+  useEffect(() => {
+    if (paused) {
+      translateX.stopAnimation(val => { savedXRef.current = val; });
+      translateY.stopAnimation(val => { savedYRef.current = val; });
+      moveAnimRef.current?.stop();
+      loopAnimRef.current?.stop();
+
+      const elapsedThisSegment = Date.now() - startedAtRef.current;
+      elapsedBeforePauseRef.current += elapsedThisSegment;
+      remainingDurationRef.current = Math.max(0, duration - elapsedBeforePauseRef.current);
+    } else {
+      if (remainingDurationRef.current > 0) {
+        startLoopAnim();
+        startMoveAnim(savedXRef.current, savedYRef.current, remainingDurationRef.current);
+      }
+    }
+  }, [paused]);
 
   return (
     <Animated.View

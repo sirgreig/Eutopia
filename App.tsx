@@ -200,18 +200,25 @@ export default function App() {
   const rainStartTimeRef = useRef<number>(0);
   const rainGoldIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const rainGoldAccumRef = useRef(0);
+  const rainTotalPausedRef = useRef<number>(0);
+  const rainPauseStartRef = useRef<number>(0);
   
   // Tropical storm refs
   const stormTimerRef = useRef<NodeJS.Timeout | null>(null);
   const stormStartTimeRef = useRef<number>(0);
   const stormDamageIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const stormDamagedTilesRef = useRef<Set<string>>(new Set());
+  const stormTotalPausedRef = useRef<number>(0);
+  const stormPauseStartRef = useRef<number>(0);
   
   // Hurricane refs
   const hurricaneTimerRef = useRef<NodeJS.Timeout | null>(null);
   const hurricaneStartTimeRef = useRef<number>(0);
   const hurricaneDamageIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const hurricaneDamagedTilesRef = useRef<Set<string>>(new Set());
+  const hurricaneTotalPausedRef = useRef<number>(0);
+  const hurricanePauseStartRef = useRef<number>(0);
+  const hurricaneBuildingsDestroyedRef = useRef<number>(0);
 
   // Tutorial hook
   const {
@@ -447,6 +454,8 @@ export default function App() {
           
           rainStartTimeRef.current = Date.now();
           rainGoldAccumRef.current = 0;
+          rainTotalPausedRef.current = 0;
+          rainPauseStartRef.current = 0;
           setRainCloud({ startX: sX, startY: sY, endX: eX, endY: eY, duration: dur });
           Sounds.thunderCrack();
         }
@@ -456,6 +465,17 @@ export default function App() {
       return () => { if (rainTimerRef.current) clearInterval(rainTimerRef.current); };
     }
   }, [isRoundActive, island, tileSize, screenWidth, screenHeight, rainCloud, stormCloud, hurricaneCloud]);
+
+  // Rain pause tracking — freeze elapsed time between rounds
+  useEffect(() => {
+    if (!rainCloud) return;
+    if (!isRoundActive) {
+      rainPauseStartRef.current = Date.now();
+    } else if (rainPauseStartRef.current > 0) {
+      rainTotalPausedRef.current += Date.now() - rainPauseStartRef.current;
+      rainPauseStartRef.current = 0;
+    }
+  }, [isRoundActive, rainCloud]);
 
   // Rain gold detection — check crop overlap every second while cloud is active
   useEffect(() => {
@@ -476,7 +496,7 @@ export default function App() {
     
     rainGoldIntervalRef.current = setInterval(() => {
       if (!isRoundActiveRef.current) return; // No gold between rounds
-      const elapsed = Date.now() - rainStartTimeRef.current;
+      const elapsed = Date.now() - rainStartTimeRef.current - rainTotalPausedRef.current;
       const progress = Math.min(1, elapsed / rainCloud.duration);
       
       // Calculate current cloud position
@@ -562,6 +582,8 @@ export default function App() {
         
         stormStartTimeRef.current = Date.now();
         stormDamagedTilesRef.current = new Set();
+        stormTotalPausedRef.current = 0;
+        stormPauseStartRef.current = 0;
         setStormCloud({ startX: sX, startY: sY, endX: eX, endY: eY, duration: dur });
         showToast('⛈️ Tropical storm approaching!', 'rebel');
         Sounds.rebelAppear();
@@ -572,6 +594,17 @@ export default function App() {
       return () => { if (stormTimerRef.current) clearInterval(stormTimerRef.current); };
     }
   }, [isRoundActive, round, island, tileSize, screenWidth, screenHeight, stormCloud, hurricaneCloud, difficulty]);
+
+  // Storm pause tracking — freeze elapsed time between rounds
+  useEffect(() => {
+    if (!stormCloud) return;
+    if (!isRoundActive) {
+      stormPauseStartRef.current = Date.now();
+    } else if (stormPauseStartRef.current > 0) {
+      stormTotalPausedRef.current += Date.now() - stormPauseStartRef.current;
+      stormPauseStartRef.current = 0;
+    }
+  }, [isRoundActive, stormCloud]);
 
   // Tropical storm damage detection
   useEffect(() => {
@@ -608,7 +641,7 @@ export default function App() {
     
     stormDamageIntervalRef.current = setInterval(() => {
       if (!isRoundActiveRef.current) return; // No damage between rounds
-      const elapsed = Date.now() - stormStartTimeRef.current;
+      const elapsed = Date.now() - stormStartTimeRef.current - stormTotalPausedRef.current;
       const progress = Math.min(1, elapsed / stormCloud.duration);
       
       const cloudX = stormCloud.startX + (stormCloud.endX - stormCloud.startX) * progress;
@@ -761,6 +794,9 @@ export default function App() {
         
         hurricaneStartTimeRef.current = Date.now();
         hurricaneDamagedTilesRef.current = new Set();
+        hurricaneTotalPausedRef.current = 0;
+        hurricanePauseStartRef.current = 0;
+        hurricaneBuildingsDestroyedRef.current = 0;
         setHurricaneCloud({ startX: sX, startY: sY, endX: eX, endY: eY, duration: dur });
         showToast('🌀 HURRICANE approaching!', 'rebel');
         Sounds.rebelAppear();
@@ -771,6 +807,19 @@ export default function App() {
       return () => { if (hurricaneTimerRef.current) clearInterval(hurricaneTimerRef.current); };
     }
   }, [isRoundActive, round, island, tileSize, screenWidth, screenHeight, hurricaneCloud, difficulty]);
+
+  // Hurricane pause tracking — freeze elapsed time between rounds
+  useEffect(() => {
+    if (!hurricaneCloud) return;
+    if (!isRoundActive) {
+      // Round ended while hurricane active — start tracking pause
+      hurricanePauseStartRef.current = Date.now();
+    } else if (hurricanePauseStartRef.current > 0) {
+      // Round resumed — accumulate paused time
+      hurricaneTotalPausedRef.current += Date.now() - hurricanePauseStartRef.current;
+      hurricanePauseStartRef.current = 0;
+    }
+  }, [isRoundActive, hurricaneCloud]);
 
   // Hurricane damage detection — much more destructive than storm
   useEffect(() => {
@@ -791,39 +840,43 @@ export default function App() {
     
     hurricaneDamageIntervalRef.current = setInterval(() => {
       if (!isRoundActiveRef.current) return; // No damage between rounds
-      const elapsed = Date.now() - hurricaneStartTimeRef.current;
+      const elapsed = Date.now() - hurricaneStartTimeRef.current - hurricaneTotalPausedRef.current;
       const progress = Math.min(1, elapsed / hurricaneCloud.duration);
       
       const cloudX = hurricaneCloud.startX + (hurricaneCloud.endX - hurricaneCloud.startX) * progress;
       const cloudY = hurricaneCloud.startY + (hurricaneCloud.endY - hurricaneCloud.startY) * progress;
       
-      // Check building damage — hurricanes can destroy forts too
-      const buildingTiles = island.tiles.filter(t => t.building);
-      
-      for (const tile of buildingTiles) {
-        const tileKey = `${tile.position.x},${tile.position.y}`;
-        if (hurricaneDamagedTilesRef.current.has(tileKey)) continue;
+      // Check building damage — hurricanes can destroy forts too (max 3 per pass)
+      if (hurricaneBuildingsDestroyedRef.current < 3) {
+        const buildingTiles = island.tiles.filter(t => t.building);
         
-        const tileScreenX = gridOriginX + tile.position.x * tileSize;
-        const tileScreenY = gridOriginY + tile.position.y * tileSize;
-        
-        if (cloudX < tileScreenX + tileSize && cloudX + cloudSize > tileScreenX &&
-            cloudY < tileScreenY + tileSize && cloudY + cloudSize > tileScreenY) {
-          hurricaneDamagedTilesRef.current.add(tileKey);
+        for (const tile of buildingTiles) {
+          if (hurricaneBuildingsDestroyedRef.current >= 3) break;
+          const tileKey = `${tile.position.x},${tile.position.y}`;
+          if (hurricaneDamagedTilesRef.current.has(tileKey)) continue;
           
-          // Forts have lower destroy chance, other buildings use standard rate
-          const destroyChance = tile.building === 'fort' ? hurDiff.fortDestroy : hurDiff.buildingDestroy;
+          const tileScreenX = gridOriginX + tile.position.x * tileSize;
+          const tileScreenY = gridOriginY + tile.position.y * tileSize;
           
-          if (Math.random() < destroyChance) {
-            const buildingName = BUILDINGS.find(b => b.type === tile.building)?.name || tile.building;
-            setIsland(prev => ({
-              ...prev,
-              tiles: prev.tiles.map(t =>
-                t.id === tile.id ? { ...t, building: undefined } : t
-              ),
-            }));
-            showToast(`🌀 Hurricane destroyed ${buildingName}!`, 'rebel');
-            Sounds.boatCrash();
+          if (cloudX < tileScreenX + tileSize && cloudX + cloudSize > tileScreenX &&
+              cloudY < tileScreenY + tileSize && cloudY + cloudSize > tileScreenY) {
+            hurricaneDamagedTilesRef.current.add(tileKey);
+            
+            // Forts have lower destroy chance, other buildings use standard rate
+            const destroyChance = tile.building === 'fort' ? hurDiff.fortDestroy : hurDiff.buildingDestroy;
+            
+            if (Math.random() < destroyChance) {
+              hurricaneBuildingsDestroyedRef.current++;
+              const buildingName = BUILDINGS.find(b => b.type === tile.building)?.name || tile.building;
+              setIsland(prev => ({
+                ...prev,
+                tiles: prev.tiles.map(t =>
+                  t.id === tile.id ? { ...t, building: undefined } : t
+                ),
+              }));
+              showToast(`🌀 Hurricane destroyed ${buildingName}!`, 'rebel');
+              Sounds.boatCrash();
+            }
           }
         }
       }
@@ -1477,20 +1530,21 @@ export default function App() {
   };
 
   const handleTilePress = (position: Position, tile: Tile) => {
-    Sounds.tileClick();
-    
     if (selectedBoat) { 
+      Sounds.tileClick();
       setSelectedBoat(null); 
       showToast('Boats move on water', 'error');
       return; 
     }
     if (tile.building) { 
+      Sounds.tileClick();
       const b = BUILDINGS.find(b => b.type === tile.building);
       const icon = tile.building === 'farm' ? '🌾' : tile.building === 'house' ? '🏠' : tile.building === 'school' ? '🏫' : tile.building === 'factory' ? '🏭' : tile.building === 'fort' ? '🏰' : tile.building === 'hospital' ? '🏥' : '🏗️';
       showToast(`${icon} ${b?.name || ''}: ${b?.description || ''}`, 'build');
       return; 
     }
     if (tile.hasRebel) {
+      Sounds.tileClick();
       showToast('Rebels occupy this tile!', 'rebel');
       return;
     }
@@ -1506,14 +1560,17 @@ export default function App() {
     }
     
     if (round === 0) {
+      Sounds.tileClick();
       showToast('Press START to begin', 'round');
       return;
     }
     if (!isRoundActive && round > 0 && round < maxRounds) { 
+      Sounds.tileClick();
       showToast('Start next round', 'round'); 
       return; 
     }
     if (round >= maxRounds) {
+      Sounds.tileClick();
       showToast('Game Over', 'round');
       return;
     }
@@ -1834,6 +1891,7 @@ export default function App() {
           endX={rainCloud.endX}
           endY={rainCloud.endY}
           duration={rainCloud.duration}
+          paused={!isRoundActive}
           onComplete={() => setRainCloud(null)}
         />
       )}
@@ -1847,6 +1905,7 @@ export default function App() {
           endX={stormCloud.endX}
           endY={stormCloud.endY}
           duration={stormCloud.duration}
+          paused={!isRoundActive}
           onComplete={() => setStormCloud(null)}
         />
       )}
@@ -1860,6 +1919,7 @@ export default function App() {
           endX={hurricaneCloud.endX}
           endY={hurricaneCloud.endY}
           duration={hurricaneCloud.duration}
+          paused={!isRoundActive}
           onComplete={() => setHurricaneCloud(null)}
         />
       )}

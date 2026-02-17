@@ -755,15 +755,7 @@ export const FishingBoatIcon = ({ size = 40 }: IconProps) => (
         <Stop offset="0%" stopColor="#8B4513" />
         <Stop offset="100%" stopColor="#5D2906" />
       </LinearGradient>
-      <LinearGradient id="waterBoatGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-        <Stop offset="0%" stopColor="#1A5276" />
-        <Stop offset="100%" stopColor="#0D3D5C" />
-      </LinearGradient>
     </Defs>
-    
-    {/* Water */}
-    <Rect x="0" y="28" width="40" height="12" fill="url(#waterBoatGrad)" />
-    <Path d="M0,32 Q10,30 20,32 Q30,34 40,32" stroke="rgba(255,255,255,0.15)" strokeWidth="0.8" fill="none" />
     
     {/* Hull */}
     <Path d="M6,28 Q8,36 20,36 Q32,36 34,28 Z" fill="url(#boatHullGrad)" />
@@ -809,19 +801,7 @@ export const PTBoatIcon = ({ size = 40 }: IconProps) => (
         <Stop offset="0%" stopColor="#78909C" />
         <Stop offset="100%" stopColor="#546E7A" />
       </LinearGradient>
-      <LinearGradient id="ptWaterGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-        <Stop offset="0%" stopColor="#1A5276" />
-        <Stop offset="100%" stopColor="#0D3D5C" />
-      </LinearGradient>
     </Defs>
-    
-    {/* Water */}
-    <Rect x="0" y="28" width="40" height="12" fill="url(#ptWaterGrad)" />
-    <Path d="M0,31 Q10,29 20,31 Q30,33 40,31" stroke="rgba(255,255,255,0.15)" strokeWidth="0.8" fill="none" />
-    
-    {/* Wake spray */}
-    <Path d="M4,30 Q2,28 4,26" stroke="rgba(255,255,255,0.3)" strokeWidth="1" fill="none" />
-    <Path d="M6,32 Q3,30 5,27" stroke="rgba(255,255,255,0.2)" strokeWidth="0.8" fill="none" />
     
     {/* Hull - sleek military shape */}
     <Path d="M4,28 L8,32 Q20,34 32,32 L36,26 L34,28 Q20,30 6,28 Z" fill="url(#ptHullGrad)" />
