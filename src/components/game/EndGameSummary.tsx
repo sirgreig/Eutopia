@@ -1,5 +1,5 @@
 // src/components/game/EndGameSummary.tsx
-// End game summary screen with AI comparison
+// Victory/defeat screen with score comparison
 
 import React from 'react';
 import {
@@ -8,6 +8,7 @@ import {
     StyleSheet,
     TouchableOpacity,
     ScrollView,
+    useWindowDimensions,
 } from 'react-native';
 import { Sounds } from '../../services/soundManager';
 
@@ -45,6 +46,17 @@ interface EndGameSummaryProps {
     onMainMenu?: () => void;
 }
 
+const ScoreBar = ({ value, max, color, width }: { value: number; max: number; color: string; width: number }) => (
+    <View style={[barStyles.track, { width }]}>
+        <View style={[barStyles.fill, { width: `${Math.min(100, (value / max) * 100)}%`, backgroundColor: color }]} />
+    </View>
+);
+
+const barStyles = StyleSheet.create({
+    track: { height: 6, backgroundColor: '#1a2530', borderRadius: 3, overflow: 'hidden' },
+    fill: { height: '100%', borderRadius: 3 },
+});
+
 export const EndGameSummary: React.FC<EndGameSummaryProps> = ({
     score,
     scoreBreakdown,
@@ -58,14 +70,16 @@ export const EndGameSummary: React.FC<EndGameSummaryProps> = ({
     onPlayAgain,
     onMainMenu,
 }) => {
+    const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+    const isLandscape = screenWidth > screenHeight;
     const hasAI = aiScore !== undefined;
     const playerWins = hasAI ? score > aiScore : score >= 70;
     const isTie = hasAI && score === aiScore;
     
     const getResultText = () => {
-        if (isTie) return { text: "It's a Tie! 🤝", color: '#ffc107' };
-        if (playerWins) return { text: 'Victory! 🏆', color: '#4ade80' };
-        return { text: 'Defeat 💀', color: '#e53935' };
+        if (isTie) return { text: "It's a Tie!", emoji: '🤝', color: '#ffc107' };
+        if (playerWins) return { text: 'Victory!', emoji: '🏆', color: '#4ade80' };
+        return { text: 'Defeat', emoji: '💀', color: '#e53935' };
     };
     
     const getScoreRating = (s: number) => {
@@ -80,7 +94,7 @@ export const EndGameSummary: React.FC<EndGameSummaryProps> = ({
     const playerRating = getScoreRating(score);
     const aiRating = hasAI ? getScoreRating(aiScore) : null;
     
-    const difficultyColors = {
+    const difficultyColors: Record<string, string> = {
         easy: '#4ade80',
         normal: '#ffc107',
         hard: '#e53935',
@@ -96,174 +110,200 @@ export const EndGameSummary: React.FC<EndGameSummaryProps> = ({
         onMainMenu?.();
     };
 
-    return (
-        <View style={styles.overlay}>
-            <View style={styles.container}>
-                <ScrollView 
-                    style={styles.scrollView}
-                    contentContainerStyle={styles.scrollContent}
-                    showsVerticalScrollIndicator={false}
-                >
-                    <Text style={styles.title}>Game Over</Text>
-                    
-                    {/* Result Banner */}
-                    <View style={[styles.resultBanner, { borderColor: result.color }]}>
-                        <Text style={[styles.resultText, { color: result.color }]}>
-                            {result.text}
+    const breakdownRows = [
+        { icon: '🏠', label: 'Housing', player: scoreBreakdown.housing, ai: aiScoreBreakdown?.housing },
+        { icon: '🍞', label: 'Food', player: scoreBreakdown.food, ai: aiScoreBreakdown?.food },
+        { icon: '❤️', label: 'Welfare', player: scoreBreakdown.welfare, ai: aiScoreBreakdown?.welfare },
+        { icon: '💰', label: 'GDP', player: scoreBreakdown.gdp, ai: aiScoreBreakdown?.gdp },
+    ];
+
+    // Score comparison panel (used in both layouts)
+    const ScorePanel = () => (
+        <View style={styles.scorePanel}>
+            {/* Result banner */}
+            <Text style={[styles.resultEmoji, { fontSize: isLandscape ? 36 : 48 }]}>{result.emoji}</Text>
+            <Text style={[styles.resultText, { color: result.color, fontSize: isLandscape ? 22 : 28 }]}>
+                {result.text}
+            </Text>
+            
+            {/* Score face-off */}
+            {hasAI ? (
+                <View style={styles.faceOff}>
+                    <View style={styles.faceOffSide}>
+                        <Text style={styles.faceOffLabel}>👤 You</Text>
+                        <Text style={[styles.faceOffScore, { color: playerRating.color, fontSize: isLandscape ? 40 : 52 }]}>
+                            {score}
+                        </Text>
+                        <Text style={[styles.faceOffRating, { color: playerRating.color }]}>
+                            {playerRating.text}
                         </Text>
                     </View>
                     
-                    {/* Score Comparison */}
-                    {hasAI ? (
-                        <View style={styles.comparisonContainer}>
-                            <View style={styles.scoreColumn}>
-                                <Text style={styles.columnHeader}>👤 You</Text>
-                                <Text style={[styles.scoreValue, { color: playerRating.color }]}>
-                                    {score}
-                                </Text>
-                                <Text style={[styles.ratingText, { color: playerRating.color }]}>
-                                    {playerRating.text}
-                                </Text>
-                            </View>
-                            
-                            <View style={styles.vsContainer}>
-                                <Text style={styles.vsText}>VS</Text>
-                            </View>
-                            
-                            <View style={styles.scoreColumn}>
-                                <View style={styles.aiHeader}>
-                                    <Text style={styles.columnHeader}>🤖 AI</Text>
-                                    {difficulty && (
-                                        <View style={[styles.diffBadge, { backgroundColor: difficultyColors[difficulty] }]}>
-                                            <Text style={styles.diffText}>{difficulty}</Text>
-                                        </View>
-                                    )}
+                    <View style={styles.faceOffVs}>
+                        <Text style={styles.vsText}>VS</Text>
+                    </View>
+                    
+                    <View style={styles.faceOffSide}>
+                        <View style={styles.aiLabelRow}>
+                            <Text style={styles.faceOffLabel}>🤖 AI</Text>
+                            {difficulty && (
+                                <View style={[styles.diffBadge, { backgroundColor: difficultyColors[difficulty] || '#888' }]}>
+                                    <Text style={styles.diffText}>{difficulty}</Text>
                                 </View>
-                                <Text style={[styles.scoreValue, { color: aiRating?.color || '#fff' }]}>
-                                    {aiScore}
-                                </Text>
-                                <Text style={[styles.ratingText, { color: aiRating?.color || '#888' }]}>
-                                    {aiRating?.text || ''}
-                                </Text>
-                            </View>
+                            )}
                         </View>
-                    ) : (
-                        <View style={styles.singleScoreContainer}>
-                            <Text style={[styles.scoreSingle, { color: playerRating.color }]}>{score}</Text>
-                            <Text style={styles.scoreLabel}>Final Score</Text>
-                            <Text style={[styles.ratingSingle, { color: playerRating.color }]}>{playerRating.text}</Text>
-                        </View>
-                    )}
-
-                    {/* Score Breakdown Comparison */}
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Score Breakdown</Text>
-                        
-                        <View style={styles.breakdownHeader}>
-                            <Text style={styles.breakdownLabel}></Text>
-                            <Text style={styles.breakdownColHeader}>You</Text>
-                            {hasAI && <Text style={styles.breakdownColHeader}>AI</Text>}
-                        </View>
-                        
-                        {[
-                            { icon: '🏠', label: 'Housing', player: scoreBreakdown.housing, ai: aiScoreBreakdown?.housing },
-                            { icon: '🍞', label: 'Food', player: scoreBreakdown.food, ai: aiScoreBreakdown?.food },
-                            { icon: '❤️', label: 'Welfare', player: scoreBreakdown.welfare, ai: aiScoreBreakdown?.welfare },
-                            { icon: '💰', label: 'GDP', player: scoreBreakdown.gdp, ai: aiScoreBreakdown?.gdp },
-                        ].map(({ icon, label, player, ai }) => (
-                            <View key={label} style={styles.breakdownRow}>
-                                <Text style={styles.breakdownLabel}>{icon} {label}</Text>
-                                <Text style={[
-                                    styles.breakdownValue,
-                                    hasAI && ai !== undefined && player > ai && styles.winningValue
-                                ]}>
-                                    {player}/30
-                                </Text>
-                                {hasAI && ai !== undefined && (
-                                    <Text style={[
-                                        styles.breakdownValue,
-                                        ai > player && styles.winningValue
-                                    ]}>
-                                        {ai}/30
-                                    </Text>
-                                )}
-                            </View>
-                        ))}
+                        <Text style={[styles.faceOffScore, { color: aiRating?.color || '#fff', fontSize: isLandscape ? 40 : 52 }]}>
+                            {aiScore}
+                        </Text>
+                        <Text style={[styles.faceOffRating, { color: aiRating?.color || '#888' }]}>
+                            {aiRating?.text || ''}
+                        </Text>
                     </View>
+                </View>
+            ) : (
+                <View style={styles.singleScore}>
+                    <Text style={[styles.faceOffScore, { color: playerRating.color, fontSize: isLandscape ? 48 : 64 }]}>
+                        {score}
+                    </Text>
+                    <Text style={[styles.faceOffRating, { color: playerRating.color, fontSize: 16 }]}>
+                        {playerRating.text}
+                    </Text>
+                </View>
+            )}
+        </View>
+    );
 
-                    {/* Final Stats */}
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Your Stats</Text>
-                        <View style={styles.statsGrid}>
-                            <View style={styles.statItem}>
-                                <Text style={styles.statValue}>{population.toLocaleString()}</Text>
-                                <Text style={styles.statLabel}>Population</Text>
-                            </View>
-                            <View style={styles.statItem}>
-                                <Text style={styles.statValue}>{gold}</Text>
-                                <Text style={styles.statLabel}>Gold</Text>
-                            </View>
-                        </View>
+    // Breakdown panel
+    const BreakdownPanel = () => (
+        <View style={styles.breakdownPanel}>
+            <Text style={styles.sectionTitle}>Score Breakdown</Text>
+            
+            {/* Header */}
+            <View style={styles.bkHeader}>
+                <Text style={[styles.bkLabel, { flex: 1 }]}></Text>
+                <Text style={styles.bkColHead}>You</Text>
+                {hasAI && <Text style={styles.bkColHead}>AI</Text>}
+            </View>
+            
+            {breakdownRows.map(({ icon, label, player, ai }) => (
+                <View key={label} style={styles.bkRow}>
+                    <Text style={styles.bkLabel}>{icon} {label}</Text>
+                    <View style={styles.bkValueCol}>
+                        <Text style={[
+                            styles.bkValue,
+                            hasAI && ai !== undefined && player > ai && styles.bkWin,
+                        ]}>
+                            {player}/30
+                        </Text>
+                        <ScoreBar value={player} max={30} color={player >= 20 ? '#4ade80' : player >= 10 ? '#ffc107' : '#e53935'} width={50} />
                     </View>
-
-                    {/* Buildings */}
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Buildings</Text>
-                        <View style={styles.buildingsGrid}>
-                            <View style={styles.buildingItem}>
-                                <Text style={styles.buildingValue}>{buildings.houses}</Text>
-                                <Text style={styles.buildingLabel}>🏠</Text>
-                            </View>
-                            <View style={styles.buildingItem}>
-                                <Text style={styles.buildingValue}>{buildings.farms}</Text>
-                                <Text style={styles.buildingLabel}>🌾</Text>
-                            </View>
-                            <View style={styles.buildingItem}>
-                                <Text style={styles.buildingValue}>{buildings.factories}</Text>
-                                <Text style={styles.buildingLabel}>🏭</Text>
-                            </View>
-                            <View style={styles.buildingItem}>
-                                <Text style={styles.buildingValue}>{buildings.schools}</Text>
-                                <Text style={styles.buildingLabel}>🏫</Text>
-                            </View>
-                            <View style={styles.buildingItem}>
-                                <Text style={styles.buildingValue}>{buildings.hospitals}</Text>
-                                <Text style={styles.buildingLabel}>🏥</Text>
-                            </View>
-                            <View style={styles.buildingItem}>
-                                <Text style={styles.buildingValue}>{buildings.forts}</Text>
-                                <Text style={styles.buildingLabel}>🏰</Text>
-                            </View>
+                    {hasAI && ai !== undefined && (
+                        <View style={styles.bkValueCol}>
+                            <Text style={[
+                                styles.bkValue,
+                                ai > player && styles.bkWin,
+                            ]}>
+                                {ai}/30
+                            </Text>
+                            <ScoreBar value={ai} max={30} color={ai >= 20 ? '#4ade80' : ai >= 10 ? '#ffc107' : '#e53935'} width={50} />
                         </View>
-                    </View>
-
-                    {/* Boats */}
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Fleet</Text>
-                        <View style={styles.boatsGrid}>
-                            <View style={styles.boatItem}>
-                                <Text style={styles.boatValue}>{boats.fishing}</Text>
-                                <Text style={styles.boatLabel}>🎣 Fishing</Text>
-                            </View>
-                            <View style={styles.boatItem}>
-                                <Text style={styles.boatValue}>{boats.pt}</Text>
-                                <Text style={styles.boatLabel}>⚓ PT Boats</Text>
-                            </View>
-                        </View>
-                    </View>
-                </ScrollView>
-
-                {/* Action Buttons */}
-                <View style={styles.buttonContainer}>
-                    <TouchableOpacity style={styles.playAgainButton} onPress={handlePlayAgain}>
-                        <Text style={styles.playAgainText}>↻ Play Again</Text>
-                    </TouchableOpacity>
-                    {onMainMenu && (
-                        <TouchableOpacity style={styles.mainMenuButton} onPress={handleMainMenu}>
-                            <Text style={styles.mainMenuText}>🏠 Main Menu</Text>
-                        </TouchableOpacity>
                     )}
                 </View>
+            ))}
+        </View>
+    );
+
+    // Stats panel
+    const StatsPanel = () => (
+        <View style={styles.statsPanel}>
+            <Text style={styles.sectionTitle}>Your Nation</Text>
+            <View style={styles.statsRow}>
+                <View style={styles.statBox}>
+                    <Text style={styles.statVal}>{population.toLocaleString()}</Text>
+                    <Text style={styles.statLbl}>👥 Pop</Text>
+                </View>
+                <View style={styles.statBox}>
+                    <Text style={styles.statVal}>{gold}</Text>
+                    <Text style={styles.statLbl}>💰 Gold</Text>
+                </View>
+            </View>
+            <View style={styles.buildRow}>
+                {[
+                    { icon: '🏠', count: buildings.houses },
+                    { icon: '🌾', count: buildings.farms },
+                    { icon: '🏭', count: buildings.factories },
+                    { icon: '🏫', count: buildings.schools },
+                    { icon: '🏥', count: buildings.hospitals },
+                    { icon: '🏰', count: buildings.forts },
+                    { icon: '🎣', count: boats.fishing },
+                    { icon: '⚓', count: boats.pt },
+                ].map(({ icon, count }, i) => (
+                    <View key={i} style={styles.buildItem}>
+                        <Text style={styles.buildIcon}>{icon}</Text>
+                        <Text style={styles.buildCount}>{count}</Text>
+                    </View>
+                ))}
+            </View>
+        </View>
+    );
+
+    // Buttons
+    const ActionButtons = () => (
+        <View style={[styles.btnRow, isLandscape && styles.btnRowLandscape]}>
+            <TouchableOpacity style={[styles.playBtn, isLandscape && { flex: 1 }]} onPress={handlePlayAgain}>
+                <Text style={styles.playBtnText}>↻ Play Again</Text>
+            </TouchableOpacity>
+            {onMainMenu && (
+                <TouchableOpacity style={[styles.menuBtn, isLandscape && { flex: 1 }]} onPress={handleMainMenu}>
+                    <Text style={styles.menuBtnText}>🏠 Main Menu</Text>
+                </TouchableOpacity>
+            )}
+        </View>
+    );
+
+    return (
+        <View style={styles.overlay}>
+            <View style={[
+                styles.container,
+                isLandscape && styles.containerLandscape,
+            ]}>
+                {isLandscape ? (
+                    // LANDSCAPE: Two-column layout
+                    <>
+                        <View style={styles.landscapeBody}>
+                            {/* Left column: Score + Buttons */}
+                            <View style={styles.leftCol}>
+                                <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
+                                    <ScorePanel />
+                                    <BreakdownPanel />
+                                </ScrollView>
+                                <ActionButtons />
+                            </View>
+                            
+                            {/* Right column: Stats */}
+                            <View style={styles.rightCol}>
+                                <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
+                                    <StatsPanel />
+                                </ScrollView>
+                            </View>
+                        </View>
+                    </>
+                ) : (
+                    // PORTRAIT: Single-column scrollable
+                    <>
+                        <ScrollView 
+                            style={styles.scrollView}
+                            contentContainerStyle={styles.scrollContent}
+                            showsVerticalScrollIndicator={true}
+                            bounces={false}
+                        >
+                            <ScorePanel />
+                            <BreakdownPanel />
+                            <StatsPanel />
+                        </ScrollView>
+                        <ActionButtons />
+                    </>
+                )}
             </View>
         </View>
     );
@@ -272,11 +312,8 @@ export const EndGameSummary: React.FC<EndGameSummaryProps> = ({
 const styles = StyleSheet.create({
     overlay: {
         position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.9)',
+        top: 0, left: 0, right: 0, bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.92)',
         justifyContent: 'center',
         alignItems: 'center',
         zIndex: 1000,
@@ -285,65 +322,81 @@ const styles = StyleSheet.create({
         backgroundColor: '#1a2a3a',
         borderRadius: 16,
         width: '92%',
-        maxWidth: 400,
-        maxHeight: '88%',
+        maxWidth: 420,
+        maxHeight: '90%',
         borderWidth: 2,
         borderColor: '#2a4a5a',
+        overflow: 'hidden',
     },
+    containerLandscape: {
+        maxWidth: 700,
+        width: '88%',
+        maxHeight: '94%',
+    },
+    
+    // Landscape layout
+    landscapeBody: {
+        flexDirection: 'row',
+        flex: 1,
+    },
+    leftCol: {
+        flex: 3,
+        borderRightWidth: 1,
+        borderRightColor: '#2a4a5a',
+    },
+    rightCol: {
+        flex: 2,
+    },
+    
+    // Portrait scroll
     scrollView: {
         flex: 1,
     },
     scrollContent: {
         padding: 20,
     },
-    title: {
-        fontSize: 24,
+    
+    // Score Panel
+    scorePanel: {
+        alignItems: 'center',
+        padding: 16,
+        paddingBottom: 12,
+    },
+    resultEmoji: {
+        marginBottom: 4,
+    },
+    resultText: {
         fontWeight: 'bold',
-        color: '#fff',
         textAlign: 'center',
         marginBottom: 12,
     },
-    resultBanner: {
-        borderWidth: 2,
-        borderRadius: 12,
-        padding: 12,
-        marginBottom: 16,
-        backgroundColor: 'rgba(0,0,0,0.3)',
-    },
-    resultText: {
-        fontSize: 28,
-        fontWeight: 'bold',
-        textAlign: 'center',
-    },
-    
-    // Score comparison styles
-    comparisonContainer: {
+    faceOff: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-around',
+        width: '100%',
         backgroundColor: '#0a1a2a',
         borderRadius: 12,
-        padding: 16,
-        marginBottom: 16,
+        padding: 14,
     },
-    scoreColumn: {
+    faceOffSide: {
         alignItems: 'center',
         flex: 1,
     },
-    columnHeader: {
-        fontSize: 14,
+    faceOffLabel: {
+        fontSize: 13,
         color: '#88a4b8',
-        marginBottom: 4,
+        marginBottom: 2,
     },
-    aiHeader: {
+    aiLabelRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 6,
-        marginBottom: 4,
+        gap: 5,
+        marginBottom: 2,
     },
     diffBadge: {
-        paddingHorizontal: 6,
-        paddingVertical: 2,
+        paddingHorizontal: 5,
+        paddingVertical: 1,
         borderRadius: 4,
     },
     diffText: {
@@ -352,188 +405,168 @@ const styles = StyleSheet.create({
         color: '#000',
         textTransform: 'capitalize',
     },
-    scoreValue: {
-        fontSize: 48,
+    faceOffScore: {
         fontWeight: 'bold',
     },
-    ratingText: {
-        fontSize: 14,
+    faceOffRating: {
+        fontSize: 13,
         fontWeight: '600',
         marginTop: 2,
     },
-    vsContainer: {
-        paddingHorizontal: 12,
+    faceOffVs: {
+        paddingHorizontal: 10,
     },
     vsText: {
-        fontSize: 18,
+        fontSize: 16,
         fontWeight: 'bold',
         color: '#556677',
     },
-    
-    // Single score (no AI)
-    singleScoreContainer: {
+    singleScore: {
         alignItems: 'center',
-        marginBottom: 16,
-        padding: 16,
         backgroundColor: '#0a1a2a',
         borderRadius: 12,
-    },
-    scoreSingle: {
-        fontSize: 64,
-        fontWeight: 'bold',
-    },
-    scoreLabel: {
-        fontSize: 14,
-        color: '#88a4b8',
-        marginTop: 4,
-    },
-    ratingSingle: {
-        fontSize: 18,
-        fontWeight: '600',
-        marginTop: 8,
+        padding: 14,
+        width: '100%',
     },
     
-    // Breakdown styles
-    section: {
-        marginBottom: 14,
+    // Breakdown Panel
+    breakdownPanel: {
         backgroundColor: '#0a1a2a',
         borderRadius: 10,
         padding: 12,
+        marginHorizontal: 16,
+        marginBottom: 12,
     },
     sectionTitle: {
-        fontSize: 13,
+        fontSize: 12,
         fontWeight: '600',
         color: '#88a4b8',
-        marginBottom: 10,
+        marginBottom: 8,
         textTransform: 'uppercase',
         letterSpacing: 1,
     },
-    breakdownHeader: {
+    bkHeader: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
-        paddingBottom: 6,
+        alignItems: 'center',
+        paddingBottom: 4,
         borderBottomWidth: 1,
         borderBottomColor: '#2a4a5a',
         marginBottom: 4,
     },
-    breakdownColHeader: {
-        fontSize: 12,
+    bkColHead: {
+        fontSize: 11,
         fontWeight: '600',
         color: '#667788',
-        width: 50,
+        width: 60,
         textAlign: 'center',
     },
-    breakdownRow: {
+    bkRow: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
         paddingVertical: 5,
         borderBottomWidth: 1,
-        borderBottomColor: '#1a2a3a',
+        borderBottomColor: '#152535',
     },
-    breakdownLabel: {
-        fontSize: 14,
+    bkLabel: {
+        fontSize: 13,
         color: '#ccc',
         flex: 1,
     },
-    breakdownValue: {
-        fontSize: 14,
+    bkValueCol: {
+        width: 60,
+        alignItems: 'center',
+        gap: 2,
+    },
+    bkValue: {
+        fontSize: 13,
         color: '#fff',
         fontWeight: '500',
-        width: 50,
-        textAlign: 'center',
     },
-    winningValue: {
+    bkWin: {
         color: '#4ade80',
         fontWeight: '700',
     },
     
-    // Stats styles
-    statsGrid: {
+    // Stats Panel
+    statsPanel: {
+        padding: 16,
+    },
+    statsRow: {
         flexDirection: 'row',
         justifyContent: 'space-around',
+        marginBottom: 14,
     },
-    statItem: {
+    statBox: {
         alignItems: 'center',
+        backgroundColor: '#0a1a2a',
+        borderRadius: 10,
+        paddingVertical: 10,
+        paddingHorizontal: 18,
     },
-    statValue: {
-        fontSize: 22,
+    statVal: {
+        fontSize: 20,
         fontWeight: 'bold',
         color: '#fff',
     },
-    statLabel: {
+    statLbl: {
         fontSize: 11,
         color: '#88a4b8',
         marginTop: 2,
     },
-    
-    // Buildings styles
-    buildingsGrid: {
+    buildRow: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        justifyContent: 'space-between',
+        justifyContent: 'center',
+        gap: 8,
     },
-    buildingItem: {
-        width: '30%',
+    buildItem: {
         alignItems: 'center',
-        marginBottom: 8,
+        backgroundColor: '#0a1a2a',
+        borderRadius: 8,
+        paddingVertical: 6,
+        paddingHorizontal: 10,
+        minWidth: 48,
     },
-    buildingValue: {
+    buildIcon: {
         fontSize: 18,
+    },
+    buildCount: {
+        fontSize: 14,
         fontWeight: 'bold',
         color: '#fff',
-    },
-    buildingLabel: {
-        fontSize: 16,
         marginTop: 2,
     },
     
-    // Boats styles
-    boatsGrid: {
-        flexDirection: 'row',
-        justifyContent: 'space-around',
-    },
-    boatItem: {
-        alignItems: 'center',
-    },
-    boatValue: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#fff',
-    },
-    boatLabel: {
-        fontSize: 12,
-        color: '#88a4b8',
-        marginTop: 2,
-    },
-    
-    // Button styles
-    buttonContainer: {
-        padding: 16,
+    // Buttons
+    btnRow: {
+        padding: 14,
         paddingTop: 8,
-        gap: 10,
+        gap: 8,
         borderTopWidth: 1,
         borderTopColor: '#2a4a5a',
     },
-    playAgainButton: {
+    btnRowLandscape: {
+        flexDirection: 'row',
+    },
+    playBtn: {
         backgroundColor: '#4ade80',
-        paddingVertical: 14,
-        borderRadius: 10,
-        alignItems: 'center',
-    },
-    playAgainText: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#0a1a0a',
-    },
-    mainMenuButton: {
-        backgroundColor: '#2a4a5a',
         paddingVertical: 12,
         borderRadius: 10,
         alignItems: 'center',
     },
-    mainMenuText: {
-        fontSize: 16,
+    playBtnText: {
+        fontSize: 17,
+        fontWeight: 'bold',
+        color: '#0a1a0a',
+    },
+    menuBtn: {
+        backgroundColor: '#2a4a5a',
+        paddingVertical: 10,
+        borderRadius: 10,
+        alignItems: 'center',
+    },
+    menuBtnText: {
+        fontSize: 15,
         fontWeight: '600',
         color: '#88a4b8',
     },
