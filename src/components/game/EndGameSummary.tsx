@@ -1,5 +1,5 @@
 // src/components/game/EndGameSummary.tsx
-// End game summary screen with AI comparison
+// End game summary screen — wide landscape layout
 
 import React from 'react';
 import {
@@ -8,6 +8,7 @@ import {
     StyleSheet,
     TouchableOpacity,
     ScrollView,
+    useWindowDimensions,
 } from 'react-native';
 import { Sounds } from '../../services/soundManager';
 
@@ -58,14 +59,17 @@ export const EndGameSummary: React.FC<EndGameSummaryProps> = ({
     onPlayAgain,
     onMainMenu,
 }) => {
+    const { width: screenW, height: screenH } = useWindowDimensions();
+    const isLandscape = screenW > screenH;
+    
     const hasAI = aiScore !== undefined;
     const playerWins = hasAI ? score > aiScore : score >= 70;
     const isTie = hasAI && score === aiScore;
     
     const getResultText = () => {
-        if (isTie) return { text: "It's a Tie! 🤝", color: '#ffc107' };
-        if (playerWins) return { text: 'Victory! 🏆', color: '#4ade80' };
-        return { text: 'Defeat 💀', color: '#e53935' };
+        if (isTie) return { text: "It's a Tie! 🤝", color: '#ffc107', emoji: '🤝' };
+        if (playerWins) return { text: 'Victory! 🏆', color: '#4ade80', emoji: '🏆' };
+        return { text: 'Defeat 💀', color: '#e53935', emoji: '💀' };
     };
     
     const getScoreRating = (s: number) => {
@@ -80,187 +84,159 @@ export const EndGameSummary: React.FC<EndGameSummaryProps> = ({
     const playerRating = getScoreRating(score);
     const aiRating = hasAI ? getScoreRating(aiScore) : null;
     
-    const difficultyColors = {
+    const difficultyColors: Record<string, string> = {
         easy: '#4ade80',
         normal: '#ffc107',
         hard: '#e53935',
     };
 
-    const handlePlayAgain = () => {
-        Sounds.buttonClick();
-        onPlayAgain();
-    };
+    const handlePlayAgain = () => { Sounds.buttonClick(); onPlayAgain(); };
+    const handleMainMenu = () => { Sounds.buttonClick(); onMainMenu?.(); };
 
-    const handleMainMenu = () => {
-        Sounds.buttonClick();
-        onMainMenu?.();
+    // Score bar component
+    const ScoreBar = ({ value, max = 30, winning = false }: { value: number; max?: number; winning?: boolean }) => (
+        <View style={s.barBg}>
+            <View style={[s.barFill, { width: `${Math.min(100, (value / max) * 100)}%`, backgroundColor: winning ? '#4ade80' : '#556677' }]} />
+        </View>
+    );
+
+    // Breakdown row
+    const BreakdownRow = ({ icon, label, player, ai }: { icon: string; label: string; player: number; ai?: number }) => {
+        const playerWins = ai !== undefined && player > ai;
+        const aiWins = ai !== undefined && ai > player;
+        return (
+            <View style={s.breakdownRow}>
+                <Text style={s.breakdownLabel}>{icon} {label}</Text>
+                <Text style={[s.breakdownVal, playerWins && s.winVal]}>{player}</Text>
+                <ScoreBar value={player} winning={playerWins} />
+                {hasAI && ai !== undefined && (
+                    <>
+                        <ScoreBar value={ai} winning={aiWins} />
+                        <Text style={[s.breakdownVal, aiWins && s.winVal]}>{ai}</Text>
+                    </>
+                )}
+            </View>
+        );
     };
 
     return (
-        <View style={styles.overlay}>
-            <View style={styles.container}>
+        <View style={s.overlay}>
+            <View style={[s.container, { 
+                width: isLandscape ? '92%' : '92%', 
+                maxWidth: isLandscape ? 800 : 420,
+                height: isLandscape ? '90%' : '85%',
+                maxHeight: isLandscape ? 420 : 600,
+            }]}>
                 <ScrollView 
-                    style={styles.scrollView}
-                    contentContainerStyle={styles.scrollContent}
+                    style={s.scrollView}
+                    contentContainerStyle={s.scrollContent}
                     showsVerticalScrollIndicator={false}
                 >
-                    <Text style={styles.title}>Game Over</Text>
-                    
-                    {/* Result Banner */}
-                    <View style={[styles.resultBanner, { borderColor: result.color }]}>
-                        <Text style={[styles.resultText, { color: result.color }]}>
-                            {result.text}
-                        </Text>
-                    </View>
-                    
-                    {/* Score Comparison */}
-                    {hasAI ? (
-                        <View style={styles.comparisonContainer}>
-                            <View style={styles.scoreColumn}>
-                                <Text style={styles.columnHeader}>👤 You</Text>
-                                <Text style={[styles.scoreValue, { color: playerRating.color }]}>
-                                    {score}
-                                </Text>
-                                <Text style={[styles.ratingText, { color: playerRating.color }]}>
-                                    {playerRating.text}
-                                </Text>
-                            </View>
-                            
-                            <View style={styles.vsContainer}>
-                                <Text style={styles.vsText}>VS</Text>
-                            </View>
-                            
-                            <View style={styles.scoreColumn}>
-                                <View style={styles.aiHeader}>
-                                    <Text style={styles.columnHeader}>🤖 AI</Text>
-                                    {difficulty && (
-                                        <View style={[styles.diffBadge, { backgroundColor: difficultyColors[difficulty] }]}>
-                                            <Text style={styles.diffText}>{difficulty}</Text>
-                                        </View>
-                                    )}
+                    {/* Result Header — always full width */}
+                    <View style={s.header}>
+                        <Text style={[s.resultText, { color: result.color }]}>{result.text}</Text>
+                        
+                        {/* Score face-off */}
+                        {hasAI ? (
+                            <View style={s.scoreFaceoff}>
+                                <View style={s.scoreBlock}>
+                                    <Text style={s.scoreOwner}>👤 You</Text>
+                                    <Text style={[s.scoreNum, { color: playerRating.color }]}>{score}</Text>
+                                    <Text style={[s.scoreRating, { color: playerRating.color }]}>{playerRating.text}</Text>
                                 </View>
-                                <Text style={[styles.scoreValue, { color: aiRating?.color || '#fff' }]}>
-                                    {aiScore}
-                                </Text>
-                                <Text style={[styles.ratingText, { color: aiRating?.color || '#888' }]}>
-                                    {aiRating?.text || ''}
-                                </Text>
+                                <Text style={s.vs}>VS</Text>
+                                <View style={s.scoreBlock}>
+                                    <View style={s.aiLabel}>
+                                        <Text style={s.scoreOwner}>🤖 AI</Text>
+                                        {difficulty && (
+                                            <View style={[s.diffBadge, { backgroundColor: difficultyColors[difficulty] || '#888' }]}>
+                                                <Text style={s.diffText}>{difficulty}</Text>
+                                            </View>
+                                        )}
+                                    </View>
+                                    <Text style={[s.scoreNum, { color: aiRating?.color || '#fff' }]}>{aiScore}</Text>
+                                    <Text style={[s.scoreRating, { color: aiRating?.color || '#888' }]}>{aiRating?.text}</Text>
+                                </View>
                             </View>
-                        </View>
-                    ) : (
-                        <View style={styles.singleScoreContainer}>
-                            <Text style={[styles.scoreSingle, { color: playerRating.color }]}>{score}</Text>
-                            <Text style={styles.scoreLabel}>Final Score</Text>
-                            <Text style={[styles.ratingSingle, { color: playerRating.color }]}>{playerRating.text}</Text>
-                        </View>
-                    )}
+                        ) : (
+                            <View style={s.scoreSingle}>
+                                <Text style={[s.scoreNum, { color: playerRating.color, fontSize: 52 }]}>{score}</Text>
+                                <Text style={[s.scoreRating, { color: playerRating.color }]}>{playerRating.text}</Text>
+                            </View>
+                        )}
+                    </View>
 
-                    {/* Score Breakdown Comparison */}
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Score Breakdown</Text>
-                        
-                        <View style={styles.breakdownHeader}>
-                            <Text style={styles.breakdownLabel}></Text>
-                            <Text style={styles.breakdownColHeader}>You</Text>
-                            {hasAI && <Text style={styles.breakdownColHeader}>AI</Text>}
-                        </View>
-                        
-                        {[
-                            { icon: '🏠', label: 'Housing', player: scoreBreakdown.housing, ai: aiScoreBreakdown?.housing },
-                            { icon: '🍞', label: 'Food', player: scoreBreakdown.food, ai: aiScoreBreakdown?.food },
-                            { icon: '❤️', label: 'Welfare', player: scoreBreakdown.welfare, ai: aiScoreBreakdown?.welfare },
-                            { icon: '💰', label: 'GDP', player: scoreBreakdown.gdp, ai: aiScoreBreakdown?.gdp },
-                        ].map(({ icon, label, player, ai }) => (
-                            <View key={label} style={styles.breakdownRow}>
-                                <Text style={styles.breakdownLabel}>{icon} {label}</Text>
-                                <Text style={[
-                                    styles.breakdownValue,
-                                    hasAI && ai !== undefined && player > ai && styles.winningValue
-                                ]}>
-                                    {player}/30
-                                </Text>
-                                {hasAI && ai !== undefined && (
-                                    <Text style={[
-                                        styles.breakdownValue,
-                                        ai > player && styles.winningValue
-                                    ]}>
-                                        {ai}/30
-                                    </Text>
+                    {/* Two-column body in landscape */}
+                    <View style={[s.body, isLandscape && s.bodyLandscape]}>
+                        {/* Left column: Score Breakdown */}
+                        <View style={[s.section, isLandscape && s.sectionHalf]}>
+                            <Text style={s.sectionTitle}>SCORE BREAKDOWN</Text>
+                            
+                            {/* Column headers */}
+                            <View style={s.breakdownHeader}>
+                                <Text style={[s.breakdownLabel, { color: '#556677' }]}></Text>
+                                <Text style={s.colHeader}>You</Text>
+                                <View style={s.barBg} />
+                                {hasAI && (
+                                    <>
+                                        <View style={s.barBg} />
+                                        <Text style={s.colHeader}>AI</Text>
+                                    </>
                                 )}
                             </View>
-                        ))}
-                    </View>
-
-                    {/* Final Stats */}
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Your Stats</Text>
-                        <View style={styles.statsGrid}>
-                            <View style={styles.statItem}>
-                                <Text style={styles.statValue}>{population.toLocaleString()}</Text>
-                                <Text style={styles.statLabel}>Population</Text>
-                            </View>
-                            <View style={styles.statItem}>
-                                <Text style={styles.statValue}>{gold}</Text>
-                                <Text style={styles.statLabel}>Gold</Text>
-                            </View>
+                            
+                            <BreakdownRow icon="🏠" label="Housing" player={scoreBreakdown.housing} ai={aiScoreBreakdown?.housing} />
+                            <BreakdownRow icon="🍞" label="Food" player={scoreBreakdown.food} ai={aiScoreBreakdown?.food} />
+                            <BreakdownRow icon="❤️" label="Welfare" player={scoreBreakdown.welfare} ai={aiScoreBreakdown?.welfare} />
+                            <BreakdownRow icon="💰" label="GDP" player={scoreBreakdown.gdp} ai={aiScoreBreakdown?.gdp} />
                         </View>
-                    </View>
 
-                    {/* Buildings */}
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Buildings</Text>
-                        <View style={styles.buildingsGrid}>
-                            <View style={styles.buildingItem}>
-                                <Text style={styles.buildingValue}>{buildings.houses}</Text>
-                                <Text style={styles.buildingLabel}>🏠</Text>
+                        {/* Right column: Stats + Inventory */}
+                        <View style={[s.section, isLandscape && s.sectionHalf]}>
+                            <Text style={s.sectionTitle}>YOUR NATION</Text>
+                            
+                            {/* Population & Gold */}
+                            <View style={s.statsRow}>
+                                <View style={s.statItem}>
+                                    <Text style={s.statVal}>👥 {population.toLocaleString()}</Text>
+                                    <Text style={s.statLabel}>Population</Text>
+                                </View>
+                                <View style={s.statItem}>
+                                    <Text style={s.statVal}>💰 {gold}</Text>
+                                    <Text style={s.statLabel}>Gold</Text>
+                                </View>
                             </View>
-                            <View style={styles.buildingItem}>
-                                <Text style={styles.buildingValue}>{buildings.farms}</Text>
-                                <Text style={styles.buildingLabel}>🌾</Text>
-                            </View>
-                            <View style={styles.buildingItem}>
-                                <Text style={styles.buildingValue}>{buildings.factories}</Text>
-                                <Text style={styles.buildingLabel}>🏭</Text>
-                            </View>
-                            <View style={styles.buildingItem}>
-                                <Text style={styles.buildingValue}>{buildings.schools}</Text>
-                                <Text style={styles.buildingLabel}>🏫</Text>
-                            </View>
-                            <View style={styles.buildingItem}>
-                                <Text style={styles.buildingValue}>{buildings.hospitals}</Text>
-                                <Text style={styles.buildingLabel}>🏥</Text>
-                            </View>
-                            <View style={styles.buildingItem}>
-                                <Text style={styles.buildingValue}>{buildings.forts}</Text>
-                                <Text style={styles.buildingLabel}>🏰</Text>
-                            </View>
-                        </View>
-                    </View>
-
-                    {/* Boats */}
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Fleet</Text>
-                        <View style={styles.boatsGrid}>
-                            <View style={styles.boatItem}>
-                                <Text style={styles.boatValue}>{boats.fishing}</Text>
-                                <Text style={styles.boatLabel}>🎣 Fishing</Text>
-                            </View>
-                            <View style={styles.boatItem}>
-                                <Text style={styles.boatValue}>{boats.pt}</Text>
-                                <Text style={styles.boatLabel}>⚓ PT Boats</Text>
+                            
+                            {/* Buildings + Boats compact grid */}
+                            <View style={s.inventoryGrid}>
+                                {[
+                                    { icon: '🏠', count: buildings.houses },
+                                    { icon: '🌾', count: buildings.farms },
+                                    { icon: '🏭', count: buildings.factories },
+                                    { icon: '🏫', count: buildings.schools },
+                                    { icon: '🏥', count: buildings.hospitals },
+                                    { icon: '🏰', count: buildings.forts },
+                                    { icon: '🎣', count: boats.fishing },
+                                    { icon: '⚓', count: boats.pt },
+                                ].map(({ icon, count }, i) => (
+                                    <View key={i} style={s.inventoryItem}>
+                                        <Text style={s.inventoryIcon}>{icon}</Text>
+                                        <Text style={s.inventoryCount}>{count}</Text>
+                                    </View>
+                                ))}
                             </View>
                         </View>
                     </View>
                 </ScrollView>
 
-                {/* Action Buttons */}
-                <View style={styles.buttonContainer}>
-                    <TouchableOpacity style={styles.playAgainButton} onPress={handlePlayAgain}>
-                        <Text style={styles.playAgainText}>↻ Play Again</Text>
+                {/* Buttons — always at bottom */}
+                <View style={[s.buttons, isLandscape && s.buttonsLandscape]}>
+                    <TouchableOpacity style={[s.btnPlay, isLandscape && s.btnLandscape]} onPress={handlePlayAgain}>
+                        <Text style={s.btnPlayText}>↻ Play Again</Text>
                     </TouchableOpacity>
                     {onMainMenu && (
-                        <TouchableOpacity style={styles.mainMenuButton} onPress={handleMainMenu}>
-                            <Text style={styles.mainMenuText}>🏠 Main Menu</Text>
+                        <TouchableOpacity style={[s.btnMenu, isLandscape && s.btnLandscape]} onPress={handleMainMenu}>
+                            <Text style={s.btnMenuText}>🏠 Main Menu</Text>
                         </TouchableOpacity>
                     )}
                 </View>
@@ -269,13 +245,10 @@ export const EndGameSummary: React.FC<EndGameSummaryProps> = ({
     );
 };
 
-const styles = StyleSheet.create({
+const s = StyleSheet.create({
     overlay: {
         position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
+        top: 0, left: 0, right: 0, bottom: 0,
         backgroundColor: 'rgba(0, 0, 0, 0.9)',
         justifyContent: 'center',
         alignItems: 'center',
@@ -283,262 +256,143 @@ const styles = StyleSheet.create({
     },
     container: {
         backgroundColor: '#1a2a3a',
-        borderRadius: 16,
-        width: '92%',
-        maxWidth: 400,
-        height: '85%',
-        maxHeight: 600,
+        borderRadius: 14,
         borderWidth: 2,
         borderColor: '#2a4a5a',
         overflow: 'hidden',
     },
-    scrollView: {
-        flex: 1,
-    },
-    scrollContent: {
-        padding: 20,
-    },
-    title: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: '#fff',
-        textAlign: 'center',
-        marginBottom: 12,
-    },
-    resultBanner: {
-        borderWidth: 2,
-        borderRadius: 12,
-        padding: 12,
-        marginBottom: 16,
-        backgroundColor: 'rgba(0,0,0,0.3)',
+    scrollView: { flex: 1 },
+    scrollContent: { padding: 14 },
+
+    // Header
+    header: {
+        alignItems: 'center',
+        marginBottom: 10,
     },
     resultText: {
-        fontSize: 28,
-        fontWeight: 'bold',
-        textAlign: 'center',
-    },
-    
-    // Score comparison styles
-    comparisonContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-around',
-        backgroundColor: '#0a1a2a',
-        borderRadius: 12,
-        padding: 16,
-        marginBottom: 16,
-    },
-    scoreColumn: {
-        alignItems: 'center',
-        flex: 1,
-    },
-    columnHeader: {
-        fontSize: 14,
-        color: '#88a4b8',
-        marginBottom: 4,
-    },
-    aiHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        marginBottom: 4,
-    },
-    diffBadge: {
-        paddingHorizontal: 6,
-        paddingVertical: 2,
-        borderRadius: 4,
-    },
-    diffText: {
-        fontSize: 9,
-        fontWeight: 'bold',
-        color: '#000',
-        textTransform: 'capitalize',
-    },
-    scoreValue: {
-        fontSize: 48,
-        fontWeight: 'bold',
-    },
-    ratingText: {
-        fontSize: 14,
-        fontWeight: '600',
-        marginTop: 2,
-    },
-    vsContainer: {
-        paddingHorizontal: 12,
-    },
-    vsText: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#556677',
-    },
-    
-    // Single score (no AI)
-    singleScoreContainer: {
-        alignItems: 'center',
-        marginBottom: 16,
-        padding: 16,
-        backgroundColor: '#0a1a2a',
-        borderRadius: 12,
-    },
-    scoreSingle: {
-        fontSize: 64,
-        fontWeight: 'bold',
-    },
-    scoreLabel: {
-        fontSize: 14,
-        color: '#88a4b8',
-        marginTop: 4,
-    },
-    ratingSingle: {
-        fontSize: 18,
-        fontWeight: '600',
-        marginTop: 8,
-    },
-    
-    // Breakdown styles
-    section: {
-        marginBottom: 14,
-        backgroundColor: '#0a1a2a',
-        borderRadius: 10,
-        padding: 12,
-    },
-    sectionTitle: {
-        fontSize: 13,
-        fontWeight: '600',
-        color: '#88a4b8',
-        marginBottom: 10,
-        textTransform: 'uppercase',
-        letterSpacing: 1,
-    },
-    breakdownHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        paddingBottom: 6,
-        borderBottomWidth: 1,
-        borderBottomColor: '#2a4a5a',
-        marginBottom: 4,
-    },
-    breakdownColHeader: {
-        fontSize: 12,
-        fontWeight: '600',
-        color: '#667788',
-        width: 50,
-        textAlign: 'center',
-    },
-    breakdownRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingVertical: 5,
-        borderBottomWidth: 1,
-        borderBottomColor: '#1a2a3a',
-    },
-    breakdownLabel: {
-        fontSize: 14,
-        color: '#ccc',
-        flex: 1,
-    },
-    breakdownValue: {
-        fontSize: 14,
-        color: '#fff',
-        fontWeight: '500',
-        width: 50,
-        textAlign: 'center',
-    },
-    winningValue: {
-        color: '#4ade80',
-        fontWeight: '700',
-    },
-    
-    // Stats styles
-    statsGrid: {
-        flexDirection: 'row',
-        justifyContent: 'space-around',
-    },
-    statItem: {
-        alignItems: 'center',
-    },
-    statValue: {
         fontSize: 22,
         fontWeight: 'bold',
-        color: '#fff',
-    },
-    statLabel: {
-        fontSize: 11,
-        color: '#88a4b8',
-        marginTop: 2,
-    },
-    
-    // Buildings styles
-    buildingsGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        justifyContent: 'space-between',
-    },
-    buildingItem: {
-        width: '30%',
-        alignItems: 'center',
         marginBottom: 8,
     },
-    buildingValue: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#fff',
+    scoreFaceoff: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#0a1a2a',
+        borderRadius: 10,
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        gap: 16,
+        width: '100%',
     },
-    buildingLabel: {
-        fontSize: 16,
-        marginTop: 2,
+    scoreBlock: { alignItems: 'center', flex: 1 },
+    scoreOwner: { fontSize: 12, color: '#88a4b8' },
+    aiLabel: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+    diffBadge: { paddingHorizontal: 5, paddingVertical: 1, borderRadius: 3 },
+    diffText: { fontSize: 8, fontWeight: 'bold', color: '#000', textTransform: 'capitalize' },
+    scoreNum: { fontSize: 36, fontWeight: 'bold' },
+    scoreRating: { fontSize: 11, fontWeight: '600', marginTop: 1 },
+    vs: { fontSize: 14, fontWeight: 'bold', color: '#556677' },
+    scoreSingle: { alignItems: 'center', backgroundColor: '#0a1a2a', borderRadius: 10, padding: 10, width: '100%' },
+
+    // Body
+    body: {},
+    bodyLandscape: { flexDirection: 'row', gap: 10 },
+
+    // Sections
+    section: {
+        backgroundColor: '#0a1a2a',
+        borderRadius: 8,
+        padding: 10,
+        marginBottom: 8,
     },
-    
-    // Boats styles
-    boatsGrid: {
+    sectionHalf: { flex: 1, marginBottom: 0 },
+    sectionTitle: {
+        fontSize: 10,
+        fontWeight: '700',
+        color: '#556677',
+        letterSpacing: 1.2,
+        marginBottom: 6,
+    },
+
+    // Breakdown
+    breakdownHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 3,
+        gap: 4,
+    },
+    colHeader: { fontSize: 9, fontWeight: '600', color: '#556677', width: 22, textAlign: 'center' },
+    breakdownRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 3,
+        gap: 4,
+    },
+    breakdownLabel: { fontSize: 12, color: '#aab8c8', width: 72 },
+    breakdownVal: { fontSize: 12, fontWeight: '600', color: '#ccc', width: 22, textAlign: 'center' },
+    winVal: { color: '#4ade80', fontWeight: '700' },
+    barBg: {
+        flex: 1,
+        height: 6,
+        backgroundColor: '#1a2a3a',
+        borderRadius: 3,
+        overflow: 'hidden',
+    },
+    barFill: { height: '100%', borderRadius: 3 },
+
+    // Stats
+    statsRow: {
         flexDirection: 'row',
         justifyContent: 'space-around',
+        marginBottom: 8,
     },
-    boatItem: {
+    statItem: { alignItems: 'center' },
+    statVal: { fontSize: 16, fontWeight: 'bold', color: '#fff' },
+    statLabel: { fontSize: 9, color: '#667788', marginTop: 1 },
+
+    // Inventory grid
+    inventoryGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'center',
+        gap: 6,
+    },
+    inventoryItem: {
         alignItems: 'center',
+        backgroundColor: '#1a2a3a',
+        borderRadius: 6,
+        paddingVertical: 4,
+        paddingHorizontal: 8,
+        minWidth: 44,
     },
-    boatValue: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#fff',
-    },
-    boatLabel: {
-        fontSize: 12,
-        color: '#88a4b8',
-        marginTop: 2,
-    },
-    
-    // Button styles
-    buttonContainer: {
-        padding: 16,
-        paddingTop: 8,
-        gap: 10,
+    inventoryIcon: { fontSize: 16 },
+    inventoryCount: { fontSize: 12, fontWeight: 'bold', color: '#fff', marginTop: 1 },
+
+    // Buttons
+    buttons: {
+        padding: 10,
+        paddingTop: 6,
+        gap: 6,
         borderTopWidth: 1,
         borderTopColor: '#2a4a5a',
     },
-    playAgainButton: {
+    buttonsLandscape: { flexDirection: 'row', gap: 10 },
+    btnPlay: {
         backgroundColor: '#4ade80',
-        paddingVertical: 14,
-        borderRadius: 10,
+        paddingVertical: 11,
+        borderRadius: 8,
         alignItems: 'center',
     },
-    playAgainText: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#0a1a0a',
-    },
-    mainMenuButton: {
+    btnMenu: {
         backgroundColor: '#2a4a5a',
-        paddingVertical: 12,
-        borderRadius: 10,
+        paddingVertical: 10,
+        borderRadius: 8,
         alignItems: 'center',
     },
-    mainMenuText: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#88a4b8',
-    },
+    btnLandscape: { flex: 1 },
+    btnPlayText: { fontSize: 16, fontWeight: 'bold', color: '#0a1a0a' },
+    btnMenuText: { fontSize: 14, fontWeight: '600', color: '#88a4b8' },
 });
 
 export default EndGameSummary;

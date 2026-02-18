@@ -11,6 +11,9 @@ interface ToastProps {
   onHide?: () => void;
 }
 
+// Gold-related types get small upper-left style
+const isGoldType = (type: ToastType) => type === 'gold' || type === 'rain';
+
 const ToastIcon = ({ type, size = 24 }: { type: ToastType; size?: number }) => {
   switch (type) {
     case 'gold':
@@ -92,16 +95,17 @@ const ToastIcon = ({ type, size = 24 }: { type: ToastType; size?: number }) => {
 };
 
 const getBackgroundColor = (type: ToastType): string => {
+  // Gold types: fully opaque small toast; others: 70% opacity bar
   switch (type) {
-    case 'gold': return 'rgba(255, 193, 7, 0.95)';
-    case 'population': return 'rgba(33, 150, 243, 0.95)';
-    case 'rebel': return 'rgba(229, 57, 53, 0.95)';
-    case 'rain': return 'rgba(120, 144, 156, 0.95)';
-    case 'round': return 'rgba(76, 175, 80, 0.95)';
-    case 'build': return 'rgba(121, 85, 72, 0.95)';
-    case 'error': return 'rgba(244, 67, 54, 0.95)';
-    case 'stability': return 'rgba(76, 175, 80, 0.95)';
-    default: return 'rgba(0, 0, 0, 0.85)';
+    case 'gold': return 'rgba(255, 193, 7, 0.92)';
+    case 'rain': return 'rgba(120, 144, 156, 0.92)';
+    case 'population': return 'rgba(33, 150, 243, 0.70)';
+    case 'rebel': return 'rgba(229, 57, 53, 0.70)';
+    case 'round': return 'rgba(76, 175, 80, 0.70)';
+    case 'build': return 'rgba(121, 85, 72, 0.70)';
+    case 'error': return 'rgba(244, 67, 54, 0.70)';
+    case 'stability': return 'rgba(76, 175, 80, 0.70)';
+    default: return 'rgba(0, 0, 0, 0.70)';
   }
 };
 
@@ -120,11 +124,11 @@ const getTextColor = (type: ToastType): string => {
 };
 
 export function Toast({ message, type = 'round', duration = 2000, onHide }: ToastProps) {
-  const translateY = useRef(new Animated.Value(100)).current;
+  const translateY = useRef(new Animated.Value(-100)).current;
   const opacity = useRef(new Animated.Value(0)).current;
+  const small = isGoldType(type);
 
   useEffect(() => {
-    // Slide in
     Animated.parallel([
       Animated.timing(translateY, {
         toValue: 0,
@@ -139,11 +143,10 @@ export function Toast({ message, type = 'round', duration = 2000, onHide }: Toas
       }),
     ]).start();
 
-    // Slide out after duration
     const timer = setTimeout(() => {
       Animated.parallel([
         Animated.timing(translateY, {
-          toValue: 100,
+          toValue: -100,
           duration: 250,
           easing: Easing.in(Easing.ease),
           useNativeDriver: true,
@@ -162,7 +165,7 @@ export function Toast({ message, type = 'round', duration = 2000, onHide }: Toas
   return (
     <Animated.View
       style={[
-        styles.container,
+        small ? styles.containerSmall : styles.containerBar,
         {
           backgroundColor: getBackgroundColor(type),
           transform: [{ translateY }],
@@ -170,35 +173,57 @@ export function Toast({ message, type = 'round', duration = 2000, onHide }: Toas
         },
       ]}
     >
-      <ToastIcon type={type} size={28} />
-      <Text style={[styles.message, { color: getTextColor(type) }]}>{message}</Text>
+      <ToastIcon type={type} size={small ? 22 : 28} />
+      <Text style={[
+        small ? styles.messageSmall : styles.messageBar,
+        { color: getTextColor(type) },
+      ]}>{message}</Text>
     </Animated.View>
   );
 }
 
+const baseContainer = {
+  position: 'absolute' as const,
+  flexDirection: 'row' as const,
+  alignItems: 'center' as const,
+  zIndex: 1500,
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.3,
+  shadowRadius: 8,
+  elevation: 8,
+};
+
 const styles = StyleSheet.create({
-  container: {
-    position: 'absolute',
-    top: undefined,
-    bottom: 30,
-    left: 20,
-    right: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
+  // Small upper-left toast for gold/rain
+  containerSmall: {
+    ...baseContainer,
+    top: 60,
+    left: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    gap: 8,
+  },
+  // Centered bar for build/info/status
+  containerBar: {
+    ...baseContainer,
+    top: 60,
+    left: '15%',
+    right: '15%',
+    justifyContent: 'center',
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 12,
-    zIndex: 1500,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
     gap: 12,
   },
-  message: {
+  messageSmall: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  messageBar: {
     fontSize: 16,
     fontWeight: '600',
-    flex: 1,
+    textAlign: 'center',
   },
 });

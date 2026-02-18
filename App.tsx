@@ -862,12 +862,12 @@ export default function App() {
         showToast(`+${wateredCrops}g from hurricane rain!`, 'rain');
       }
       
-      // Check building damage — hurricanes can destroy forts too (max 3 per pass)
-      if (hurricaneBuildingsDestroyedRef.current < 3) {
+      // Check building damage — hurricanes can destroy forts too (max 2 per pass)
+      if (hurricaneBuildingsDestroyedRef.current < 2) {
         const buildingTiles = island.tiles.filter(t => t.building);
         
         for (const tile of buildingTiles) {
-          if (hurricaneBuildingsDestroyedRef.current >= 3) break;
+          if (hurricaneBuildingsDestroyedRef.current >= 2) break;
           const tileKey = `${tile.position.x},${tile.position.y}`;
           if (hurricaneDamagedTilesRef.current.has(tileKey)) continue;
           
@@ -1585,7 +1585,7 @@ export default function App() {
       showToast('Start next round', 'round'); 
       return; 
     }
-    if (round >= maxRounds) {
+    if (round >= maxRounds && !isRoundActive) {
       Sounds.tileClick();
       showToast('Game Over', 'round');
       return;
@@ -1602,7 +1602,7 @@ export default function App() {
     // Block interaction when round is not active
     if (round === 0) { showToast('Press START to begin', 'round'); return; }
     if (!isRoundActive && round > 0 && round < maxRounds) { showToast('Start next round', 'round'); return; }
-    if (round >= maxRounds) { showToast('Game Over', 'round'); return; }
+    if (round >= maxRounds && !isRoundActive) { showToast('Game Over', 'round'); return; }
     
     // If a boat is selected, set its destination
     if (selectedBoat) {
@@ -1633,7 +1633,7 @@ export default function App() {
     // Block interaction when round is not active
     if (round === 0) { showToast('Press START to begin', 'round'); return; }
     if (!isRoundActive && round > 0 && round < maxRounds) { showToast('Start next round', 'round'); return; }
-    if (round >= maxRounds) { showToast('Game Over', 'round'); return; }
+    if (round >= maxRounds && !isRoundActive) { showToast('Game Over', 'round'); return; }
     
     Sounds.boatSelect();
     if (selectedBoat === boat.id) {
