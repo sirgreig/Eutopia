@@ -1,10 +1,10 @@
-# Project Tracker: Eutopía
+# Project Tracker: Eutopia
 
 ## Project Overview
 
 A mobile game inspired by the 1981 Intellivision classic "Utopia" — widely considered the first god game/city builder. This project aims to honor the original while making it accessible to modern players.
 
-**Title:** Eutopía *(Greek: εὐτοπία, "good place" — the etymological root of "Utopia")*
+**Title:** Eutopia *(Greek: εὐτοπία, "good place" — the etymological root of "Utopia")*
 
 **Target Platforms:** iOS (iPhone) and Android
 
@@ -56,7 +56,7 @@ A mobile game inspired by the 1981 Intellivision classic "Utopia" — widely con
 
 | Building | Cost (Gold) | Function |
 |----------|-------------|----------|
-| Crops/Farm | 3 | Food source; generates 1 gold/second ONLY when rained upon |
+| Crops/Farm | 5 | Food source; generates 1 gold/second ONLY when rained upon |
 | Housing | ~25-30 | Increases population capacity; +0.1% fertility per house |
 | School | 35 | +1 welfare point; -0.3% fertility; boosts factory productivity |
 | Factory | 40 | +4 gold/round; +0.1% mortality; benefits from schools/hospitals |
@@ -247,22 +247,17 @@ Rebels spawn/despawn based on score changes:
 
 *Visual style approved — ready for implementation*
 
-### Tutorial System (Implemented)
+### Tutorial System
 
-**Approach: Interactive 6-Step Guided Tutorial**
-- Shows automatically for first-time players (AsyncStorage persistence)
-- 6-step flow with spotlight highlights and positioned tooltips:
-  1. Welcome message (auto-advance 2.5s)
-  2. "Tap any green land tile" — spotlight on center tile, waits for tap
-  3. "Select Crops" — spotlight on Crops button, waits for selection
-  4. Gold display explanation (auto-advance 3s)
-  5. Timer explanation (auto-advance 3s)
-  6. Completion message (auto-advance 2s)
-- Interactive steps allow taps through overlay (pointerEvents="box-none")
-- Tutorial allows building before round starts (special case for learning)
-- "Skip Tutorial" button available on every step
-- "Replay Tutorial" available in Settings → Help section
-- Progress dots show current step position
+**Approach: Contextual First-Time Hints**
+- Show tooltip/hint the first time each action is taken:
+  - First time tapping empty tile → explains building menu
+  - First time selecting each building type → explains function
+  - First time selecting boat → explains movement
+  - First time round ends → explains scoring
+- Non-intrusive; doesn't require separate tutorial mode
+- Hints can be dismissed and don't repeat
+- Optional "reset hints" in settings for returning players
 
 ### Enhanced Mode (Optional Features for Modern Players)
 
@@ -302,7 +297,7 @@ Rebels spawn/despawn based on score changes:
 
 ### Revenue Model Overview
 
-Eutopía uses a **freemium model** with four non-intrusive revenue streams designed to respect the player experience while supporting development.
+Eutopia uses a **freemium model** with four non-intrusive revenue streams designed to respect the player experience while supporting development.
 
 ### Pricing Tiers
 
@@ -325,7 +320,7 @@ Eutopía uses a **freemium model** with four non-intrusive revenue streams desig
 #### 2. Ad-Free Purchase ($2.99)
 - One-time IAP to permanently remove all advertisements
 - Available from Settings menu and prompted after 3rd ad view
-- Non-intrusive prompt: "Enjoying Eutopía? Remove ads for $2.99"
+- Non-intrusive prompt: "Enjoying Eutopia? Remove ads for $2.99"
 
 #### 3. Premium/Enhanced Mode ($4.99)
 - Unlocks all Enhanced Mode features:
@@ -343,7 +338,7 @@ Eutopía uses a **freemium model** with four non-intrusive revenue streams desig
   - 🍕 "Buy me lunch" — $4.99
   - 🎉 "You're amazing!" — $9.99
 - **Presentation:** Small, friendly section at bottom of Settings
-- **Message:** "Eutopía is a passion project. Tips help keep it updated!"
+- **Message:** "Eutopia is a passion project. Tips help keep it updated!"
 - **No rewards** — purely voluntary support, no gameplay benefit
 - **Thank you:** Simple "Thank you! 💙" toast after purchase
 
@@ -460,7 +455,7 @@ Original game had fixed rain patterns favoring certain areas. Options:
 - ✅ Save state: Full save for AI games; 3-minute timeout forfeit for PvP disconnect
 - ✅ Scouting: PT boat proximity reveals fog; radius sized so full coastal pass reveals 100%
 - ✅ Minimap: Tap to expand overlay, read-only
-- ✅ **Game name: Eutopía**
+- ✅ **Game name: Eutopia**
 - ✅ Visual style: Retro-modern (geometric, clean edges, cohesive palette)
 - ✅ Boat controls: Tap-tap (select then destination)
 - ✅ Building menu: Contextual popup on tile tap
@@ -472,7 +467,8 @@ Original game had fixed rain patterns favoring certain areas. Options:
 **Technical (to determine during implementation):**
 1. Exact PT boat scouting radius (depends on island generation bounds)
 2. Enhanced building balance values (playtesting)
-3. State sync protocol for multiplayer (delta vs full state)
+3. State sync protocol (delta vs full state)
+4. Zustand vs alternative for state management
 
 **Design (to validate with prototypes):**
 5. Final visual style approval (need to see mockups)
@@ -505,22 +501,6 @@ Original game had fixed rain patterns favoring certain areas. Options:
 **Repository:** GitHub (to be created)
 **IDE:** VS Code + Expo Metro
 
-### NPM Dependencies (Required)
-```
-expo
-expo-av                              # Audio playback (music + SFX)
-expo-status-bar
-react-native
-react-native-svg                     # SVG icons for buildings/boats
-@react-native-async-storage/async-storage  # Settings + tutorial persistence
-react-native-google-mobile-ads       # AdMob (configured, not yet active)
-```
-
-### EAS Build Configuration
-- Development profile: Internal distribution, development client
-- Production profile: App Store submission
-- Bundle ID (iOS): `com.tartanstudios.eutopia`
-
 ---
 
 ## File Structure
@@ -530,62 +510,27 @@ C:\Dev\Eutopia\
 ├── App.tsx                          # Main game component
 ├── docs/
 │   └── project-tracker.md           # This file
-├── assets/
-│   └── audio/
-│       ├── button_click.mp3
-│       ├── tile_click.mp3
-│       ├── boat_select.mp3
-│       ├── boat_move.mp3
-│       ├── buildPlace.mp3
-│       ├── buildError.mp3
-│       ├── roundStart.mp3
-│       ├── roundEnd.mp3
-│       ├── goldReceive.mp3
-│       ├── rebelAppear.mp3
-│       ├── stabilityAchieved.mp3
-│       ├── gameOverWin.mp3
-│       ├── gameOverLose.mp3
-│       ├── _rainStorm.mp3
-│       └── tripleBeep.mp3
 ├── src/
 │   ├── components/
 │   │   ├── game/
-│   │   │   ├── AIIslandMinimap.tsx  # AI opponent minimap with popup detail
-│   │   │   ├── AnimatedBuildMenu.tsx # Build menu (landscape-responsive)
-│   │   │   ├── AnimatedResourceBar.tsx # Animated resource display
-│   │   │   ├── EndGameSummary.tsx   # Game over screen with AI comparison
-│   │   │   ├── FreeRoamBoat.tsx     # Boat rendering + destination marker
 │   │   │   ├── Icons.tsx            # All SVG building/boat icons (14 icons)
 │   │   │   ├── Island.tsx           # Map renderer with animated tiles
-│   │   │   ├── RainCloud.tsx        # Animated rain cloud (8-directional)
+│   │   │   ├── RainCloud.tsx        # Animated rain cloud
 │   │   │   ├── RebelIcon.tsx        # Rebel warning icon (pulsing)
-│   │   │   ├── RoundTransition.tsx  # Round start/end transition animation
-│   │   │   ├── ScoreDisplay.tsx     # Collapsible score breakdown panel
-│   │   │   ├── Toast.tsx            # Toast notifications with icons
-│   │   │   └── TutorialOverlay.tsx  # Tutorial spotlight overlay and tooltips
-│   │   ├── settings/
-│   │   │   └── SettingsScreen.tsx   # Settings modal (landscape-responsive)
-│   │   └── setup/
-│   │       └── SetupScreen.tsx      # Pre-game setup (mode, rounds, difficulty)
+│   │   │   ├── ScoreDisplay.tsx     # Score breakdown panel
+│   │   │   └── EndGameSummary.tsx   # Game over screen
+│   │   └── index.ts
+│   ├── config/
+│   │   └── audioSettings.ts         # [PLANNED] Audio settings layout
 │   ├── constants/
 │   │   └── game.ts                  # Balance values, building costs
-│   ├── hooks/
-│   │   ├── useAds.ts               # Ad integration hook
-│   │   ├── useAIOpponent.ts        # AI opponent logic hook
-│   │   ├── useAudioSettings.ts     # Audio settings persistence hook
-│   │   └── useTutorial.ts          # Tutorial state management hook
 │   ├── services/
-│   │   ├── adService.ts            # AdMob service with Expo Go fallback
-│   │   ├── boatMovement.ts         # Boat pathfinding and movement
-│   │   ├── coastlineDetection.ts   # Coastline generation for boats
-│   │   ├── islandGenerator.ts      # Island shape generation
-│   │   └── soundManager.ts         # Sound playback service (15 effects + music)
+│   │   ├── islandGenerator.ts       # Island shape generation
+│   │   └── audioManager.ts          # [PLANNED] Sound playback service
+│   ├── state/
+│   │   └── gameStore.ts             # Game state (Zustand)
 │   └── types/
 │       └── index.ts                 # TypeScript definitions
-├── app.json                         # Expo config with AdMob, bundle IDs
-├── eas.json                         # EAS Build profiles
-├── GoogleService-Info.plist         # Firebase config (iOS) - parked
-└── PORTFOLIO_OVERVIEW.md            # Tartan Studios portfolio document
 ```
 
 ---
@@ -810,38 +755,127 @@ A Firebase project has been created and configured but is **not currently integr
 - Tutorial element positions for spotlight are approximate/hardcoded
 - Could add more tutorial steps for boats, score display, etc.
 
-### Session 6 (Feb 16, 2026)
-**Completed:**
+---
 
-**Bug Fixes & Gameplay Polish:**
-- ✅ Fixed tutorial "Select Crops" step — tooltip no longer covers the Crops button
-  - Changed step target from `'none'` (center) to `'building_crops'` (positioned above)
-  - Updated tooltip top-position offset for proper clearance (~170px)
-- ✅ Fixed "can build before game starts" — confirmed resolved (guard at round === 0)
+### Session 6 (Feb 16-17, 2026)
+**Focus: Phase 4 Sound, Phase 6 Ocean Events & Weather System, UI Polish**
 
-**Rain Cloud System Overhaul:**
-- ✅ 8-directional cloud movement (L→R, R→L, T→B, B→T, + 4 diagonals)
-- ✅ Slight angle variation on paths so clouds don't travel perfectly straight
-- ✅ Full edge-to-edge traversal — clouds enter and exit off-screen (no mid-screen vanish)
-- ✅ Speed tuned to 25px/s with 10s–60s duration range
-- ✅ Position-based crop watering — gold only awarded when cloud bounding box overlaps crop tiles
-- ✅ Rain sound moved from cloud spawn to gold earning (plays only when watering crops)
-- ✅ RainCloud component rewritten with dual-axis animation (`startX/Y` → `endX/Y`)
+**Sound & Audio System (Phase 4):**
+- ✅ Created `soundManager.ts` with Expo AV integration
+- ✅ Created `useAudioSettings.ts` hook with AsyncStorage persistence
+- ✅ Separate music/SFX volume controls with global state
+- ✅ Master mute toggle (🔊/🔇 button in header)
+- ✅ Music system: menu theme + gameplay theme with state-based switching
+- ✅ Sound effects: buttonClick, tileClick, buildPlace, buildError, goldReceive, roundStart, roundEnd, rebelAppear, stabilityAchieved, gameOverWin, gameOverLose, boatFishing, boatSelect, boatMove, boatCrash, rainStorm
+- ✅ Fixed music mute/unmute bug
 
-**Settings Screen Landscape Layout:**
-- ✅ Two-column layout for Music/Sound Effects in landscape
-- ✅ Compact sizing — smaller padding, fonts, sliders, toggles
-- ✅ Help section inline (label + button on one row)
-- ✅ ScrollView for overflow safety
-- ✅ Dynamic maxHeight constrained to screen height
-- ✅ Header close button (✕) added
+**Settings & Help:**
+- ✅ Settings modal with landscape-optimized layout
+- ✅ How to Play modal with comprehensive game guide
+- ✅ Replay Tutorial button in settings
+- ✅ Quit game confirmation dialog
+
+**Fish Schools:**
+- ✅ Fish school spawning, movement, visualization
+- ✅ Fishing boat gold detection (proximity-based)
+- ✅ Fish gold toasts
+
+**Pirate Ships:**
+- ✅ Pirate spawning with difficulty scaling
+- ✅ Pirate AI: targets unguarded fish schools, avoids PT boats
+- ✅ Pirate-fishing boat and PT boat-pirate collisions
+- ✅ Land bounce detection
+
+**Boat Movement Overhaul:**
+- ✅ Direct waypoint navigation (replaced steering arc system)
+- ✅ Landlocked boat spawn prevention via BFS water reachability
+- ✅ Boat movement guards (before game, between rounds, after game over)
+
+**Weather System:**
+- ✅ Rain clouds: 8-directional, edge-to-edge, position-based crop detection
+- ✅ Tropical storms: dark clouds, lightning, building/boat destruction, fort protection
+- ✅ Hurricanes: rotating spiral, most destructive, can destroy forts
+- ✅ Weather hierarchy: Hurricane > Storm > Rain
+- ✅ Storm/hurricane balance tuning
+
+**UI Improvements:**
+- ✅ Build menu enlarged to 2-column layout
+- ✅ Building info toast on tap
+- ✅ Victory screen redesign (landscape two-column layout)
+
+**Files Added:**
+- `src/services/soundManager.ts`, `src/hooks/useAudioSettings.ts`
+- `src/components/game/FishSchool.tsx`, `PirateShip.tsx`, `StormCloud.tsx`, `HurricaneCloud.tsx`
+- `src/components/settings/SettingsScreen.tsx`, `HowToPlay.tsx`
+
+---
+
+### Session 7 (Feb 17, 2026)
+**Focus: Phase 4 Audio Completion, Hurricane Fixes**
+
+**Audio System Completion:**
+- ✅ Fixed boatFishing sound (was called but not defined)
+- ✅ Added thunderCrack SFX for storm/hurricane spawns
+- ✅ Added tension music variant (gameTension.mp3) for low score/rebels
+- ✅ Added victory/defeat music tracks at game end
+- ✅ Music crossfading (1.5s smooth transitions between tracks)
+- ✅ Background/foreground audio management (AppState listener)
+- ✅ Ocean ambient waves loop during gameplay
+- ✅ Population boost sound on growth
+
+**Hurricane Fixes:**
+- ✅ Hurricane pause/resume between rounds
+- ✅ 3-building destruction cap per hurricane
+- ✅ Boat icon water background removal
+- ✅ Double-click sound fix
+
+**Weather Pause System:**
+- ✅ Rain clouds pause/resume between rounds with cascading animations
+- ✅ Storm clouds pause/resume between rounds
+- ✅ All weather properly pauses during round transitions
+
+---
+
+### Sessions 8-9 (Feb 17, 2026)
+**Focus: EndGame Redesign, Dual Toast System, Hurricane Balance**
+
+**EndGameSummary Wide Landscape Layout:**
+- ✅ maxWidth: 800, width: 92%, two-column body in landscape
+- ✅ Left column: score breakdown with visual bars
+- ✅ Right column: nation stats + building/boat inventory grid
+- ✅ Winning values highlighted in green
+
+**Dual Independent Toast System:**
+- ✅ Gold/rain toasts: small upper-left, 2s duration, 92% opacity
+- ✅ Status/build/info toasts: centered 70% bar, 4s duration, 70% opacity
+- ✅ Two independent state channels (no interruption between them)
+
+**Hurricane Balance:**
+- ✅ All destruction rates reduced by 10%
+- ✅ Building cap reduced to 2 per hurricane appearance
+
+---
+
+### Session 10 (Mar 1, 2026)
+**Focus: PNG Icon Art Replacement**
+
+**DALL-E Generated Building Art:**
+- ✅ Generated 14 custom PNG icons via DALL-E (all buildings + boats)
+- ✅ Front-facing straight-on perspective with transparency
+- ✅ Rich painted digital art style replacing hand-coded SVGs
+- ✅ Icons: House, Farm, Factory, School, Hospital, Fort, Apartment, Dock, Lighthouse, Granary, Marketplace, Watchtower, Fishing Boat, PT Boat
+
+**Icons.tsx Rewrite:**
+- ✅ Replaced 915-line SVG component file with PNG-based Image components
+- ✅ Same `({ size }) => JSX` interface — zero changes needed in Island.tsx, AnimatedBuildMenu.tsx, App.tsx, FreeRoamBoat.tsx
+- ✅ Icon sizing set to 97% of tile size for near-full coverage
+- ✅ ConstructionIcon kept as simple SVG placeholder
 
 **Files Modified:**
-- `App.tsx` — Rain system rewrite (state, spawning, gold detection)
-- `src/components/game/RainCloud.tsx` — Bidirectional movement props
-- `src/components/game/TutorialOverlay.tsx` — Tooltip positioning fix
-- `src/hooks/useTutorial.ts` — Step targeting fix
-- `src/components/settings/SettingsScreen.tsx` — Landscape layout
+- `src/components/game/Icons.tsx` — complete rewrite (SVG → PNG)
+
+**Files Added:**
+- `assets/images/*.png` — 14 building/boat icon images
 
 ---
 
@@ -871,15 +905,15 @@ A Firebase project has been created and configured but is **not currently integr
 - [x] Round transition effects (animations)
 - [x] Toast notifications with icons
 - [x] Collapsible score display
-- [x] Tutorial/help overlay (contextual hints) — implemented Session 5
+- [ ] Tutorial/help overlay (contextual hints) — deferred to Phase 10
 
-### Phase 4: Sound & Audio System ✅ COMPLETE (MVP)
+### Phase 4: Sound & Audio System ✅ COMPLETE
 **Priority: HIGH**
 
 #### 4.1 Audio Architecture
 - [x] Create `src/services/soundManager.ts`
 - [x] Expo AV integration for sound playback
-- [x] Separate volume controls: Music, Effects
+- [x] Separate volume controls: Music and Effects
 - [x] Mute toggles for music and effects independently
 - [x] Persist audio settings to AsyncStorage
 - [x] Audio context management (pause on background, resume on foreground)
@@ -887,6 +921,7 @@ A Firebase project has been created and configured but is **not currently integr
 #### 4.2 Sound Effects Library
 **UI Sounds:**
 - [x] Button tap/click
+- [x] Menu open/close (tileClick)
 - [x] Building placed
 - [x] Building cannot place (error)
 - [x] Gold received (coin chime)
@@ -894,348 +929,186 @@ A Firebase project has been created and configured but is **not currently integr
 **Gameplay Sounds:**
 - [x] Round start fanfare
 - [x] Round end chime
-- [x] Triple beep (timer warning)
+- [x] Timer warning (tripleBeep)
+- [x] Population increase (popBoost)
 
 **Environmental Sounds:**
-- [x] Rain/thunder (when cloud waters crops)
+- [x] Rain/thunder (thunderCrack on storm/hurricane spawn)
+- [x] Ocean waves (ambient loop)
 
 **Boat Sounds:**
-- [x] Boat moving (water swoosh)
-- [x] Boat selected
-- [x] Tile click
+- [x] Boat launch/move (boatMove)
+- [x] Boat selected (boatSelect)
+- [x] Fishing success (boatFishing)
+- [x] Boat crash/sink (boatCrash)
 
 **Event Sounds:**
 - [x] Rebel appears (warning alarm)
-- [x] Stability achieved (relief chime)
+- [x] Rebels cleared (stabilityAchieved)
 - [x] Game over win (fanfare)
 - [x] Game over lose (somber)
 
-**Not yet implemented:**
-- [ ] Menu open/close
-- [ ] Gold spent (coin sound)
-- [ ] Timer tick (last 5 seconds)
-- [ ] Population increase/decrease
-- [ ] Ocean waves (ambient loop)
-- [ ] Seagulls (occasional ambient)
-- [ ] Boat launch splash
-- [ ] Fishing success (optional)
-- [ ] Achievement/milestone (optional)
-
 #### 4.3 Music/Soundtrack
-- [x] Menu music loop
-- [x] Gameplay music loop
-- [x] Music switching based on game state (menu ↔ gameplay)
-- [ ] Peaceful/prosperity variant (high score)
-- [ ] Tense/urgent variant (low score or rebels)
-- [ ] Victory theme (end game, good score)
-- [ ] Defeat theme (end game, poor score)
-- [ ] Smooth crossfade between music variants
+- [x] Main menu theme
+- [x] Gameplay ambient music (loopable)
+- [x] Tense/urgent variant (gameTension — low score or rebels)
+- [x] Victory theme (end game, good score)
+- [x] Defeat theme (end game, poor score)
+- [x] Smooth crossfade between music variants (1.5s)
 
 #### 4.4 Settings UI
-- [x] Settings button in header
-- [x] Settings modal/screen
-- [x] Music volume slider (0-100) with +/- buttons
-- [x] Effects volume slider (0-100) with +/- buttons
-- [x] Music mute toggle
-- [x] Effects mute toggle
-- [x] Master audio toggle in header (🔊/🔇)
-- [x] Landscape-responsive two-column layout
-- [x] Save/Apply settings (AsyncStorage persistence)
-- [ ] Audio preview when adjusting sliders
+- [x] Settings button in header (🔊/🔇 toggle)
+- [x] Settings modal/screen with landscape layout
+- [x] Music and SFX volume controls
+- [x] Master mute toggle
+- [x] Persist settings via AsyncStorage
+- [x] Audio preview when adjusting sliders
 
-#### Audio Settings (Implemented)
+#### Audio Settings File Structure (Planned)
 ```typescript
-// src/hooks/useAudioSettings.ts
+// src/config/audioSettings.ts
 export interface AudioSettings {
-  musicVolume: number;      // 0-1
-  sfxVolume: number;        // 0-1
-  musicEnabled: boolean;
-  sfxEnabled: boolean;
+  musicVolume: number;      // 0-100
+  effectsVolume: number;    // 0-100
+  musicMuted: boolean;
+  effectsMuted: boolean;
 }
 
-// src/services/soundManager.ts
-// 15 sound effects loaded via require()
-// SoundEffect type: buttonClick, tileClick, boatSelect, boatMove,
-//   buildPlace, buildError, roundStart, roundEnd, goldReceive,
-//   rebelAppear, stabilityAchieved, gameOverWin, gameOverLose,
-//   rainStorm, tripleBeep
-// Music tracks: menu, gameplay
+export const DEFAULT_AUDIO_SETTINGS: AudioSettings = {
+  musicVolume: 70,
+  effectsVolume: 80,
+  musicMuted: false,
+  effectsMuted: false,
+};
+
+export const SOUND_KEYS = {
+  // UI
+  BUTTON_TAP: 'button_tap',
+  MENU_OPEN: 'menu_open',
+  MENU_CLOSE: 'menu_close',
+  BUILD_PLACE: 'build_place',
+  BUILD_ERROR: 'build_error',
+  GOLD_SPEND: 'gold_spend',
+  GOLD_RECEIVE: 'gold_receive',
+  
+  // Gameplay
+  ROUND_START: 'round_start',
+  ROUND_END: 'round_end',
+  TIMER_WARNING: 'timer_warning',
+  
+  // Environment
+  RAIN: 'rain',
+  WAVES: 'waves_ambient',
+  
+  // Boats
+  BOAT_LAUNCH: 'boat_launch',
+  BOAT_MOVE: 'boat_move',
+  
+  // Events
+  REBEL_APPEAR: 'rebel_appear',
+  REBELS_CLEARED: 'rebels_cleared',
+  GAME_OVER_WIN: 'game_over_win',
+  GAME_OVER_LOSE: 'game_over_lose',
+  
+  // Music
+  MUSIC_GAMEPLAY: 'music_gameplay',
+  MUSIC_TENSE: 'music_tense',
+  MUSIC_VICTORY: 'music_victory',
+  MUSIC_DEFEAT: 'music_defeat',
+} as const;
 ```
 
 ### Phase 5: Setup Screen ✅ COMPLETE
 - [x] Game mode selection (Original vs Enhanced)
-- [x] Number of rounds selection (15-30)
-- [x] Round duration selection (45-120 seconds)
-- [x] Difficulty selection (affects AI)
-- [x] Sound settings access (gear icon → Settings modal)
-- [ ] Island seed input (optional)
+- [x] Number of rounds selection (5-30)
+- [x] Difficulty selection (Easy/Normal/Hard)
+- [x] AI opponent integration
 - [x] Start game button
 
-### Phase 6: Ocean Events & Hazards ← NEXT
-**Priority: HIGH — Core Utopia mechanics not yet implemented**
+### Phase 6: Animations & Polish ← NEXT (Partially Complete)
 
-These four features complete the original Utopia gameplay loop. They add real-time threats and economic depth that make strategic decisions meaningful (boat placement, fort coverage, PT boat investment).
+**Art Assets ✅ COMPLETE**
+- [x] DALL-E generated PNG icons for all 14 buildings/boats
+- [x] Icons.tsx rewritten from SVG to PNG Image components
+- [x] Front-facing perspective with transparency
 
-#### 6.1 Fish Schools
-**Purpose:** Give fishing boats their actual gameplay role — real-time positional income.
+**Weather Animations ✅ COMPLETE**
+- [x] Rain clouds with cascading droplet animations
+- [x] Storm clouds with lightning and heavy rain
+- [x] Hurricane with rotating spiral and triple lightning
+- [x] Weather pause/resume between rounds
 
-**Behavior:**
-- Fish schools are visible clusters that spawn in random water tiles
-- 2–4 fish schools active at any time during a round
-- Fish schools drift slowly in random directions (similar speed to rain clouds)
-- When a school reaches a screen edge, it wraps or respawns at a new random water position
-- Fish schools persist across the full round (don't despawn until round ends)
-- At round start, new schools spawn at random water positions
+**Ocean Events ✅ COMPLETE**
+- [x] Fish school swimming animation
+- [x] Pirate ship movement and AI
 
-**Income mechanic:**
-- Fishing boats earn **1 gold per second** while their bounding box overlaps a fish school
-- Uses same position-based overlap detection as rain/crop system
-- Toast notification on first overlap: "+1g fishing" (then suppress repeats to avoid spam)
-- Gold accumulates in real-time (not just at round end)
+**Boat Movement ✅ COMPLETE**
+- [x] Direct waypoint navigation through water
+- [x] BFS water reachability for spawn validation
 
-**Visual:**
-- Small animated cluster of 3–4 fish shapes (SVG)
-- Gentle swimming/bobbing animation
-- Slightly transparent so they don't obscure water tiles
-- Size: ~1.5 tiles wide
+**Building Animations ✅ COMPLETE**
+- [x] Factory smoke overlay (particles rising from chimney)
+- [x] House chimney smoke overlay (gentle wisps)
+- [x] Fort flag overlay (small animated flag at top)
+- [x] Farm crops whole-icon sway (gentle breeze)
+- [x] Hospital whole-icon pulse/glow effect
+- [x] Boats gentle bobbing on water
+- [x] Building bounce-in on placement (spring physics)
+- [x] Building idle animations (breathe, sway, vibrate, pulse, bob)
 
-**Technical approach:**
-- New `FishSchool` component (SVG + Animated position)
-- Array of fish school state in App.tsx: `{ id, position: WaterPosition, velocity }`
-- Position update in existing boat game loop (requestAnimationFrame)
-- Overlap detection interval (every 1s, like rain gold)
-- New sound effect: `fishingSuccess` (subtle coin/splash)
+**UI Animations ✅ COMPLETE**
+- [x] Gold change flash (AnimatedResourceBar)
+- [x] Score change animation (ScoreDisplay pulse + floating indicator)
 
-**Balance constants to add:**
-```typescript
-fishSchoolCount: 3,          // Active schools per round
-fishSchoolSpeed: 8,          // pixels/second drift
-fishingGoldPerSecond: 1,     // Gold per boat per overlapping second
-fishSchoolSize: 1.5,         // Multiplier of tileSize
-```
+**Image Performance ✅ COMPLETE**
+- [x] PNG icon preloading via expo-asset on app startup
 
----
-
-#### 6.2 Pirate Ships
-**Purpose:** Threaten fishing boats, give PT boats their defensive role.
-
-**Behavior:**
-- Pirates spawn randomly at screen edges during rounds
-- Spawn rate: ~15% chance every 8 seconds (scales with difficulty)
-- Pirates navigate toward the nearest fish school (where fishing boats likely are)
-- Pirates never intentionally sail toward parked PT boats (original behavior)
-- Max 2 pirates active at once
-
-**Combat:**
-- If a pirate overlaps a fishing boat → fishing boat is destroyed
-  - Fishing boat removed from `freeRoamBoats`
-  - Toast: "Pirates sank your fishing boat!" + population casualties (0–50 random)
-  - Sound effect: `pirateSink`
-- If a pirate overlaps a PT boat → pirate is destroyed
-  - Toast: "PT boat sank the pirates!"
-  - Sound effect: `pirateSink`
-- Pirates ignore buildings on land (water-only threat)
-
-**Visual:**
-- Dark-hulled boat with skull flag (SVG, distinct from player boats)
-- Slightly larger than fishing boats
-- Red-tinted or dark color scheme for threat clarity
-
-**Fort protection:**
-- Boats parked within fort radius (1 tile from coast) are immune to pirate attack
-- Pirates will path around fort-protected zones
-
-**Technical approach:**
-- New `PirateShip` component (SVG)
-- Pirate state array: `{ id, position: WaterPosition, velocity, targetFishSchool }`
-- AI pathfinding: move toward nearest fish school, avoid PT boats
-- Collision detection in boat game loop
-- Spawn timer effect similar to rain spawn
-
-**Balance constants to add:**
-```typescript
-pirateSpawnChance: 0.15,     // Per check
-pirateSpawnInterval: 8000,   // ms between spawn checks
-pirateSpeed: 20,             // pixels/second
-pirateMaxActive: 2,
-pirateCasualties: { min: 0, max: 50 },
-```
-
-**Difficulty scaling:**
-| Difficulty | Spawn Chance | Max Active | Speed |
-|------------|-------------|------------|-------|
-| Easy       | 10%         | 1          | 15 px/s |
-| Normal     | 15%         | 2          | 20 px/s |
-| Hard       | 25%         | 3          | 25 px/s |
-
----
-
-#### 6.3 Tropical Storm Clouds
-**Purpose:** Dangerous weather that can destroy buildings and boats.
-
-**Behavior:**
-- Same 8-directional movement as rain clouds (reuse existing system)
-- Darker visual appearance (black/dark gray vs rain cloud gray)
-- Spawn rate: ~10% chance every 8 seconds during rounds (less frequent than rain)
-- Travels edge-to-edge at same speed as rain clouds
-- Can water crops AND destroy things (dual effect, matching original)
-
-**Destruction mechanic:**
-- As storm passes over each tile, **15% chance** to destroy the building on that tile
-- Check runs every 1 second (same interval as rain gold detection)
-- Each building is only checked once per storm pass (track which tiles have been checked)
-- Destroyed building is removed, tile becomes empty
-- Population casualties: 0–101 random per destroyed building (original spec)
-- Moving boats in storm path: **20% chance** to be sunk
-- Anchored/parked boats near forts: immune to storm damage
-
-**Fort protection:**
-- Buildings within fort radius are immune to storm destruction
-- Same radius check as rebel protection
-
-**Visual:**
-- Reuse `RainCloud` component with different color props
-- Dark cloud body: `#37474f` / `#263238` (vs rain's `#78909c`)
-- Lightning flash effect: brief white opacity pulse every 2–3 seconds
-- Rain drops tinted slightly darker
-
-**Sound:**
-- New sound effect: `stormThunder` (deeper/louder than rain)
-- Plays on spawn (threat warning) AND during destruction events
-
-**Technical approach:**
-- New `StormCloud` component extending RainCloud with color variant + lightning
-- Storm state in App.tsx (similar shape to rainCloud state, with `checkedTiles` Set)
-- Storm overlap detection similar to rain, but checks buildings + boats for destruction
-- Fort radius protection check (reuse rebel fort logic)
-
-**Balance constants to add:**
-```typescript
-stormSpawnChance: 0.10,
-stormSpawnInterval: 8000,
-stormBuildingDestroyChance: 0.15,
-stormBoatSinkChance: 0.20,
-stormCasualties: { min: 0, max: 101 },
-```
-
----
-
-#### 6.4 Hurricanes
-**Purpose:** Rare, high-threat weather event. Most destructive force in the game.
-
-**Behavior:**
-- Rare spawn: ~5% chance every 12 seconds
-- Max 1 hurricane active at a time
-- Slower movement than storms (15 px/s vs 25 px/s for rain/storms)
-- Wider damage radius (~3 tiles vs storm's ~1.5 tiles)
-- 5× more destructive than tropical storms (original spec)
-- Sinks ALL moving boats in path (fishing AND PT boats)
-- Anchored boats near forts may survive (50% chance)
-
-**Destruction mechanic:**
-- **67% chance** (2/3) to destroy any building in path (original spec)
-- **90% chance** to sink moving boats in path
-- **50% chance** to sink anchored boats (unless fort-protected → 15%)
-- Population casualties: 0–101 per destroyed structure
-- Checks every 1 second like storms, wider detection radius
-
-**Visual:**
-- Spiraling animation (rotating cloud mass)
-- Larger than storm clouds (~3× tile size)
-- Very dark center with lighter swirling arms
-- Could use `Animated` rotation on the SVG group
-- Optional: screen shake or vignette effect during hurricane
-
-**Sound:**
-- New sound effect: `hurricaneWind` (sustained howling, louder than storm)
-- Plays continuously while hurricane is on screen
-
-**Technical approach:**
-- New `Hurricane` component with rotating SVG animation
-- Larger bounding box for damage detection
-- Same position-tracking system as rain/storm
-- Screen-wide visual cue (dark overlay tint) when hurricane is active
-
-**Balance constants to add:**
-```typescript
-hurricaneSpawnChance: 0.05,
-hurricaneSpawnInterval: 12000,
-hurricaneBuildingDestroyChance: 0.67,
-hurricaneBoatSinkChance: 0.90,
-hurricaneAnchoredBoatSinkChance: 0.50,
-hurricaneFortProtectedSinkChance: 0.15,
-hurricaneSpeed: 15,
-hurricaneDamageRadius: 3,    // tile multiplier
-hurricaneCasualties: { min: 0, max: 101 },
-```
-
----
-
-#### 6.5 New Sound Effects Needed
-| Sound | Used By | Description |
-|-------|---------|-------------|
-| `fishingSuccess` | Fish schools | Subtle coin/splash when earning |
-| `pirateSink` | Pirates | Ship sinking/combat sound |
-| `pirateSpawn` | Pirates | Ominous horn or alarm |
-| `stormThunder` | Tropical storms | Thunder crack |
-| `hurricaneWind` | Hurricanes | Sustained wind howl |
-| `buildingDestroyed` | Storms/hurricanes | Crash/crumble |
-| `boatSunk` | Storms/hurricanes/pirates | Splash/sinking |
-
-#### 6.6 Implementation Order Within Phase
-1. Fish schools (foundation — economic loop)
-2. Pirate ships (threat to fish economy — gives PT boats purpose)
-3. Tropical storms (weather threat — extends existing rain system)
-4. Hurricanes (rare catastrophic event — final layer)
-
-Each sub-phase is independently playable and testable.
-
-### Phase 7: Animations & Polish
-**Boat Animations**
-- [ ] Pathfinding through water tiles (BFS)
-- [ ] Tile-by-tile animated movement (react-native-reanimated)
-- [ ] Movement speed (0.5 sec/tile)
-- [ ] Interruptible movement
-
-**Building Animations**
-- [ ] Factory smoke rising and fading
-- [ ] House chimney smoke wisps
-- [ ] School bell swinging
-- [ ] Fort flag waving
-- [ ] Hospital cross pulse
-- [ ] Farm crops swaying
-- [ ] Fish school swimming
-
-**Weather Animations**
-- [ ] Storm clouds moving
-- [ ] Lightning flashes
-- [ ] Hurricane effects
-
-**UI Animations**
-- [ ] Build menu slide in/out
-- [ ] Gold change flash
-- [ ] Score change animation
-
-### Phase 8: AI Opponent ✅ COMPLETE
-- [x] Utility-based decision architecture
-- [x] Building placement strategy
-- [x] Boat deployment strategy
-- [x] Difficulty tuning parameters (easy/normal/hard)
-- [x] AI minimap with score, gold, population display
-- [x] AI round-end processing
-- [x] End-game score comparison (player vs AI)
-- [ ] Sabotage decision logic (spawn rebel on player)
+### Phase 7: AI Opponent
+- [ ] Utility-based decision architecture
+- [ ] Building placement strategy
+- [ ] Boat deployment strategy
+- [ ] Sabotage decision logic
+- [ ] Difficulty tuning parameters
 - [ ] Aggression scaling
 
-### Phase 9: Multiplayer
-- [ ] Room-based lobby (leverage existing IJBA infra)
-- [ ] WebSocket state sync
-- [ ] Opponent island minimap
-- [ ] Ready-up flow between rounds
-- [ ] Disconnect handling (3-min forfeit)
-- [ ] Reconnection support
+### Phase 8: Multiplayer
 
-### Phase 10: Enhanced Mode Features
+**8A: Firebase Project + Data Model**
+- [ ] Create dedicated Firebase project for Eutopia
+- [ ] Firebase Realtime DB setup and config
+- [ ] Game room data structure (room state, player states, round sync)
+- [ ] Firebase config file (firebaseConfig.ts)
+- [ ] Service layer: create room, join room, listen for changes
+
+**8B: Lobby UI + Room Flow**
+- [ ] Host/join screen (room codes)
+- [ ] Waiting room with ready-up
+- [ ] Player connected/disconnected status display
+- [ ] Transition from lobby to game start
+
+**8C: Game State Sync**
+- [ ] Sync building placements in real-time
+- [ ] Sync boat movements in real-time
+- [ ] Sync gold/population/score
+- [ ] Round timer authority (host is source of truth)
+- [ ] Round start/end synchronization
+- [ ] Between-round ready-up flow
+
+**8D: Opponent Minimap + Visibility**
+- [ ] Render opponent island as read-only minimap
+- [ ] Tap to expand/inspect opponent island
+- [ ] Real-time updates from synced state
+
+**8E: Disconnect Handling + Polish**
+- [ ] 3-minute forfeit timeout on disconnect
+- [ ] Reconnection support
+- [ ] Edge cases (both disconnect, host migration or forfeit)
+- [ ] GitHub tag for Phase 8 complete
+
+**Backend:** Dedicated Firebase project (not shared with IJBA or other apps)
+**Cost model:** Firebase Realtime DB usage offset by between-round ad revenue
+
+### Phase 9: Enhanced Mode Features
 - [ ] Fog of war rendering
 - [ ] PT boat scouting radius reveal
 - [ ] Watchtower reveal mechanics
@@ -1248,7 +1121,7 @@ Each sub-phase is independently playable and testable.
   - [ ] Marketplace (food→gold conversion)
   - [ ] Watchtower (stationary scouting)
 
-### Phase 11: Final Polish
+### Phase 10: Final Polish
 - [ ] Contextual tutorial hints
 - [ ] Haptic feedback (mobile)
 - [ ] Performance optimization
@@ -1292,7 +1165,7 @@ BALANCE = {
 
 ---
 
-*Last Updated: Session 6 (Feb 16, 2026)*
+*Last Updated: Session 12 (Mar 3, 2026)*
 
 ---
 
@@ -1303,21 +1176,25 @@ BALANCE = {
 | 1 | Visual Polish (water, textures, gradients) | ✅ Complete |
 | 2 | Enhanced Mode Building Icons | ✅ Complete |
 | 2.5 | Gameplay (rain, rebels, scoring, end-game) | ✅ Complete |
-| 3 | UI Improvements (header, toasts, transitions, tutorial) | ✅ Complete |
-| 4 | Sound & Audio System | ✅ Complete (MVP) |
+| 3 | UI Improvements (header, toasts, transitions) | ✅ Complete |
+| 4 | Sound & Audio System | ✅ Complete |
 | 5 | Setup Screen | ✅ Complete |
-| **6** | **Ocean Events & Hazards (fish, pirates, storms, hurricanes)** | **⏳ Next** |
-| 7 | Animations & Polish | 🔜 Planned |
-| 8 | AI Opponent | ✅ Complete (MVP) |
-| 9 | Multiplayer | 🔜 Planned |
-| 10 | Enhanced Mode Features | 🔜 Planned |
-| 11 | Final Polish | 🔜 Planned |
+| 6 | Animations & Polish | ✅ Complete |
+| 7 | AI Opponent | 🔶 Basic AI functional, enhancements planned |
+| 8 | Multiplayer | 🔶 In Progress (sub-phased 8A-8E) |
+| 9 | Enhanced Mode Features | 🔜 Planned |
+| 10 | Final Polish | 🔜 Planned |
 
 **Known Issues:**
 - PT boat combat not yet implemented
-- Enhanced mode building effects not yet implemented
-- AI sabotage (spawn rebel on player) not yet implemented
-- Rain cloud crop detection slightly generous at tile edges (bounding box overlap)
+- Enhanced mode building effects not yet implemented (Dock, Lighthouse, etc.)
 - Tutorial spotlight positions are approximate/hardcoded
-- AdMob configured but not yet integrated into gameplay (needs TestFlight testing)
-- Firebase project created but parked (not integrated)
+
+**Recent Highlights:**
+- Phase 6 Animations & Polish complete (building overlays, score animation, image preloading)
+- Crop cost rebalanced from 3 to 5 gold
+- All building/boat icons replaced with DALL-E generated PNG art
+- Complete audio system with music crossfading and tension variants
+- Dual independent toast system (gold vs status notifications)
+- Weather system fully implemented with pause/resume between rounds
+- Phase 8 Multiplayer planned and sub-phased (8A-8E)

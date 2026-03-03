@@ -11,6 +11,7 @@ import {
   AppState,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { Asset } from 'expo-asset';
 import { Island } from './src/components/game/Island';
 import { 
   HouseIcon, 
@@ -28,6 +29,7 @@ import {
   FishingBoatIcon,
   PTBoatIcon,
   ConstructionIcon,
+  ICON_IMAGES,
 } from './src/components/game/Icons';
 import { RainCloud } from './src/components/game/RainCloud';
 import { StormCloud } from './src/components/game/StormCloud';
@@ -317,11 +319,18 @@ export default function App() {
     Sounds.playMusic('menu');
   }, []);
 
-  // Initialize audio on mount (game waits for setup screen)
+  // Initialize audio and preload images on mount
   useEffect(() => { 
     const init = async () => {
-      await initializeSounds();
-      await loadAudioSettings();
+      // Preload all building/boat PNG icons into memory
+      const imageAssets = Object.values(ICON_IMAGES).map(
+        (source) => Asset.fromModule(source as number).downloadAsync()
+      );
+      await Promise.all([
+        ...imageAssets,
+        initializeSounds(),
+        loadAudioSettings(),
+      ]);
       // Start menu music (setup screen)
       Sounds.playMusic('menu');
     };

@@ -1,232 +1,92 @@
-# Portfolio Overview: Eutopía
+# Portfolio Overview: Eutopia
 
-*Document Purpose: Single source of truth for portfolio unification decisions*
-*Last Updated: January 2025*
+*Last Updated: March 3, 2026 (Session 12)*
 
----
+## App Identity
+- **Name:** Eutopia (Greek: good place - etymological root of "Utopia")
+- **Category:** Strategy / City Builder / God Game
+- **Tagline:** Build Your Island Paradise
+- **Inspiration:** Utopia (1981) for Intellivision - widely considered the first god game
+- **Target Audience:** Retro gaming enthusiasts + casual strategy gamers
 
-## 1. Application Identity
+## Current Stage: Active Development (Pre-Release)
+
+### Phase Progress
+| Phase | Description | Status |
+|-------|-------------|--------|
+| 1-5 | Core gameplay, UI, sound, setup | Complete |
+| 6 | Animations & Polish | Complete |
+| 7 | AI Opponent | Complete (basic) |
+| 8 | Multiplayer | In Progress (sub-phased 8A-8E) |
+| 9 | Enhanced Mode Features | Planned |
+| 10 | Final Polish & Deployment | Planned |
+
+### Completion Summary
+- Core gameplay loop, building system (12 types), AI opponent
+- Weather system (rain, storms, hurricanes), rebel mechanics, boat pathfinding
+- Sound/music with crossfading and tension variants
+- Responsive iPhone/iPad design (landscape optimized)
+- DALL-E PNG building art (14 assets), building placement + idle animations
+- Building overlays (factory smoke, house smoke, fort flag)
+- Score change animation, gold flash, image preloading
+- Setup screen with mode/rounds/difficulty, How to Play tutorial
+- Remaining: multiplayer (Firebase), enhanced mode features, deployment
+
+## Brand Integration
 
 | Attribute | Value |
 |-----------|-------|
-| **App Name** | Eutopía |
-| **Tagline** | A modern tribute to the first god game |
-| **Core Purpose** | Mobile remake of the 1981 Intellivision classic "Utopia" — the first city-builder/god game |
-| **Target User** | Retro gaming enthusiasts, casual strategy gamers, fans of city-builder genre |
-| **Genre** | Real-time strategy / City builder / God game |
+| Parent Brand | Tartan Studios |
+| Division | Entertainment |
+| Brand Position | Direct child (no sub-brand) |
+| Website | Listed at tartan-studios.com |
+| Support Email | support@tartan-studios.com |
+| Privacy Policy | https://tartan-studios.com/privacy.html |
+| Terms of Service | https://tartan-studios.com/terms.html |
 
----
+## Cross-App Dependencies
+- Dedicated Firebase project for multiplayer (not shared with IJBA or other apps)
+- Shared AdMob publisher account (pub-7909587764339962)
+- Firebase Realtime DB costs offset by between-round ad revenue
+- Same privacy/terms infrastructure as other Tartan Studios apps
 
-## 2. Development Status
+## Monetization Model
 
-| Attribute | Value |
-|-----------|-------|
-| **Current Stage** | **Development (Beta)** |
-| **Platform** | iOS (iPhone/iPad), Android |
-| **Tech Stack** | React Native, TypeScript, Expo |
-| **Repository** | Local development |
+| Tier | Price | Includes |
+|------|-------|----------|
+| Free | $0 | Original Mode, video ads between rounds |
+| Ad-Free | $2.99 (IAP) | Original Mode, no ads |
+| Premium | $4.99 (IAP) | Enhanced Mode + Ad-Free |
+| Tip Jar | $0.99-9.99 (IAP) | Optional support, no gameplay benefit |
 
-### Completion Status
-- ✅ Core gameplay loop
-- ✅ Building system (12 building types)
-- ✅ AI opponent with difficulty levels
-- ✅ Weather system (rain, storms)
-- ✅ Rebel mechanics (authentic Utopia behavior)
-- ✅ Boat navigation with pathfinding
-- ✅ Sound effects and music
-- ✅ Responsive design (iPhone/iPad)
-- 🔲 Multiplayer networking
-- 🔲 Enhanced fog-of-war mode
-- 🔲 Tutorial system
-- 🔲 App Store deployment
+**Principles:** No pay-to-win, no energy/lives, no loot boxes, ads only at natural pause points.
 
----
+## Tech Stack
+- React Native + Expo SDK 54 (upgrading to 55)
+- TypeScript, Zustand, AsyncStorage
+- expo-av for audio, custom sound manager with crossfading
+- Google AdMob + react-native-iap (planned)
+- Firebase Analytics + Crashlytics (planned)
 
-## 3. Data Entities
+## Key Milestones
 
-### Core Entities
+**Achieved:**
+- Jan 2026: Project inception, design doc, first prototype
+- Jan 2026: Core gameplay loop functional
+- Feb 2026: Weather, sound, UI polish complete
+- Mar 2026: PNG art assets, building animations, responsive layouts
+- Mar 2026: Phase 6 complete (all animations, overlays, score effects)
 
-| Entity | Description | Key Fields |
-|--------|-------------|------------|
-| **Island** | Player's landmass | `id`, `tiles[]`, `boats[]` |
-| **Tile** | Single buildable land cell | `id`, `position{x,y}`, `building?`, `hasRebel?` |
-| **Building** | Structure on a tile | `type`, `cost`, `name`, `description` |
-| **Boat** | Naval vessel | `id`, `type`, `position`, `velocity`, `destination` |
-| **Player** | Game participant | `gold`, `population`, `score` |
-| **Round** | Timed game segment | `number`, `duration`, `maxRounds` |
+**Upcoming:**
+- Phase 8A: Firebase project + multiplayer data model
+- Phase 8B-8E: Lobby, sync, minimap, disconnect handling
+- SDK 55 upgrade (after other apps migrate)
+- Phase 9 enhanced features
+- TestFlight beta
+- App Store submission
 
-### Building Types
-- House, Farm, Factory, Hospital, School, Fort
-- Apartment, Dock, Lighthouse, Granary, Marketplace, Watchtower
-
-### Boat Types
-- Fishing Boat (income generation)
-- PT Boat (military/defense)
-
----
-
-## 4. Identifiers & Naming
-
-### ID Patterns
-
-| Entity | ID Format | Example |
-|--------|-----------|---------|
-| Tile | `tile-{x}-{y}` | `tile-5-3` |
-| Boat | `boat-{timestamp}` | `boat-1706547892345` |
-| Island | `island-{uuid}` | `island-abc123` |
-
-### Shared Identifiers
-- **User ID**: Not yet implemented (future multiplayer)
-- **Room/Session ID**: Not yet implemented (future multiplayer)
-- **Potential shared with**: Other multiplayer games in portfolio
-
----
-
-## 5. Branding Elements
-
-### Color Palette
-
-| Color | Hex | Usage |
-|-------|-----|-------|
-| **Primary Blue (Water)** | `#1e6091` / `#155a8a` / `#0d4a6f` | Ocean, UI backgrounds |
-| **Land Green** | `#6b8e4e` / `#4a7c3b` | Island tiles |
-| **Sand/Beach** | `#d4b896` | Coastline edges |
-| **Gold Accent** | `#ffc107` | Currency, highlights |
-| **Success Green** | `#4ade80` | Positive actions, fishing boats |
-| **Danger Red** | `#e53935` | Rebels, warnings, PT boats |
-| **UI Dark** | `#1a2a3a` / `#0a1a2a` | Panels, menus |
-
-### Typography
-- System fonts (React Native defaults)
-- Bold weights for headers and values
-- No custom font families currently
-
-### Iconography Style
-- **Custom SVG icons** for all buildings and boats
-- Colorful, stylized, modern interpretation of retro aesthetic
-- Consistent size scaling based on tile dimensions
-- Drop shadows for depth
-
-### Visual Style
-- Clean, modern UI with dark theme
-- Rounded corners (8-16px radius)
-- Subtle gradients on tiles and water
-- Animated water waves and sparkles
-- Gentle bobbing animation on boats
-
----
-
-## 6. Monetization Strategy
-
-### Revenue Model: Freemium with 4 Streams
-
-| Stream | Price | Description |
-|--------|-------|-------------|
-| **Video Ads** | Free | Interstitial ads between rounds (natural break point) |
-| **Ad-Free IAP** | $2.99 | One-time purchase to remove all ads |
-| **Premium IAP** | $4.99 | Enhanced Mode + Ad-Free (fog of war, 6 extra buildings) |
-| **Tip Jar IAP** | $0.99-9.99 | Optional support in Settings menu, no gameplay benefit |
-
-### Pricing Tiers
-
-| Tier | Access | Ads |
-|------|--------|-----|
-| **Free** | Original Mode | Yes (between rounds) |
-| **Ad-Free** | Original Mode | No |
-| **Premium** | Original + Enhanced Mode | No |
-
-### Anti-Patterns (What We Avoid)
-- ❌ Pay-to-win mechanics
-- ❌ Energy/lives systems
-- ❌ Loot boxes
-- ❌ Purchasable in-game currency
-- ❌ Aggressive ad popups
-
-### Technical Dependencies
-- Google AdMob (react-native-google-mobile-ads)
-- react-native-iap (App Store + Google Play)
-
----
-
-## 7. Support Touchpoints
-
-| Touchpoint | Status | Details |
-|------------|--------|---------|
-| In-app Help | 🔲 Planned | Tutorial, tooltips |
-| Settings | ✅ Implemented | Sound, music, difficulty |
-| Feedback | 🔲 Planned | Thumbs up/down on game end |
-| External Support | 🔲 Not implemented | No website/email yet |
-
----
-
-## 8. Dependencies & Integrations
-
-### External Dependencies
-- **expo-av**: Audio playback
-- **react-native-svg**: Vector graphics
-- **AsyncStorage**: Local settings persistence
-
-### Potential Shared Infrastructure
-- Multiplayer room system (if other apps have similar needs)
-- User authentication (future)
-- Analytics platform (future)
-- Push notifications (future)
-
-### Cross-App Relationships
-- **None currently** — standalone application
-- **Potential**: Shared user accounts, unified game center
-
----
-
-## 9. Unique Characteristics
-
-### What Makes This App Different
-1. **Tribute to gaming history** — faithful recreation of 1981 classic
-2. **Educational value** — teaches the origin of the city-builder genre
-3. **Dual mode**: Authentic "Original" mode + modern "Enhanced" mode
-4. **AI opponent** — solo play against adaptive difficulty
-5. **Asymmetric island generation** — replayability through procedural maps
-
-### Design Pillars
-1. **Vintage Fidelity** — Obvious to retro gamers this is a loving remake
-2. **Modern Accessibility** — Fun for new players unfamiliar with Intellivision
-
----
-
-## 10. Future Considerations for Unification
-
-### Brand Alignment Opportunities
-- Could fit under a "retro remakes" or "classic gaming" sub-brand
-- Historical/educational angle differentiates from pure entertainment apps
-- Strategy/builder genre could group with other planning/management apps
-
-### Shared Components to Consider
-- User account system
-- Achievement/trophy system
-- Game statistics tracking
-- Social features (leaderboards, challenges)
-- Unified notification system
-
-### Questions for Portfolio Integration
-1. Does this app share a target audience with others?
-2. Should there be cross-promotion between apps?
-3. Would a unified "game center" launcher benefit users?
-4. Are there visual branding elements to standardize?
-
----
-
-## 11. Key Files Reference
-
-| Purpose | Path |
-|---------|------|
-| Main App | `App.tsx` |
-| Types/Entities | `src/types/index.ts` |
-| Game Constants | `src/constants/game.ts` |
-| Sound Manager | `src/services/soundManager.ts` |
-| AI Logic | `src/hooks/useAI.ts` |
-| Building Icons | `src/components/game/Icons.tsx` |
-| Project Tracker | `project-tracker.md` |
-
----
-
-*This document should be updated when major features are added, branding decisions change, or integration points are identified.*
+## Action Items for Portfolio Coordination
+- Firebase project needs creation for multiplayer (Phase 8A)
+- AdMob interstitial ad unit needs creation in console
+- App Store / Play Store listings need preparation
+- GitHub updates planned after each Phase 8 sub-phase

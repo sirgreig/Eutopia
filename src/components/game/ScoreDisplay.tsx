@@ -28,6 +28,12 @@ export function ScoreDisplay({ housing, food, welfare, gdp, total, maxCategory =
   const [expanded, setExpanded] = useState(false);
   const expandAnim = useRef(new Animated.Value(0)).current;
   
+  // Score change animation state
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const changeAnim = useRef(new Animated.Value(0)).current;
+  const [changeIndicator, setChangeIndicator] = useState<{ amount: number; positive: boolean } | null>(null);
+  const prevTotalRef = useRef(total);
+  
   useEffect(() => {
     Animated.timing(expandAnim, {
       toValue: expanded ? 1 : 0,
@@ -37,6 +43,47 @@ export function ScoreDisplay({ housing, food, welfare, gdp, total, maxCategory =
     }).start();
   }, [expanded]);
 
+  // Animate on score change
+  useEffect(() => {
+    const diff = total - prevTotalRef.current;
+    
+    if (diff !== 0) {
+      setChangeIndicator({
+        amount: Math.abs(diff),
+        positive: diff > 0,
+      });
+      
+      // Pulse the score badge
+      Animated.sequence([
+        Animated.timing(scaleAnim, {
+          toValue: 1.3,
+          duration: 150,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 1,
+          duration: 300,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]).start();
+      
+      // Floating change indicator
+      changeAnim.setValue(0);
+      Animated.timing(changeAnim, {
+        toValue: 1,
+        duration: 1000,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }).start(() => {
+        setChangeIndicator(null);
+      });
+    }
+    
+    prevTotalRef.current = total;
+  }, [total]);
+
   const containerWidth = expandAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [56, 180],
@@ -45,6 +92,16 @@ export function ScoreDisplay({ housing, food, welfare, gdp, total, maxCategory =
   const detailsOpacity = expandAnim.interpolate({
     inputRange: [0, 0.5, 1],
     outputRange: [0, 0, 1],
+  });
+
+  const indicatorOpacity = changeAnim.interpolate({
+    inputRange: [0, 0.2, 1],
+    outputRange: [0, 1, 0],
+  });
+
+  const indicatorTranslateY = changeAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -30],
   });
 
   const getScoreColor = () => {
@@ -58,26 +115,56 @@ export function ScoreDisplay({ housing, food, welfare, gdp, total, maxCategory =
       activeOpacity={0.8} 
       onPress={() => setExpanded(!expanded)}
     >
-      <Animated.View style={[styles.container, { width: containerWidth }]}>
-        {/* Always visible: Score badge */}
-        <View style={styles.scoreBadge}>
-          <Text style={[styles.scoreValue, { color: getScoreColor() }]}>{total}</Text>
-          <Text style={styles.scoreLabel}>⭐</Text>
-        </View>
-        
-        {/* Expanded: Category breakdown */}
-        <Animated.View style={[styles.details, { opacity: detailsOpacity }]}>
-          <CategoryBar emoji="🏠" value={housing} max={maxCategory} color="#e8a838" />
-          <CategoryBar emoji="🌾" value={food} max={maxCategory} color="#7cb342" />
-          <CategoryBar emoji="❤️" value={welfare} max={maxCategory} color="#e53935" />
-          <CategoryBar emoji="💰" value={gdp} max={maxCategory} color="#ffc107" />
+      <View style={styles.outerContainer}>
+        <Animated.View style={[styles.container, { width: containerWidth }]}>
+          {/* Always visible: Score badge */}
+          <Animated.View style={[
+            styles.scoreBadge,
+            { transform: [{ scale: scaleAnim }] }
+          ]}>
+            <Text style={[styles.scoreValue, { color: getScoreColor() }]}>{total}</Text>
+            <Text style={styles.scoreLabel}>⭐</Text>
+          </Animated.View>
+          
+          {/* Expanded: Category breakdown */}
+          <Animated.View style={[styles.details, { opacity: detailsOpacity }]}>
+            <CategoryBar emoji="🏠" value={housing} max={maxCategory} color="#e8a838" />
+            <CategoryBar emoji="🌾" value={food} max={maxCategory} color="#7cb342" />
+            <CategoryBar emoji="❤️" value={welfare} max={maxCategory} color="#e53935" />
+            <CategoryBar emoji="💰" value={gdp} max={maxCategory} color="#ffc107" />
+          </Animated.View>
         </Animated.View>
-      </Animated.View>
+
+        {/* Floating change indicator */}
+        {changeIndicator && (
+          <Animated.View 
+            style={[
+              styles.changeIndicator,
+              {
+                opacity: indicatorOpacity,
+                transform: [{ translateY: indicatorTranslateY }],
+              },
+            ]}
+          >
+            <Text 
+              style={[
+                styles.changeText,
+                { color: changeIndicator.positive ? '#4ade80' : '#e53935' }
+              ]}
+            >
+              {changeIndicator.positive ? '+' : '-'}{changeIndicator.amount}
+            </Text>
+          </Animated.View>
+        )}
+      </View>
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
+  outerContainer: {
+    position: 'relative',
+  },
   container: {
     backgroundColor: 'rgba(0,0,0,0.85)',
     borderRadius: 12,
@@ -133,5 +220,19 @@ const styles = StyleSheet.create({
     color: '#aaa',
     width: 16,
     textAlign: 'right',
+  },
+  changeIndicator: {
+    position: 'absolute',
+    top: -8,
+    right: 0,
+    left: 0,
+    alignItems: 'center',
+  },
+  changeText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
   },
 });

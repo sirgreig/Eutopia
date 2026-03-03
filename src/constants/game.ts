@@ -10,7 +10,7 @@ export const BUILDINGS: BuildingConfig[] = [
   // Original buildings
   {
     type: 'farm',
-    cost: 3,
+    cost: 5,
     name: 'Crops',
     description: 'Generates 1 gold/sec when rained upon',
     enhanced: false,
