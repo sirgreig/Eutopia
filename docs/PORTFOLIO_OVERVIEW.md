@@ -1,6 +1,6 @@
 # Portfolio Overview: Eutopia
 
-*Last Updated: March 3, 2026 (Session 12)*
+*Last Updated: March 6, 2026 (Session 12)*
 
 ## App Identity
 - **Name:** Eutopia (Greek: good place - etymological root of "Utopia")
@@ -17,20 +17,22 @@
 | 1-5 | Core gameplay, UI, sound, setup | Complete |
 | 6 | Animations & Polish | Complete |
 | 7 | AI Opponent | Complete (basic) |
-| 8 | Multiplayer | In Progress (sub-phased 8A-8E) |
+| SDK 55 | Migration + expo-audio | In Progress (blocker for Phase 8) |
+| 8 | Multiplayer (8A-8E) | Planned (after SDK 55) |
 | 9 | Enhanced Mode Features | Planned |
 | 10 | Final Polish & Deployment | Planned |
 
 ### Completion Summary
 - Core gameplay loop, building system (12 types), AI opponent
 - Weather system (rain, storms, hurricanes), rebel mechanics, boat pathfinding
-- Sound/music with crossfading and tension variants
+- Sound/music with crossfading and tension variants (expo-av; migrating to expo-audio for SDK 55)
 - Responsive iPhone/iPad design (landscape optimized)
 - DALL-E PNG building art (14 assets), building placement + idle animations
-- Building overlays (factory smoke, house smoke, fort flag)
+- Building overlays (factory smoke, house chimney smoke, fort flag sway)
 - Score change animation, gold flash, image preloading
 - Setup screen with mode/rounds/difficulty, How to Play tutorial
-- Remaining: multiplayer (Firebase), enhanced mode features, deployment
+- SDK 55 upgrade in progress (expo-audio migration is the blocker)
+- Remaining: multiplayer (Firebase, sub-phased 8A-8E), enhanced mode features, deployment
 
 ## Brand Integration
 
@@ -49,6 +51,7 @@
 - Shared AdMob publisher account (pub-7909587764339962)
 - Firebase Realtime DB costs offset by between-round ad revenue
 - Same privacy/terms infrastructure as other Tartan Studios apps
+- SDK 55 upgrade coordinated with other Tartan Studios apps (all must migrate before Expo Go iOS update)
 
 ## Monetization Model
 
@@ -62,10 +65,12 @@
 **Principles:** No pay-to-win, no energy/lives, no loot boxes, ads only at natural pause points.
 
 ## Tech Stack
-- React Native + Expo SDK 54 (upgrading to 55)
+- React Native + Expo SDK 55 (upgrading from 54; sdk55-upgrade branch)
 - TypeScript, Zustand, AsyncStorage
-- expo-av for audio, custom sound manager with crossfading
+- expo-av for audio (migrating to expo-audio for SDK 55 compatibility)
+- Custom sound manager with music crossfading and tension variants
 - Google AdMob + react-native-iap (planned)
+- Firebase Realtime DB for multiplayer (planned, dedicated project)
 - Firebase Analytics + Crashlytics (planned)
 
 ## Key Milestones
@@ -75,18 +80,23 @@
 - Jan 2026: Core gameplay loop functional
 - Feb 2026: Weather, sound, UI polish complete
 - Mar 2026: PNG art assets, building animations, responsive layouts
-- Mar 2026: Phase 6 complete (all animations, overlays, score effects)
+- Mar 2026: Phase 6 complete (all animations, overlays, score effects, image preloading)
+- Mar 2026: SDK 55 upgrade started, project migrated to new dev system
 
 **Upcoming:**
+- Complete expo-av → expo-audio migration (SDK 55 blocker)
+- Merge SDK 55 upgrade, tag v0.7.0
+- Configure EAS Build profiles (development/preview/production)
 - Phase 8A: Firebase project + multiplayer data model
 - Phase 8B-8E: Lobby, sync, minimap, disconnect handling
-- SDK 55 upgrade (after other apps migrate)
 - Phase 9 enhanced features
 - TestFlight beta
 - App Store submission
 
 ## Action Items for Portfolio Coordination
-- Firebase project needs creation for multiplayer (Phase 8A)
-- AdMob interstitial ad unit needs creation in console
-- App Store / Play Store listings need preparation
-- GitHub updates planned after each Phase 8 sub-phase
+- expo-av → expo-audio migration (immediate — SDK 55 blocker)
+- Firebase project creation for multiplayer (Phase 8A)
+- AdMob interstitial ad unit creation in console
+- App Store / Play Store listings preparation
+- GitHub commits planned after each Phase 8 sub-phase
+- Coordinate SDK 55 Expo Go update with other Tartan Studios app migrations

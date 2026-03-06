@@ -2,7 +2,7 @@
 // Sound effects management for Eutopia
 // Adapted from Inside Joke Battle Arena
 
-import { Audio, AVPlaybackSource, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
+import { createAudioPlayer, setAudioModeAsync, AudioPlayer, AudioSource } from 'expo-audio';
 import { AppState, AppStateStatus } from 'react-native';
 
 // Sound effect types used in Eutopia
@@ -30,7 +30,7 @@ export type SoundEffect =
     | 'menuOpen';
 
 // Sound file mappings
-const SOUND_FILES: Partial<Record<SoundEffect, AVPlaybackSource>> = {
+const SOUND_FILES: Partial<Record<SoundEffect, AudioSource>> = {
     buttonClick: require('../../assets/audio/button_click.mp3'),
     tileClick: require('../../assets/audio/tile_click.mp3'),
     boatSelect: require('../../assets/audio/boat_select.mp3'),
@@ -58,7 +58,7 @@ const SOUND_FILES: Partial<Record<SoundEffect, AVPlaybackSource>> = {
 export type MusicTrack = 'menu' | 'gameplay' | 'tension' | 'victory' | 'defeat';
 
 // Music files
-const MUSIC_FILES: Record<MusicTrack, AVPlaybackSource> = {
+const MUSIC_FILES: Record<MusicTrack, AudioSource> = {
     menu: require('../../assets/audio/game_score1.mp3'),
     gameplay: require('../../assets/audio/gamePlay1.mp3'),
     tension: require('../../assets/audio/gameTension.mp3'),
@@ -67,7 +67,7 @@ const MUSIC_FILES: Record<MusicTrack, AVPlaybackSource> = {
 };
 
 // Music state
-let currentMusicSound: Audio.Sound | null = null;
+let currentMusicPlayer: AudioPlayer | null = null;
 let currentMusicTrack: MusicTrack | null = null;
 let musicEnabled = true;
 let musicVolume = 0.5; // 0-1 scale
@@ -99,8 +99,8 @@ const SOUND_VOLUMES: Partial<Record<SoundEffect, number>> = {
     menuOpen: 0.7,
 };
 
-// Preloaded sound objects
-const loadedSounds: Map<SoundEffect, Audio.Sound> = new Map();
+// Preloaded sound players
+const loadedSounds: Map<SoundEffect, AudioPlayer> = new Map();
 
 // Sound settings
 let soundEnabled = true;
@@ -110,29 +110,31 @@ let sfxVolume = 1.0; // 0-1 scale
 const CROSSFADE_DURATION = 1500; // ms
 const CROSSFADE_STEPS = 15;
 
+
 /**
  * Initialize the audio system
  * Call this once at app startup
  */
 export async function initializeSounds(): Promise<void> {
+    // Audio mode and preloading have separate try/catch blocks so a mode-setting
+    // failure on any platform never prevents sounds from being preloaded.
     try {
-        await Audio.setAudioModeAsync({
+        await setAudioModeAsync({
             playsInSilentModeIOS: true,
             allowsRecordingIOS: false,
-            interruptionModeIOS: InterruptionModeIOS.DuckOthers,
             shouldDuckAndroid: true,
-            interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
-            playThroughEarpieceAndroid: false,
             staysActiveInBackground: false,
         });
+        console.log('Sound system initialized');
+    } catch (error) {
+        console.warn('Failed to set audio mode (non-fatal):', error);
+    }
 
-        console.log('🔊 Sound system initialized');
-
-        // Preload frequently used sounds
+    try {
         await preloadSounds([
-            'buttonClick', 
-            'tileClick', 
-            'boatSelect', 
+            'buttonClick',
+            'tileClick',
+            'boatSelect',
             'boatMove',
             'buildPlace',
             'buildError',
@@ -148,7 +150,7 @@ export async function initializeSounds(): Promise<void> {
             'populationBoost',
         ]);
     } catch (error) {
-        console.warn('Failed to initialize sound system:', error);
+        console.warn('Failed to preload sounds:', error);
     }
 }
 
@@ -162,13 +164,10 @@ export async function preloadSounds(effects: SoundEffect[]): Promise<void> {
         if (loadedSounds.has(effect)) continue;
 
         try {
-            const volume = (SOUND_VOLUMES[effect] ?? 1.0) * sfxVolume;
-            const { sound } = await Audio.Sound.createAsync(source, {
-                shouldPlay: false,
-                volume: volume,
-            });
-            loadedSounds.set(effect, sound);
-            console.log(`🔊 Preloaded: ${effect}`);
+            const player = createAudioPlayer(source);
+            player.volume = (SOUND_VOLUMES[effect] ?? 1.0) * sfxVolume;
+            loadedSounds.set(effect, player);
+            console.log(`Preloaded: ${effect}`);
         } catch (error) {
             console.warn(`Failed to preload sound: ${effect}`, error);
         }
@@ -187,27 +186,25 @@ export async function playSound(effect: SoundEffect): Promise<void> {
     const volume = (SOUND_VOLUMES[effect] ?? 1.0) * sfxVolume;
 
     try {
-        // Check for preloaded sound
+        // Use preloaded player if available
         const preloaded = loadedSounds.get(effect);
         if (preloaded) {
-            await preloaded.setPositionAsync(0);
-            await preloaded.setVolumeAsync(volume);
-            preloaded.playAsync(); // Fire and forget
+            preloaded.volume = volume;
+            preloaded.seekTo(0);
+            preloaded.play();
             return;
         }
 
-        // Load and play on demand
-        const { sound } = await Audio.Sound.createAsync(source, {
-            shouldPlay: true,
-            volume: volume,
-        });
-
-        // Clean up after playback
-        sound.setOnPlaybackStatusUpdate((status) => {
-            if (status.isLoaded && status.didJustFinish) {
-                sound.unloadAsync();
-            }
-        });
+        // Load and play on demand, then clean up after a generous window
+        const player = createAudioPlayer(source);
+        player.volume = volume;
+        setTimeout(() => {
+            try { player.play(); } catch {}
+        }, 50);
+        // Clean up after 30s max (covers any long SFX)
+        setTimeout(() => {
+            try { player.remove(); } catch {}
+        }, 30000);
     } catch (error) {
         // Silently fail - don't spam console
     }
@@ -218,7 +215,7 @@ export async function playSound(effect: SoundEffect): Promise<void> {
  */
 export function setSoundEnabled(enabled: boolean): void {
     soundEnabled = enabled;
-    console.log(`🔊 Sound ${enabled ? 'enabled' : 'disabled'}`);
+    console.log(`Sound ${enabled ? 'enabled' : 'disabled'}`);
 }
 
 /**
@@ -233,7 +230,7 @@ export function isSoundEnabled(): boolean {
  */
 export function setSoundVolume(volume: number): void {
     sfxVolume = Math.max(0, Math.min(1, volume));
-    console.log(`🔊 Sound volume: ${Math.round(sfxVolume * 100)}%`);
+    console.log(`Sound volume: ${Math.round(sfxVolume * 100)}%`);
 }
 
 /**
@@ -253,40 +250,41 @@ export function getSoundVolume(): number {
  */
 export async function playMusic(track: MusicTrack): Promise<void> {
     if (!musicEnabled) return;
-    
+
     // If same track is already playing, do nothing
-    if (currentMusicTrack === track && currentMusicSound) {
+    if (currentMusicTrack === track && currentMusicPlayer) {
         return;
     }
-    
+
     // If already crossfading, skip — next effect trigger will catch up
     if (isCrossfading) return;
-    
+
     // Victory/defeat play once; everything else loops
     const shouldLoop = track !== 'victory' && track !== 'defeat';
-    
+
     // If there's existing music, crossfade to new track
-    if (currentMusicSound && currentMusicTrack) {
+    if (currentMusicPlayer && currentMusicTrack) {
         await crossfadeToTrack(track, shouldLoop);
     } else {
         // No existing music — start fresh
-        await startTrack(track, shouldLoop);
+        startTrack(track, shouldLoop);
     }
 }
 
 /**
  * Start a music track from scratch (no crossfade)
  */
-async function startTrack(track: MusicTrack, loop: boolean = true): Promise<void> {
+function startTrack(track: MusicTrack, loop: boolean = true): void {
     try {
-        const { sound } = await Audio.Sound.createAsync(MUSIC_FILES[track], {
-            shouldPlay: true,
-            isLooping: loop,
-            volume: musicVolume,
-        });
-        currentMusicSound = sound;
+        const player = createAudioPlayer(MUSIC_FILES[track]);
+        player.volume = musicVolume;
+        player.loop = loop;
+        // Small delay lets the native player finish loading before play() is called.
+        // expo-audio loads asynchronously and play() is a no-op if called too early.
+        setTimeout(() => { try { player.play(); } catch {} }, 150);
+        currentMusicPlayer = player;
         currentMusicTrack = track;
-        console.log(`🎵 Music started: ${track}`);
+        console.log(`Music started: ${track}`);
     } catch (error) {
         console.warn('Failed to start music:', error);
     }
@@ -297,46 +295,45 @@ async function startTrack(track: MusicTrack, loop: boolean = true): Promise<void
  */
 async function crossfadeToTrack(track: MusicTrack, loop: boolean = true): Promise<void> {
     isCrossfading = true;
-    const oldSound = currentMusicSound;
-    
+    const oldPlayer = currentMusicPlayer;
+
     try {
         // Create new track at volume 0
-        const { sound: newSound } = await Audio.Sound.createAsync(MUSIC_FILES[track], {
-            shouldPlay: true,
-            isLooping: loop,
-            volume: 0,
-        });
-        
+        const newPlayer = createAudioPlayer(MUSIC_FILES[track]);
+        newPlayer.volume = 0;
+        newPlayer.loop = loop;
+        setTimeout(() => { try { newPlayer.play(); } catch {} }, 150);
+
         // Update current references immediately
-        currentMusicSound = newSound;
+        currentMusicPlayer = newPlayer;
         currentMusicTrack = track;
-        
+
         // Perform crossfade over CROSSFADE_DURATION
         const stepDuration = CROSSFADE_DURATION / CROSSFADE_STEPS;
         for (let i = 1; i <= CROSSFADE_STEPS; i++) {
             const progress = i / CROSSFADE_STEPS;
             await new Promise(resolve => setTimeout(resolve, stepDuration));
-            
+
             try {
                 // Fade out old
-                if (oldSound) {
-                    await oldSound.setVolumeAsync(musicVolume * (1 - progress));
+                if (oldPlayer) {
+                    oldPlayer.volume = musicVolume * (1 - progress);
                 }
-                // Fade in new (only if still the current sound)
-                if (currentMusicSound === newSound) {
-                    await newSound.setVolumeAsync(musicVolume * progress);
+                // Fade in new (only if still the current player)
+                if (currentMusicPlayer === newPlayer) {
+                    newPlayer.volume = musicVolume * progress;
                 }
             } catch {
-                // Sound may have been unloaded mid-fade
+                // Player may have been removed mid-fade
                 break;
             }
         }
-        
-        // Cleanup old sound
-        if (oldSound) {
+
+        // Cleanup old player
+        if (oldPlayer) {
             try {
-                await oldSound.stopAsync();
-                await oldSound.unloadAsync();
+                oldPlayer.pause();
+                oldPlayer.remove();
             } catch {
                 // Ignore cleanup errors
             }
@@ -344,12 +341,12 @@ async function crossfadeToTrack(track: MusicTrack, loop: boolean = true): Promis
     } catch (error) {
         console.warn('Crossfade failed, falling back to hard switch:', error);
         // Fallback: hard switch
-        if (oldSound) {
-            try { await oldSound.stopAsync(); await oldSound.unloadAsync(); } catch {}
+        if (oldPlayer) {
+            try { oldPlayer.pause(); oldPlayer.remove(); } catch {}
         }
-        currentMusicSound = null;
+        currentMusicPlayer = null;
         currentMusicTrack = null;
-        await startTrack(track, loop);
+        startTrack(track, loop);
     } finally {
         isCrossfading = false;
     }
@@ -358,15 +355,15 @@ async function crossfadeToTrack(track: MusicTrack, loop: boolean = true): Promis
 /**
  * Stop background music
  */
-export async function stopMusic(): Promise<void> {
-    if (!currentMusicSound) return;
-    
+export function stopMusic(): void {
+    if (!currentMusicPlayer) return;
+
     try {
-        await currentMusicSound.stopAsync();
-        await currentMusicSound.unloadAsync();
-        currentMusicSound = null;
+        currentMusicPlayer.pause();
+        currentMusicPlayer.remove();
+        currentMusicPlayer = null;
         currentMusicTrack = null;
-        console.log('🎵 Music stopped');
+        console.log('Music stopped');
     } catch (error) {
         console.warn('Failed to stop music:', error);
     }
@@ -375,13 +372,13 @@ export async function stopMusic(): Promise<void> {
 /**
  * Pause music (for app backgrounding)
  */
-export async function pauseMusic(): Promise<void> {
-    if (!currentMusicSound || !currentMusicTrack) return;
-    
+export function pauseMusic(): void {
+    if (!currentMusicPlayer || !currentMusicTrack) return;
+
     try {
-        await currentMusicSound.pauseAsync();
+        currentMusicPlayer.pause();
         musicPausedTrack = currentMusicTrack;
-        console.log('🎵 Music paused');
+        console.log('Music paused');
     } catch (error) {
         console.warn('Failed to pause music:', error);
     }
@@ -390,14 +387,14 @@ export async function pauseMusic(): Promise<void> {
 /**
  * Resume music (for app foregrounding)
  */
-export async function resumeMusic(): Promise<void> {
+export function resumeMusic(): void {
     if (!musicEnabled) return;
-    
-    if (currentMusicSound && musicPausedTrack) {
+
+    if (currentMusicPlayer && musicPausedTrack) {
         try {
-            await currentMusicSound.playAsync();
+            currentMusicPlayer.play();
             musicPausedTrack = null;
-            console.log('🎵 Music resumed');
+            console.log('Music resumed');
         } catch (error) {
             console.warn('Failed to resume music:', error);
         }
@@ -407,16 +404,16 @@ export async function resumeMusic(): Promise<void> {
 /**
  * Set music volume (0-1)
  */
-export async function setMusicVolume(volume: number): Promise<void> {
+export function setMusicVolume(volume: number): void {
     musicVolume = Math.max(0, Math.min(1, volume));
-    if (currentMusicSound) {
+    if (currentMusicPlayer) {
         try {
-            await currentMusicSound.setVolumeAsync(musicVolume);
+            currentMusicPlayer.volume = musicVolume;
         } catch (error) {
             // Ignore
         }
     }
-    console.log(`🎵 Music volume: ${Math.round(musicVolume * 100)}%`);
+    console.log(`Music volume: ${Math.round(musicVolume * 100)}%`);
 }
 
 /**
@@ -434,7 +431,7 @@ export function setMusicEnabled(enabled: boolean): void {
     if (!enabled) {
         stopMusic();
     }
-    console.log(`🎵 Music ${enabled ? 'enabled' : 'disabled'}`);
+    console.log(`Music ${enabled ? 'enabled' : 'disabled'}`);
 }
 
 /**
@@ -460,15 +457,15 @@ let appStateSubscription: any = null;
 
 function handleAppStateChange(nextAppState: AppStateStatus): void {
     if (nextAppState === 'background' || nextAppState === 'inactive') {
-        if (currentMusicSound && currentMusicTrack) {
+        if (currentMusicPlayer && currentMusicTrack) {
             wasPlayingBeforeBackground = currentMusicTrack;
-            currentMusicSound.pauseAsync().catch(() => {});
-            console.log('🎵 Music paused (app backgrounded)');
+            try { currentMusicPlayer.pause(); } catch {}
+            console.log('Music paused (app backgrounded)');
         }
     } else if (nextAppState === 'active') {
-        if (wasPlayingBeforeBackground && musicEnabled && currentMusicSound) {
-            currentMusicSound.playAsync().catch(() => {});
-            console.log('🎵 Music resumed (app foregrounded)');
+        if (wasPlayingBeforeBackground && musicEnabled && currentMusicPlayer) {
+            try { currentMusicPlayer.play(); } catch {}
+            console.log('Music resumed (app foregrounded)');
             wasPlayingBeforeBackground = null;
         }
     }
@@ -477,7 +474,7 @@ function handleAppStateChange(nextAppState: AppStateStatus): void {
 export function startAppStateListener(): void {
     if (appStateSubscription) return;
     appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
-    console.log('🔊 App state listener started');
+    console.log('App state listener started');
 }
 
 export function stopAppStateListener(): void {
@@ -492,28 +489,23 @@ export function stopAppStateListener(): void {
 // ============================================
 
 const OCEAN_WAVES_FILE = require('../../assets/audio/oceanWaves.mp3');
-let oceanWavesSound: Audio.Sound | null = null;
+let oceanWavesPlayer: AudioPlayer | null = null;
 let oceanWavesPlaying = false;
 const OCEAN_WAVES_VOLUME = 0.15; // Quiet background ambience
 
 /**
  * Start ocean waves ambient loop
  */
-export async function startOceanWaves(): Promise<void> {
+export function startOceanWaves(): void {
     if (!soundEnabled || oceanWavesPlaying) return;
-    
+
     try {
-        if (!oceanWavesSound) {
-            const { sound } = await Audio.Sound.createAsync(OCEAN_WAVES_FILE, {
-                shouldPlay: true,
-                isLooping: true,
-                volume: OCEAN_WAVES_VOLUME * sfxVolume,
-            });
-            oceanWavesSound = sound;
-        } else {
-            await oceanWavesSound.setVolumeAsync(OCEAN_WAVES_VOLUME * sfxVolume);
-            await oceanWavesSound.playAsync();
+        if (!oceanWavesPlayer) {
+            oceanWavesPlayer = createAudioPlayer(OCEAN_WAVES_FILE);
+            oceanWavesPlayer.loop = true;
         }
+        oceanWavesPlayer.volume = OCEAN_WAVES_VOLUME * sfxVolume;
+        setTimeout(() => { try { oceanWavesPlayer?.play(); } catch {} }, 150);
         oceanWavesPlaying = true;
     } catch (error) {
         console.warn('Failed to start ocean waves:', error);
@@ -523,11 +515,11 @@ export async function startOceanWaves(): Promise<void> {
 /**
  * Stop ocean waves ambient loop
  */
-export async function stopOceanWaves(): Promise<void> {
-    if (!oceanWavesSound) return;
-    
+export function stopOceanWaves(): void {
+    if (!oceanWavesPlayer) return;
+
     try {
-        await oceanWavesSound.pauseAsync();
+        oceanWavesPlayer.pause();
         oceanWavesPlaying = false;
     } catch (error) {
         console.warn('Failed to stop ocean waves:', error);
@@ -537,11 +529,11 @@ export async function stopOceanWaves(): Promise<void> {
 /**
  * Pause ocean waves (for backgrounding)
  */
-export async function pauseOceanWaves(): Promise<void> {
-    if (!oceanWavesSound || !oceanWavesPlaying) return;
+export function pauseOceanWaves(): void {
+    if (!oceanWavesPlayer || !oceanWavesPlaying) return;
     try {
-        await oceanWavesSound.pauseAsync();
-    } catch (error) {
+        oceanWavesPlayer.pause();
+    } catch {
         // Ignore
     }
 }
@@ -549,11 +541,11 @@ export async function pauseOceanWaves(): Promise<void> {
 /**
  * Resume ocean waves (for foregrounding)
  */
-export async function resumeOceanWaves(): Promise<void> {
-    if (!soundEnabled || !oceanWavesSound || !oceanWavesPlaying) return;
+export function resumeOceanWaves(): void {
+    if (!soundEnabled || !oceanWavesPlayer || !oceanWavesPlaying) return;
     try {
-        await oceanWavesSound.playAsync();
-    } catch (error) {
+        oceanWavesPlayer.play();
+    } catch {
         // Ignore
     }
 }
@@ -561,43 +553,45 @@ export async function resumeOceanWaves(): Promise<void> {
 /**
  * Clean up all loaded sounds, music, and ambient
  */
-export async function cleanupSounds(): Promise<void> {
+export function cleanupSounds(): void {
     // Stop app state listener
     stopAppStateListener();
-    
+
     // Clean up sound effects
-    for (const sound of loadedSounds.values()) {
+    for (const player of loadedSounds.values()) {
         try {
-            await sound.unloadAsync();
-        } catch (error) {
+            player.remove();
+        } catch {
             // Ignore cleanup errors
         }
     }
     loadedSounds.clear();
-    
+
     // Clean up music
-    if (currentMusicSound) {
+    if (currentMusicPlayer) {
         try {
-            await currentMusicSound.unloadAsync();
-            currentMusicSound = null;
+            currentMusicPlayer.pause();
+            currentMusicPlayer.remove();
+            currentMusicPlayer = null;
             currentMusicTrack = null;
-        } catch (error) {
+        } catch {
             // Ignore cleanup errors
         }
     }
-    
+
     // Clean up ocean waves
-    if (oceanWavesSound) {
+    if (oceanWavesPlayer) {
         try {
-            await oceanWavesSound.unloadAsync();
-            oceanWavesSound = null;
+            oceanWavesPlayer.pause();
+            oceanWavesPlayer.remove();
+            oceanWavesPlayer = null;
             oceanWavesPlaying = false;
-        } catch (error) {
+        } catch {
             // Ignore cleanup errors
         }
     }
-    
-    console.log('🔊 Sound system cleaned up');
+
+    console.log('Sound system cleaned up');
 }
 
 /**
@@ -607,19 +601,19 @@ export const Sounds = {
     // UI
     buttonClick: () => playSound('buttonClick'),
     tileClick: () => playSound('tileClick'),
-    
+
     // Boats
     boatSelect: () => playSound('boatSelect'),
     boatMove: () => playSound('boatMove'),
     boatFishing: () => playSound('boatFishing'),
     boatCrash: () => playSound('boatCrash'),
     boatLaunch: () => playSound('boatLaunch'),
-    
+
     // Building
     buildPlace: () => playSound('buildPlace'),
     buildError: () => playSound('buildError'),
     menuOpen: () => playSound('menuOpen'),
-    
+
     // Game events
     roundStart: () => playSound('roundStart'),
     roundEnd: () => playSound('roundEnd'),
@@ -629,7 +623,7 @@ export const Sounds = {
     stabilityAchieved: () => playSound('stabilityAchieved'),
     gameOverWin: () => playSound('gameOverWin'),
     gameOverLose: () => playSound('gameOverLose'),
-    
+
     // Weather & misc
     rainStorm: () => playSound('rainStorm'),
     thunderCrack: () => playSound('thunderCrack'),

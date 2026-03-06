@@ -1,69 +1,109 @@
 # Project Status: Eutopia
 
-*Last Updated: March 3, 2026 (Session 12)*
+*Last Updated: March 6, 2026 (Session 12)*
 
 ## Current Version
 - **App Version:** 1.0.0 (pre-release)
-- **SDK:** Expo 54 (SDK 55 upgrade deferred — Expo Go compatibility with other apps)
-- **Running on:** Expo Go (iOS)
+- **SDK:** Expo 55 (upgrade in progress on sdk55-upgrade branch)
+- **Previous SDK:** Expo 54 (still on main branch; iOS Expo Go testing uses this)
+- **Running on:** Android emulator (Pixel 4a) via Expo Go SDK 55; iOS paused
+- **Dev System:** Windows PC (migrated from original system this session)
 - **Local Path:** C:\Dev\Eutopia
 
-## Active Phase: Phase 8 - Multiplayer (Starting)
+## Active Work: SDK 55 Migration (BLOCKER before Phase 8)
+
+### Immediate Next Step: expo-av to expo-audio Migration
+- **Problem:** expo-av removed from Expo Go in SDK 55 — app crashes on launch with "Cannot find native module 'ExponentAV'"
+- **Solution:** Rewrite sound system from expo-av to expo-audio
+- **Files to modify:**
+  - src/services/soundManager.ts (main sound engine — music, SFX, crossfading, ambient)
+  - src/hooks/useAudioSettings.ts (volume controls, mute state, AsyncStorage persistence)
+- **Key API changes:**
+  - `import { Audio } from 'expo-av'` → `import { Audio } from 'expo-audio'` (or useAudioPlayer hook)
+  - playAsync() → play()
+  - pauseAsync() → pause()
+  - stopAsync() → stop() / remove()
+  - setVolumeAsync(vol) → setVolume(vol)
+  - setIsLoopingAsync(true) → setIsLooping(true)
+  - unloadAsync() → remove()
+- **After migration:** `npm uninstall expo-av` then `npx expo install expo-audio`
+- **Test:** All audio — music playback, crossfading between variants, SFX triggers, volume sliders with preview, ocean ambient, weather sounds, boat sounds
+
+### SDK 55 Upgrade Status
+- [x] Packages upgraded (`npx expo install expo@^55.0.0` + `--fix`)
+- [x] react-native-reanimated updated (worklets mismatch resolved)
+- [x] Project cloned and running on new Windows dev system
+- [x] Android emulator (Pixel 4a) set up with Expo Go SDK 55
+- [ ] expo-av → expo-audio migration (BLOCKER — app crashes without this)
+- [ ] Full feature test pass on Android emulator
+- [ ] Merge sdk55-upgrade branch to main
+- [ ] Tag v0.7.0
+- [ ] EAS Build profiles configured (development/preview/production)
+
+### iOS Testing Strategy
+- Expo Go on iPhone stays on SDK 54 to protect other Tartan Studios apps
+- Once ALL apps migrated to SDK 55, update Expo Go in App Store → free local testing resumes
+- Until then: Android emulator only for SDK 55 testing
+- Dev builds (EAS) available as backup for iOS but cost credits
 
 ### Completed This Session (Session 12)
-- Crop cost rebalanced: 3 gold to 5 gold (game.ts)
-- PNG icon preloading via expo-asset at app startup (Icons.tsx, App.tsx)
+- Crop cost rebalanced: 3 gold → 5 gold (game.ts)
+- PNG icon preloading via expo-asset at app startup (Icons.tsx exported ICON_IMAGES, App.tsx preloads)
 - Build menu icon size increased ~30%, name+cost combined into single row (AnimatedBuildMenu.tsx)
 - Score change animation: badge pulse + floating +/- indicator (ScoreDisplay.tsx)
 - Building overlays: factory smoke, house chimney smoke, fort flag (AnimatedBuilding.tsx)
-- Phase 6 marked complete
+- Phase 6 marked complete (all items including stretch goals)
 - Phase 8 Multiplayer planned and sub-phased (8A-8E)
-- No-emoji rule established (exception: title bar and ScoreDisplay only)
+- No-emoji rule established (exceptions: title menu bar and ScoreDisplay only)
 - Title standardized to "Eutopia" (no accented i)
+- SDK 55 upgrade started: packages updated, project migrated to new Windows PC
+- Identified expo-av removal as SDK 55 blocker
+- MIGRATION_PLAN.md created with full step-by-step
 
 ### Phase 6 - Animations & Polish: COMPLETE
-All items delivered including stretch goals (smoke overlays, flag overlay, score animation, image preloading).
+All items delivered including stretch goals (factory smoke, house chimney smoke, fort flag, score animation, gold flash, image preloading, build menu enlargement).
 
-### Phase 8 - Multiplayer Sub-Phases
-- **8A: Firebase Project + Data Model** — create project, define room schema, service layer
-- **8B: Lobby UI + Room Flow** — host/join screens, room codes, ready-up, connection status
-- **8C: Game State Sync** — real-time building/boat/resource sync, round timer authority
-- **8D: Opponent Minimap + Visibility** — read-only minimap, tap to expand, live updates
-- **8E: Disconnect Handling + Polish** — 3-min forfeit, reconnection, edge cases, GitHub tag
-
-### Still TODO (Non-Multiplayer)
-- Device-test Session 11+12 deliverables on iPhone + iPad
-- Tune building animation intensities from playtesting
-- SDK 55 upgrade (deferred until other apps migrate off Expo Go 54)
-
-### Known Issues
-- react-native-reanimated in package.json but unused (leave until SDK 55 upgrade)
-- Legacy BuildMenu.tsx exists but unused (safe to delete)
-- transformOrigin on fort flag requires RN 0.73+ (should work on SDK 54)
+### Phase 8 - Multiplayer Sub-Phases (After SDK 55 Migration)
+- **8A:** Firebase Project + Data Model (dedicated project, not shared with IJBA)
+- **8B:** Lobby UI + Room Flow (host/join, room codes, ready-up)
+- **8C:** Game State Sync (buildings, boats, resources, round timer authority)
+- **8D:** Opponent Minimap + Visibility (read-only, tap to expand, live updates)
+- **8E:** Disconnect Handling + Polish (3-min forfeit, reconnection, GitHub tag)
+- GitHub commit after each sub-phase
+- Firebase costs offset by between-round ad revenue
 
 ## Blockers
-None
+- **expo-av → expo-audio migration** must complete before any further SDK 55 work or Phase 8
 
 ## Next Steps (Priority Order)
-1. Phase 8A: Stand up Firebase project, define data model, build service layer
-2. Phase 8B: Lobby UI and room flow
-3. GitHub commit after each sub-phase
+1. Migrate soundManager.ts and useAudioSettings.ts from expo-av to expo-audio
+2. Test all audio on Android emulator
+3. Complete SDK 55 feature test pass
+4. Merge sdk55-upgrade to main, tag v0.7.0
+5. Configure EAS Build profiles
+6. Begin Phase 8A: Firebase project setup
 
 ## Changelog
 
-### Session 12 (March 3, 2026) - Phase 6 Completion + Phase 8 Planning
+### Session 12 (March 6, 2026) - Phase 6 Completion + SDK 55 Migration Start
 **Modified:**
 - src/constants/game.ts (crop cost 3 → 5)
 - src/components/game/Icons.tsx (exported ICON_IMAGES for preloading)
-- App.tsx (added expo-asset image preloading)
-- src/components/game/AnimatedBuildMenu.tsx (larger icons, combined name+cost row)
-- src/components/game/ScoreDisplay.tsx (score change pulse + floating indicator)
-- src/components/game/AnimatedBuilding.tsx (factory smoke, house smoke, fort flag overlays)
+- App.tsx (added expo-asset import, ICON_IMAGES import, image preloading in init useEffect)
+- src/components/game/AnimatedBuildMenu.tsx (icon size 0.55→0.72 multiplier, cap 40→56, combined name+cost labelRow)
+- src/components/game/ScoreDisplay.tsx (score change pulse + floating +/- indicator, outerContainer wrapper)
+- src/components/game/AnimatedBuilding.tsx (added SmokeOverlay for factory/house, FlagOverlay for fort, wrapper gets explicit width/height)
+
+**Docs Created:**
+- MIGRATION_PLAN.md (GitHub → new system → SDK 55 → EAS profiles)
 
 **Docs Updated:**
-- PROJECT_TRACKER.md (Phase 6 complete, Phase 8 sub-phases, crop cost, title standardized)
+- project-tracker.md (Phase 6 complete, Phase 8 sub-phases, crop cost, title, SDK 55 notes)
 - PROJECT_STATUS.md (this file)
-- PORTFOLIO_OVERVIEW.md (Phase 6 complete, Phase 8 in progress)
+- PORTFOLIO_OVERVIEW.md (phases, milestones, cross-app deps)
+
+**Safe to Delete:**
+- src/components/ui/BuildMenu.tsx (legacy, replaced by AnimatedBuildMenu)
 
 ### Session 11 (March 3, 2026) - Phase 6 Building Animations + UI Polish
 **Added:**
@@ -73,9 +113,6 @@ None
 - src/components/game/Island.tsx (wraps buildings in AnimatedBuilding)
 - src/components/game/AnimatedBuildMenu.tsx (responsive grid, larger icons/text)
 - src/components/setup/SetupScreen.tsx (landscape 2-column layout)
-
-**Safe to Delete:**
-- src/components/ui/BuildMenu.tsx (legacy, replaced by AnimatedBuildMenu)
 
 ### Session 10 (Mar 1, 2026) - PNG Art Icons
 - Replaced all SVG building icons with DALL-E generated PNG art

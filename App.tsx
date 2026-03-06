@@ -322,17 +322,25 @@ export default function App() {
   // Initialize audio and preload images on mount
   useEffect(() => { 
     const init = async () => {
-      // Preload all building/boat PNG icons into memory
-      const imageAssets = Object.values(ICON_IMAGES).map(
-        (source) => Asset.fromModule(source as number).downloadAsync()
-      );
+      // Audio init runs unconditionally — image preload failure must not block it
       await Promise.all([
-        ...imageAssets,
         initializeSounds(),
         loadAudioSettings(),
       ]);
       // Start menu music (setup screen)
       Sounds.playMusic('menu');
+
+      // Preload PNG icons — best-effort only (fails silently on Android dev builds
+      // where Metro serves assets via HTTP and downloadAsync is rejected)
+      try {
+        await Promise.all(
+          Object.values(ICON_IMAGES).map(
+            (source) => Asset.fromModule(source as number).downloadAsync()
+          )
+        );
+      } catch {
+        // Non-fatal: icons will load on first render instead
+      }
     };
     init(); 
   }, []);

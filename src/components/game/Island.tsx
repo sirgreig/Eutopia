@@ -326,8 +326,6 @@ const styles = StyleSheet.create({
   },
   landTile: {
     position: 'absolute',
-    borderRadius: 4,
-    overflow: 'hidden',
   },
   selectedCell: {
     borderWidth: 2,

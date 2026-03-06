@@ -234,7 +234,7 @@ Rebels spawn/despawn based on score changes:
 **New Enhanced buildings:**
 - Dock: Wooden planks, support posts in water, mooring post, rope coil
 
-**Animations (implemented via react-native-reanimated in production):**
+**Animations (implemented via built-in Animated API — no Reanimated dependency in Expo Go SDK 54):**
 | Building | Animation |
 |----------|-----------|
 | Factory | Smoke puffs rise and fade, windows flicker, gear rotates |
@@ -1025,12 +1025,13 @@ export const SOUND_KEYS = {
 - [x] AI opponent integration
 - [x] Start game button
 
-### Phase 6: Animations & Polish ← NEXT (Partially Complete)
+### Phase 6: Animations & Polish ✅ COMPLETE
 
 **Art Assets ✅ COMPLETE**
 - [x] DALL-E generated PNG icons for all 14 buildings/boats
 - [x] Icons.tsx rewritten from SVG to PNG Image components
 - [x] Front-facing perspective with transparency
+- [x] PNG preloading via expo-asset at app startup (eliminates build menu draw delay)
 
 **Weather Animations ✅ COMPLETE**
 - [x] Rain clouds with cascading droplet animations
@@ -1047,21 +1048,20 @@ export const SOUND_KEYS = {
 - [x] BFS water reachability for spawn validation
 
 **Building Animations ✅ COMPLETE**
-- [x] Factory smoke overlay (particles rising from chimney)
-- [x] House chimney smoke overlay (gentle wisps)
-- [x] Fort flag overlay (small animated flag at top)
-- [x] Farm crops whole-icon sway (gentle breeze)
-- [x] Hospital whole-icon pulse/glow effect
-- [x] Boats gentle bobbing on water
-- [x] Building bounce-in on placement (spring physics)
-- [x] Building idle animations (breathe, sway, vibrate, pulse, bob)
+- [x] Building bounce-in on placement (spring physics, friction:5, tension:180)
+- [x] Per-type idle animations via AnimatedBuilding.tsx:
+  - House: breathing scale | Farm: sway rotation | Factory: vibrate
+  - Hospital: pulse + lift | School: bob | Fort/Watchtower: static
+  - Apartment: breathe | Dock: sway | Lighthouse: pulse | Granary: breathe | Marketplace: sway
+- [x] Random start delays prevent synchronized animation across buildings
+- [x] Factory smoke overlay (3 particles rising from chimney, staggered, looping)
+- [x] House chimney smoke overlay (2 smaller gentle wisps)
+- [x] Fort flag overlay (red flag on pole, sways +/-12deg, random start delay)
 
 **UI Animations ✅ COMPLETE**
-- [x] Gold change flash (AnimatedResourceBar)
-- [x] Score change animation (ScoreDisplay pulse + floating indicator)
-
-**Image Performance ✅ COMPLETE**
-- [x] PNG icon preloading via expo-asset on app startup
+- [x] Gold change flash/pulse (AnimatedResourceBar — scale bounce + floating +/- indicator)
+- [x] Score change animation (ScoreDisplay — badge pulse to 1.3x + floating +/- indicator)
+- [x] Build menu icons enlarged ~30%, name+cost combined into single row
 
 ### Phase 7: AI Opponent
 - [ ] Utility-based decision architecture
@@ -1071,10 +1071,10 @@ export const SOUND_KEYS = {
 - [ ] Difficulty tuning parameters
 - [ ] Aggression scaling
 
-### Phase 8: Multiplayer
+### Phase 8: Multiplayer ← NEXT
 
 **8A: Firebase Project + Data Model**
-- [ ] Create dedicated Firebase project for Eutopia
+- [ ] Create dedicated Firebase project for Eutopia (separate from IJBA and all other apps)
 - [ ] Firebase Realtime DB setup and config
 - [ ] Game room data structure (room state, player states, round sync)
 - [ ] Firebase config file (firebaseConfig.ts)
@@ -1105,8 +1105,9 @@ export const SOUND_KEYS = {
 - [ ] Edge cases (both disconnect, host migration or forfeit)
 - [ ] GitHub tag for Phase 8 complete
 
-**Backend:** Dedicated Firebase project (not shared with IJBA or other apps)
-**Cost model:** Firebase Realtime DB usage offset by between-round ad revenue
+**Backend:** Dedicated Firebase Realtime DB project (not shared with IJBA or other apps)
+**Cost model:** Firebase usage offset by between-round advertising revenue
+**GitHub:** Commit after each sub-phase
 
 ### Phase 9: Enhanced Mode Features
 - [ ] Fog of war rendering
@@ -1157,15 +1158,30 @@ BALANCE = {
 
 ## Notes
 
+- No emojis anywhere in the app EXCEPT the title menu bar and ScoreDisplay component
+- App title is "Eutopia" — no accented i, no variations
 - Mode selection (Original vs Enhanced) will move to setup screen
 - PT boat combat mechanics TBD
 - Enhanced mode building effects TBD (dock bonus, lighthouse radius, etc.)
 - Consider haptic feedback for mobile
 - Rain could affect specific tiles visually, not just gold bonus
 
+### SDK 55 Migration Notes
+- expo-av has been removed from Expo Go in SDK 55 and is no longer receiving patches
+- Sound system must migrate from expo-av to expo-audio (new package)
+- Key API changes: playAsync() -> play(), stopAsync() -> stop()/remove(), setVolumeAsync() -> setVolume(), unloadAsync() -> remove()
+- Files to migrate: src/services/soundManager.ts, src/hooks/useAudioSettings.ts
+- After migration: `npm uninstall expo-av` and `npx expo install expo-audio`
+- react-native-reanimated v4 now available (New Architecture only) — can upgrade from built-in Animated API
+- SDK 55 upgrade branch exists: sdk55-upgrade
+- Development environment: Windows PC, Android emulator (Pixel 4a), Expo Go SDK 55 on Android
+- iOS testing via Expo Go paused — App Store still on SDK 54; will resume once all apps migrated to SDK 55
+- EAS Build profiles configured in MIGRATION_PLAN.md (development/preview/production channels)
+- Dev builds cost EAS credits; prefer Expo Go for local testing once all apps on SDK 55
+
 ---
 
-*Last Updated: Session 12 (Mar 3, 2026)*
+*Last Updated: Session 12 (Mar 6, 2026)*
 
 ---
 
@@ -1177,24 +1193,36 @@ BALANCE = {
 | 2 | Enhanced Mode Building Icons | ✅ Complete |
 | 2.5 | Gameplay (rain, rebels, scoring, end-game) | ✅ Complete |
 | 3 | UI Improvements (header, toasts, transitions) | ✅ Complete |
-| 4 | Sound & Audio System | ✅ Complete |
+| 4 | Sound & Audio System | ✅ Complete (expo-av; needs migration to expo-audio for SDK 55) |
 | 5 | Setup Screen | ✅ Complete |
 | 6 | Animations & Polish | ✅ Complete |
 | 7 | AI Opponent | 🔶 Basic AI functional, enhancements planned |
-| 8 | Multiplayer | 🔶 In Progress (sub-phased 8A-8E) |
+| 8 | Multiplayer | 🔶 Planned (sub-phased 8A-8E) |
 | 9 | Enhanced Mode Features | 🔜 Planned |
 | 10 | Final Polish | 🔜 Planned |
+
+**SDK 55 Upgrade Status:**
+- SDK 55 packages installed, branch: sdk55-upgrade
+- BLOCKER: expo-av removed from Expo Go in SDK 55 — app crashes with "Cannot find native module 'ExponentAV'"
+- Must migrate soundManager.ts from expo-av to expo-audio before app will run
+- Development environment: Windows PC, Android emulator (Pixel 4a), Expo Go SDK 55
+- iOS testing paused until all Tartan Studios apps upgraded to SDK 55 (then update Expo Go in App Store)
+- react-native-reanimated updated (worklets mismatch resolved)
+- New Architecture is mandatory in SDK 55 (no opt-out)
+- See MIGRATION_PLAN.md for full step-by-step
 
 **Known Issues:**
 - PT boat combat not yet implemented
 - Enhanced mode building effects not yet implemented (Dock, Lighthouse, etc.)
 - Tutorial spotlight positions are approximate/hardcoded
+- Android-specific visual bugs exist (iOS-first development) — not blocking SDK upgrade
+- transformOrigin on fort flag requires RN 0.73+ (should work on SDK 54+)
 
 **Recent Highlights:**
-- Phase 6 Animations & Polish complete (building overlays, score animation, image preloading)
+- Phase 6 complete: smoke overlays, fort flag, score animation, image preloading
 - Crop cost rebalanced from 3 to 5 gold
-- All building/boat icons replaced with DALL-E generated PNG art
-- Complete audio system with music crossfading and tension variants
-- Dual independent toast system (gold vs status notifications)
-- Weather system fully implemented with pause/resume between rounds
+- Build menu icons enlarged ~30%, name+cost in single row
+- SDK 55 upgrade in progress on sdk55-upgrade branch
 - Phase 8 Multiplayer planned and sub-phased (8A-8E)
+- No-emoji rule established (exceptions: title bar and ScoreDisplay only)
+- Title standardized to "Eutopia" (no accented i)
