@@ -1166,22 +1166,24 @@ BALANCE = {
 - Consider haptic feedback for mobile
 - Rain could affect specific tiles visually, not just gold bonus
 
-### SDK 55 Migration Notes
-- expo-av has been removed from Expo Go in SDK 55 and is no longer receiving patches
-- Sound system must migrate from expo-av to expo-audio (new package)
-- Key API changes: playAsync() -> play(), stopAsync() -> stop()/remove(), setVolumeAsync() -> setVolume(), unloadAsync() -> remove()
-- Files to migrate: src/services/soundManager.ts, src/hooks/useAudioSettings.ts
-- After migration: `npm uninstall expo-av` and `npx expo install expo-audio`
-- react-native-reanimated v4 now available (New Architecture only) — can upgrade from built-in Animated API
-- SDK 55 upgrade branch exists: sdk55-upgrade
-- Development environment: Windows PC, Android emulator (Pixel 4a), Expo Go SDK 55 on Android
-- iOS testing via Expo Go paused — App Store still on SDK 54; will resume once all apps migrated to SDK 55
-- EAS Build profiles configured in MIGRATION_PLAN.md (development/preview/production channels)
-- Dev builds cost EAS credits; prefer Expo Go for local testing once all apps on SDK 55
+### SDK 55 Migration Notes — COMPLETE (Session 13, Mar 6 2026)
+- SDK 55 migration complete; merged to main; tagged v0.7.0
+- expo-av removed and replaced with expo-audio@55.0.0
+- IMPORTANT: expo-audio must be pinned to 55.0.0 — later patches (e.g. 55.0.8) have a native JSI arity mismatch with Expo Go SDK 55 (AudioPlayer constructor arg count changed)
+- soundManager.ts fully rewritten: createAudioPlayer() replaces Audio.Sound.createAsync(); all async audio methods replaced with sync property setters and method calls
+- useAudioSettings.ts required no changes (only uses the Sounds facade)
+- setAudioModeAsync property names differ from expo-av: use playsInSilentMode / allowsRecording / shouldPlayInBackground (not the iOS/Android suffixed names)
+- createAudioPlayer() loads async — call play() via setTimeout(150ms) for music/ambient, not immediately
+- Do not use addListener on AudioPlayer in Expo Go — triggers native JSI arity error
+- Island.tsx: overflow:hidden on a View parent of Animated.View with useNativeDriver:true causes parent background to vanish on Android — removed from landTile style
+- App.tsx: image preload (expo-asset downloadAsync) fails on Android dev builds due to Metro HTTP delivery — wrapped in separate try/catch, non-blocking
+- react-native-reanimated v4 now available (New Architecture only) — can upgrade from built-in Animated API in a future session
+- EAS Build profiles confirmed in eas.json (development / development-device / preview / production)
+- iOS testing via Expo Go paused — resume once all Tartan Studios apps on SDK 55 and Expo Go updated in App Store
 
 ---
 
-*Last Updated: Session 12 (Mar 6, 2026)*
+*Last Updated: Session 13 (Mar 6, 2026)*
 
 ---
 
@@ -1193,36 +1195,31 @@ BALANCE = {
 | 2 | Enhanced Mode Building Icons | ✅ Complete |
 | 2.5 | Gameplay (rain, rebels, scoring, end-game) | ✅ Complete |
 | 3 | UI Improvements (header, toasts, transitions) | ✅ Complete |
-| 4 | Sound & Audio System | ✅ Complete (expo-av; needs migration to expo-audio for SDK 55) |
+| 4 | Sound & Audio System | ✅ Complete (expo-audio, SDK 55 compatible) |
 | 5 | Setup Screen | ✅ Complete |
 | 6 | Animations & Polish | ✅ Complete |
+| SDK 55 | Migration + expo-audio | ✅ Complete — v0.7.0 tagged |
 | 7 | AI Opponent | 🔶 Basic AI functional, enhancements planned |
-| 8 | Multiplayer | 🔶 Planned (sub-phased 8A-8E) |
+| 8 | Multiplayer | 🔶 Next — starting 8A |
 | 9 | Enhanced Mode Features | 🔜 Planned |
 | 10 | Final Polish | 🔜 Planned |
 
-**SDK 55 Upgrade Status:**
-- SDK 55 packages installed, branch: sdk55-upgrade
-- BLOCKER: expo-av removed from Expo Go in SDK 55 — app crashes with "Cannot find native module 'ExponentAV'"
-- Must migrate soundManager.ts from expo-av to expo-audio before app will run
-- Development environment: Windows PC, Android emulator (Pixel 4a), Expo Go SDK 55
-- iOS testing paused until all Tartan Studios apps upgraded to SDK 55 (then update Expo Go in App Store)
-- react-native-reanimated updated (worklets mismatch resolved)
-- New Architecture is mandatory in SDK 55 (no opt-out)
-- See MIGRATION_PLAN.md for full step-by-step
+**SDK 55 Upgrade Status: COMPLETE**
+- Merged to main, tagged v0.7.0
+- expo-audio@55.0.0 in use (pinned — do not upgrade without testing against Expo Go)
+- Full Android emulator test pass completed (audio, visuals, gameplay, tutorial all verified)
+- EAS Build profiles confirmed in eas.json
+- iOS testing resumes once all other Tartan Studios apps migrate to SDK 55
 
 **Known Issues:**
 - PT boat combat not yet implemented
 - Enhanced mode building effects not yet implemented (Dock, Lighthouse, etc.)
 - Tutorial spotlight positions are approximate/hardcoded
-- Android-specific visual bugs exist (iOS-first development) — not blocking SDK upgrade
-- transformOrigin on fort flag requires RN 0.73+ (should work on SDK 54+)
+- Icon first-render delay on Android dev builds (non-issue in production EAS builds)
 
 **Recent Highlights:**
+- SDK 55 migration complete: expo-audio, Android overflow fix, preload decoupled
 - Phase 6 complete: smoke overlays, fort flag, score animation, image preloading
 - Crop cost rebalanced from 3 to 5 gold
 - Build menu icons enlarged ~30%, name+cost in single row
-- SDK 55 upgrade in progress on sdk55-upgrade branch
 - Phase 8 Multiplayer planned and sub-phased (8A-8E)
-- No-emoji rule established (exceptions: title bar and ScoreDisplay only)
-- Title standardized to "Eutopia" (no accented i)

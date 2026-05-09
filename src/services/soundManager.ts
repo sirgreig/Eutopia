@@ -120,10 +120,10 @@ export async function initializeSounds(): Promise<void> {
     // failure on any platform never prevents sounds from being preloaded.
     try {
         await setAudioModeAsync({
-            playsInSilentModeIOS: true,
-            allowsRecordingIOS: false,
-            shouldDuckAndroid: true,
-            staysActiveInBackground: false,
+            playsInSilentMode: true,
+            allowsRecording: false,
+            interruptionMode: 'duckOthers',
+            shouldPlayInBackground: false,
         });
         console.log('Sound system initialized');
     } catch (error) {

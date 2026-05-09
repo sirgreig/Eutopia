@@ -101,9 +101,10 @@ export interface GameConfig {
 interface SetupScreenProps {
     onStartGame: (config: GameConfig) => void;
     onOpenSettings: () => void;
+    onMultiplayer: () => void;
 }
 
-export const SetupScreen: React.FC<SetupScreenProps> = ({ onStartGame, onOpenSettings }) => {
+export const SetupScreen: React.FC<SetupScreenProps> = ({ onStartGame, onOpenSettings, onMultiplayer }) => {
     const { width: screenWidth, height: screenHeight } = useWindowDimensions();
     const isLandscape = screenWidth > screenHeight;
 
@@ -114,6 +115,7 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onStartGame, onOpenSet
 
     const handleStartGame = () => { Sounds.buttonClick(); onStartGame({ mode, rounds, roundDuration, difficulty }); };
     const handleOpenSettings = () => { Sounds.buttonClick(); onOpenSettings(); };
+    const handleMultiplayer = () => { Sounds.buttonClick(); onMultiplayer(); };
     const gameMinutes = Math.round(rounds * roundDuration / 60);
 
     if (isLandscape) {
@@ -153,7 +155,10 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onStartGame, onOpenSet
                                 <Stepper label="Round Duration" value={roundDuration} min={30} max={120} step={15} unit="s" onChange={setRoundDuration} compact />
                             </View>
                             <TouchableOpacity style={styles.startButtonCompact} onPress={handleStartGame}>
-                                <Text style={styles.startButtonTextCompact}>Start Game</Text>
+                                <Text style={styles.startButtonTextCompact}>Solo vs AI</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.multiplayerButtonCompact} onPress={handleMultiplayer}>
+                                <Text style={styles.multiplayerButtonTextCompact}>Multiplayer</Text>
                             </TouchableOpacity>
                             <TouchableOpacity style={styles.settingsButtonCompact} onPress={handleOpenSettings}>
                                 <Text style={styles.settingsButtonTextCompact}>Audio Settings</Text>
@@ -197,7 +202,10 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onStartGame, onOpenSet
                 </View>
                 <View style={styles.buttonContainer}>
                     <TouchableOpacity style={styles.startButton} onPress={handleStartGame}>
-                        <Text style={styles.startButtonText}>Start Game</Text>
+                        <Text style={styles.startButtonText}>Solo vs AI</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.multiplayerButton} onPress={handleMultiplayer}>
+                        <Text style={styles.multiplayerButtonText}>Multiplayer</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.settingsButton} onPress={handleOpenSettings}>
                         <Text style={styles.settingsButtonText}>Audio Settings</Text>
@@ -236,6 +244,8 @@ const styles = StyleSheet.create({
     buttonContainer: { marginTop: 16, gap: 12 },
     startButton: { backgroundColor: '#4ade80', paddingVertical: 18, borderRadius: 12, alignItems: 'center', shadowColor: '#4ade80', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
     startButtonText: { fontSize: 22, fontWeight: 'bold', color: '#0a1a0a' },
+    multiplayerButton: { backgroundColor: '#1a3a50', paddingVertical: 16, borderRadius: 12, alignItems: 'center', borderWidth: 2, borderColor: '#2a5a70' },
+    multiplayerButtonText: { fontSize: 20, fontWeight: 'bold', color: '#88ccee' },
     settingsButton: { backgroundColor: '#2a4a5a', paddingVertical: 14, borderRadius: 10, alignItems: 'center' },
     settingsButtonText: { fontSize: 16, fontWeight: '600', color: '#88a4b8' },
     credits: { fontSize: 12, color: '#445566', textAlign: 'center', marginTop: 32 },
@@ -256,6 +266,8 @@ const styles = StyleSheet.create({
     hintCompact: { fontSize: 11, color: '#556677', textAlign: 'center', marginTop: 6, fontStyle: 'italic' },
     startButtonCompact: { backgroundColor: '#4ade80', paddingVertical: 14, borderRadius: 10, alignItems: 'center', shadowColor: '#4ade80', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
     startButtonTextCompact: { fontSize: 18, fontWeight: 'bold', color: '#0a1a0a' },
+    multiplayerButtonCompact: { backgroundColor: '#1a3a50', paddingVertical: 10, borderRadius: 8, alignItems: 'center', borderWidth: 2, borderColor: '#2a5a70' },
+    multiplayerButtonTextCompact: { fontSize: 16, fontWeight: 'bold', color: '#88ccee' },
     settingsButtonCompact: { backgroundColor: '#2a4a5a', paddingVertical: 10, borderRadius: 8, alignItems: 'center' },
     settingsButtonTextCompact: { fontSize: 14, fontWeight: '600', color: '#88a4b8' },
     creditsCompact: { fontSize: 11, color: '#445566', textAlign: 'center', marginTop: 12 },

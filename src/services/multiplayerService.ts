@@ -1,0 +1,259 @@
+// src/services/multiplayerService.ts
+// All Firebase Realtime DB operations for Eutopia multiplayer
+//
+// Room lifecycle:
+//   Host creates room → gets 6-char code → shares with friend
+//   Friend enters code → joins room → both ready up → game starts
+//   Game ends → room is deleted
+//
+// No auth — players identified by a locally-generated playerId (see playerService.ts)
+
+import { db } from '../config/firebaseConfig';
+import {
+  ref,
+  set,
+  get,
+  update,
+  remove,
+  onValue,
+  off,
+} from 'firebase/database';
+
+// ============================================================
+// TYPES
+// ============================================================
+
+export type RoomStatus = 'waiting' | 'playing' | 'finished';
+
+export type RoomPlayer = {
+  name: string;
+  isHost: boolean;
+  isReady: boolean;
+  connected: boolean;
+};
+
+export type RoomSettings = {
+  maxRounds: number;
+  roundDuration: number; // seconds
+  difficulty: 'easy' | 'normal' | 'hard';
+};
+
+export type RoomRound = {
+  current: number;
+  endTime: number; // Unix ms timestamp; host is authoritative
+};
+
+export type Room = {
+  status: RoomStatus;
+  hostId: string;
+  createdAt: number;
+  settings: RoomSettings;
+  players: Record<string, RoomPlayer>;
+  round: RoomRound;
+};
+
+export type JoinResult =
+  | { success: true }
+  | { success: false; error: string };
+
+// ============================================================
+// ROOM CODE GENERATION
+// ============================================================
+
+// Safe alphabet — no 0/O or 1/I/L to avoid read-aloud confusion
+const ROOM_CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+const ROOM_CODE_LENGTH = 6;
+
+function generateRoomCode(): string {
+  let code = '';
+  for (let i = 0; i < ROOM_CODE_LENGTH; i++) {
+    code += ROOM_CODE_CHARS[Math.floor(Math.random() * ROOM_CODE_CHARS.length)];
+  }
+  return code;
+}
+
+async function roomExists(code: string): Promise<boolean> {
+  const snapshot = await get(ref(db, `rooms/${code}`));
+  return snapshot.exists();
+}
+
+async function generateUniqueRoomCode(): Promise<string> {
+  let code = generateRoomCode();
+  let attempts = 0;
+  // Retry on the extraordinarily unlikely event of a collision
+  while (await roomExists(code) && attempts < 10) {
+    code = generateRoomCode();
+    attempts++;
+  }
+  return code;
+}
+
+// ============================================================
+// ROOM OPERATIONS
+// ============================================================
+
+/**
+ * Create a new game room.
+ * Returns the generated room code for the host to share.
+ */
+export async function createRoom(
+  playerId: string,
+  playerName: string,
+  settings: RoomSettings
+): Promise<string> {
+  const roomCode = await generateUniqueRoomCode();
+
+  await set(ref(db, `rooms/${roomCode}`), {
+    status: 'waiting',
+    hostId: playerId,
+    createdAt: Date.now(),
+    settings,
+    players: {
+      [playerId]: {
+        name: playerName,
+        isHost: true,
+        isReady: false,
+        connected: true,
+      },
+    },
+    round: {
+      current: 0,
+      endTime: 0,
+    },
+  } satisfies Room);
+
+  return roomCode;
+}
+
+/**
+ * Join an existing room by code.
+ * Validates the room exists, is waiting, and has space for one more player.
+ */
+export async function joinRoom(
+  roomCode: string,
+  playerId: string,
+  playerName: string
+): Promise<JoinResult> {
+  try {
+    const snapshot = await get(ref(db, `rooms/${roomCode}`));
+
+    if (!snapshot.exists()) {
+      return { success: false, error: 'Room not found. Check the code and try again.' };
+    }
+
+    const room = snapshot.val() as Room;
+
+    if (room.status !== 'waiting') {
+      return { success: false, error: 'That game has already started.' };
+    }
+
+    const currentPlayers = Object.keys(room.players || {});
+    if (currentPlayers.length >= 2) {
+      return { success: false, error: 'Room is full.' };
+    }
+
+    // Player might be rejoining after a disconnect
+    if (currentPlayers.includes(playerId)) {
+      await update(ref(db, `rooms/${roomCode}/players/${playerId}`), {
+        connected: true,
+      });
+      return { success: true };
+    }
+
+    await update(ref(db, `rooms/${roomCode}/players`), {
+      [playerId]: {
+        name: playerName,
+        isHost: false,
+        isReady: false,
+        connected: true,
+      } satisfies RoomPlayer,
+    });
+
+    return { success: true };
+  } catch {
+    return { success: false, error: 'Failed to join room. Please try again.' };
+  }
+}
+
+/**
+ * Subscribe to real-time updates for a room.
+ * Calls callback immediately with current state, then on every change.
+ * Returns an unsubscribe function — call it on component unmount.
+ */
+export function listenToRoom(
+  roomCode: string,
+  callback: (room: Room | null) => void
+): () => void {
+  const roomRef = ref(db, `rooms/${roomCode}`);
+
+  onValue(roomRef, (snapshot) => {
+    callback(snapshot.exists() ? (snapshot.val() as Room) : null);
+  });
+
+  return () => off(roomRef);
+}
+
+/**
+ * Mark a player as ready (or not ready) in the lobby.
+ */
+export async function setPlayerReady(
+  roomCode: string,
+  playerId: string,
+  isReady: boolean
+): Promise<void> {
+  await update(ref(db, `rooms/${roomCode}/players/${playerId}`), { isReady });
+}
+
+/**
+ * Update a player's connected state.
+ * Call with false when the app backgrounds or the player disconnects.
+ */
+export async function setPlayerConnected(
+  roomCode: string,
+  playerId: string,
+  connected: boolean
+): Promise<void> {
+  await update(ref(db, `rooms/${roomCode}/players/${playerId}`), { connected });
+}
+
+/**
+ * Update room status (host only).
+ */
+export async function updateRoomStatus(
+  roomCode: string,
+  status: RoomStatus
+): Promise<void> {
+  await update(ref(db, `rooms/${roomCode}`), { status });
+}
+
+/**
+ * Delete the room entirely (host action, or on game end).
+ */
+export async function deleteRoom(roomCode: string): Promise<void> {
+  await remove(ref(db, `rooms/${roomCode}`));
+}
+
+/**
+ * Leave a room.
+ * If the host leaves, the room is deleted (no host migration for v1).
+ * If a guest leaves, only their player entry is removed.
+ */
+export async function leaveRoom(
+  roomCode: string,
+  playerId: string,
+  isHost: boolean
+): Promise<void> {
+  if (isHost) {
+    await deleteRoom(roomCode);
+  } else {
+    await remove(ref(db, `rooms/${roomCode}/players/${playerId}`));
+  }
+}
+
+/**
+ * Convenience: get a one-time snapshot of a room without subscribing.
+ */
+export async function getRoom(roomCode: string): Promise<Room | null> {
+  const snapshot = await get(ref(db, `rooms/${roomCode}`));
+  return snapshot.exists() ? (snapshot.val() as Room) : null;
+}

@@ -78,6 +78,12 @@ import { AIIslandMinimap } from './src/components/game/AIIslandMinimap';
 import { useTutorial } from './src/hooks/useTutorial';
 import { TutorialOverlay } from './src/components/game/TutorialOverlay';
 
+// Multiplayer imports
+import { NamePromptModal } from './src/components/multiplayer/NamePromptModal';
+import { MultiplayerLobby } from './src/components/multiplayer/MultiplayerLobby';
+import { getPlayer } from './src/services/playerService';
+import { hasPlayerName } from './src/services/playerService';
+
 // Fish schools
 import { FishSchoolComponent } from './src/components/game/FishSchool';
 import { PirateShipComponent } from './src/components/game/PirateShip';
@@ -147,9 +153,15 @@ export default function App() {
   const [showGameOver, setShowGameOver] = useState(false);
   const [showRoundTransition, setShowRoundTransition] = useState<'start' | 'end' | null>(null);
   const [showSettings, setShowSettings] = useState(false);
-  const [showSetup, setShowSetup] = useState(true); // Start on setup screen
-  const [showQuitConfirm, setShowQuitConfirm] = useState(false); // Quit confirmation dialog
-  const [animationsEnabled, setAnimationsEnabled] = useState(true); // Toggle for animations
+  const [showSetup, setShowSetup] = useState(true);
+  const [showQuitConfirm, setShowQuitConfirm] = useState(false);
+  const [animationsEnabled, setAnimationsEnabled] = useState(true);
+
+  // Multiplayer / player identity state
+  const [showNamePrompt, setShowNamePrompt] = useState(false);
+  const [showMultiplayer, setShowMultiplayer] = useState(false);
+  const [playerId, setPlayerId] = useState('');
+  const [playerName, setPlayerName] = useState('');
   
   // Free-roam boat system state
   const [freeRoamBoats, setFreeRoamBoats] = useState<FreeRoamBoatType[]>([]);
@@ -319,7 +331,7 @@ export default function App() {
     Sounds.playMusic('menu');
   }, []);
 
-  // Initialize audio and preload images on mount
+  // Initialize audio, player identity, and preload images on mount
   useEffect(() => { 
     const init = async () => {
       // Audio init runs unconditionally — image preload failure must not block it
@@ -329,6 +341,15 @@ export default function App() {
       ]);
       // Start menu music (setup screen)
       Sounds.playMusic('menu');
+
+      // Load or create player identity
+      const player = await getPlayer();
+      setPlayerId(player.id);
+      if (player.name) {
+        setPlayerName(player.name);
+      } else {
+        setShowNamePrompt(true);
+      }
 
       // Preload PNG icons — best-effort only (fails silently on Android dev builds
       // where Metro serves assets via HTTP and downloadAsync is rejected)
@@ -1763,6 +1784,28 @@ export default function App() {
     },
   } : {};
 
+  // Show multiplayer lobby
+  if (showMultiplayer) {
+    return (
+      <View style={styles.container}>
+        <StatusBar style="light" hidden />
+        <MultiplayerLobby
+          playerId={playerId}
+          playerName={playerName}
+          onBack={() => setShowMultiplayer(false)}
+          onStartGame={(config, roomCode, isHost) => {
+            setShowMultiplayer(false);
+            startGameWithConfig(config);
+          }}
+        />
+        <NamePromptModal
+          visible={showNamePrompt}
+          onComplete={(name) => { setPlayerName(name); setShowNamePrompt(false); }}
+        />
+      </View>
+    );
+  }
+
   // Show setup screen before game starts
   if (showSetup) {
     return (
@@ -1771,10 +1814,15 @@ export default function App() {
         <SetupScreen 
           onStartGame={startGameWithConfig}
           onOpenSettings={() => setShowSettings(true)}
+          onMultiplayer={() => setShowMultiplayer(true)}
         />
         <SettingsScreen 
           visible={showSettings} 
           onClose={() => setShowSettings(false)} 
+        />
+        <NamePromptModal
+          visible={showNamePrompt}
+          onComplete={(name) => { setPlayerName(name); setShowNamePrompt(false); }}
         />
       </View>
     );
