@@ -83,7 +83,7 @@ import { NamePromptModal } from './src/components/multiplayer/NamePromptModal';
 import { MultiplayerLobby } from './src/components/multiplayer/MultiplayerLobby';
 import { getPlayer } from './src/services/playerService';
 import { hasPlayerName } from './src/services/playerService';
-import { setIsland as fbSetIsland, listenToIsland as fbListenToIsland } from './src/services/multiplayerService';
+import { setIsland as fbSetIsland, listenToIsland as fbListenToIsland, setPlayerState as fbSetPlayerState, listenToPlayerState as fbListenToPlayerState, PlayerState as FbPlayerState } from './src/services/multiplayerService';
 
 // Fish schools
 import { FishSchoolComponent } from './src/components/game/FishSchool';
@@ -169,6 +169,7 @@ export default function App() {
   const [mpOpponentId, setMpOpponentId] = useState<string | null>(null);
   const [mpIsHost, setMpIsHost] = useState(false);
   const [opponentIsland, setOpponentIsland] = useState<IslandType | null>(null);
+  const [opponentState, setOpponentState] = useState<FbPlayerState | null>(null);
   const isMultiplayer = mpRoomCode !== null && mpOpponentId !== null;
   
   // Free-roam boat system state
@@ -341,6 +342,7 @@ export default function App() {
     setMpOpponentId(null);
     setMpIsHost(false);
     setOpponentIsland(null);
+    setOpponentState(null);
     Sounds.playMusic('menu');
   }, []);
 
@@ -402,6 +404,71 @@ export default function App() {
     });
     return unsubscribe;
   }, [isMultiplayer, mpRoomCode, mpOpponentId]);
+
+  // ============================================
+  // MULTIPLAYER PLAYER STATE SYNC (Phase 8C.2)
+  // ============================================
+
+  // Refs to current state values — keeps the write interval simple and stable
+  const mpStateRef = useRef({
+    gold,
+    population,
+    score,
+    scoreBreakdown,
+    boats: freeRoamBoats,
+  });
+  useEffect(() => {
+    mpStateRef.current = { gold, population, score, scoreBreakdown, boats: freeRoamBoats };
+  }, [gold, population, score, scoreBreakdown, freeRoamBoats]);
+
+  // Write own state to Firebase every 500ms while in multiplayer
+  useEffect(() => {
+    if (!isMultiplayer || !mpRoomCode || !playerId) return;
+
+    const writeState = () => {
+      const s = mpStateRef.current;
+      const payload: FbPlayerState = {
+        gold: s.gold,
+        population: s.population,
+        score: s.score,
+        scoreBreakdown: s.scoreBreakdown,
+        boats: s.boats.map((b) => ({
+          id: b.id,
+          type: b.type,
+          x: b.position.x,
+          y: b.position.y,
+        })),
+        updatedAt: Date.now(),
+      };
+      fbSetPlayerState(mpRoomCode, playerId, payload).catch(() => {
+        // Non-fatal
+      });
+    };
+
+    writeState(); // Write immediately on entering multiplayer
+    const interval = setInterval(writeState, 500);
+
+    return () => clearInterval(interval);
+  }, [isMultiplayer, mpRoomCode, playerId]);
+
+  // Subscribe to opponent's state
+  useEffect(() => {
+    if (!isMultiplayer || !mpRoomCode || !mpOpponentId) {
+      setOpponentState(null);
+      return;
+    }
+    const unsubscribe = fbListenToPlayerState(mpRoomCode, mpOpponentId, (state) => {
+      setOpponentState(state);
+    });
+    return unsubscribe;
+  }, [isMultiplayer, mpRoomCode, mpOpponentId]);
+
+  // Auto-skip tutorial in multiplayer — timed competitive play, no time for guidance
+  useEffect(() => {
+    if (isMultiplayer && isTutorialActive) {
+      skipTutorial();
+    }
+  }, [isMultiplayer, isTutorialActive, skipTutorial]);
 
   // Pause/resume music when app goes to background/foreground
   useEffect(() => {
@@ -2069,6 +2136,17 @@ export default function App() {
         visible={round > 0 && !showBuildMenu && !showGameOver}
         lastAction={lastAIAction}
       />
+
+      {/* Multiplayer opponent debug readout (8C.2) — replaced with proper minimap in 8D */}
+      {isMultiplayer && opponentState && round > 0 && !showBuildMenu && !showGameOver && (
+        <View style={styles.opponentDebugReadout}>
+          <Text style={styles.opponentDebugTitle}>Opponent</Text>
+          <Text style={styles.opponentDebugLine}>{opponentState.gold}g</Text>
+          <Text style={styles.opponentDebugLine}>Pop: {opponentState.population}</Text>
+          <Text style={styles.opponentDebugLine}>Score: {opponentState.score}</Text>
+          <Text style={styles.opponentDebugLine}>Boats: {opponentState.boats.length}</Text>
+        </View>
+      )}
       
       {/* End Game Summary */}
       {showGameOver && island && (
@@ -2259,6 +2337,34 @@ const styles = StyleSheet.create({
     bottom: 12,
     left: 12,
     zIndex: 100,
+  },
+  // Multiplayer opponent debug readout (8C.2 — temporary, replaced in 8D)
+  opponentDebugReadout: {
+    position: 'absolute',
+    top: 70,
+    right: 12,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#4ade80',
+    zIndex: 100,
+    minWidth: 110,
+  },
+  opponentDebugTitle: {
+    color: '#4ade80',
+    fontSize: 11,
+    fontWeight: 'bold',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  opponentDebugLine: {
+    color: '#fff',
+    fontSize: 12,
+    fontVariant: ['tabular-nums'],
+    lineHeight: 16,
   },
   // Menu styles - NO MODAL
   menuOverlay: {

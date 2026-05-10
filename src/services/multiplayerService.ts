@@ -309,3 +309,73 @@ export function listenToIsland(
 
   return () => off(islandRef);
 }
+
+// ============================================================
+// PLAYER STATE SYNC (Phase 8C.2)
+// ============================================================
+//
+// Resources, score, and boat snapshots written periodically (~2 Hz)
+// while in multiplayer. Stored as JSON string for atomic writes.
+
+export type BoatSnapshot = {
+  id: string;
+  type: 'fishing' | 'pt';
+  x: number;
+  y: number;
+};
+
+export type PlayerState = {
+  gold: number;
+  population: number;
+  score: number;
+  scoreBreakdown: {
+    housing: number;
+    food: number;
+    welfare: number;
+    gdp: number;
+  };
+  boats: BoatSnapshot[];
+  updatedAt: number;
+};
+
+/**
+ * Write the player's current state to Firebase.
+ * Called periodically (every ~500ms) by the App while in multiplayer.
+ */
+export async function setPlayerState(
+  roomCode: string,
+  playerId: string,
+  state: PlayerState
+): Promise<void> {
+  await set(
+    ref(db, `rooms/${roomCode}/state/${playerId}`),
+    JSON.stringify(state)
+  );
+}
+
+/**
+ * Subscribe to a specific player's state (typically the opponent's).
+ * Returns an unsubscribe function — call it on component unmount.
+ */
+export function listenToPlayerState(
+  roomCode: string,
+  playerId: string,
+  callback: (state: PlayerState | null) => void
+): () => void {
+  const stateRef = ref(db, `rooms/${roomCode}/state/${playerId}`);
+
+  onValue(stateRef, (snapshot) => {
+    const data = snapshot.val();
+    if (typeof data === 'string') {
+      try {
+        callback(JSON.parse(data) as PlayerState);
+      } catch {
+        callback(null);
+      }
+    } else {
+      callback(null);
+    }
+  });
+
+  return () => off(stateRef);
+}

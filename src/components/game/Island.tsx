@@ -123,7 +123,13 @@ export const Island: React.FC<IslandProps> = ({
   
   // Unified tap handler
   const handleMapPress = (event: GestureResponderEvent) => {
-    const { locationX, locationY } = event.nativeEvent;
+    // Native (iOS/Android) populates locationX/Y. React-native-web does not —
+    // it exposes offsetX/Y on nativeEvent instead. Fall back to those on web.
+    const native = event.nativeEvent as any;
+    const locationX = native.locationX ?? native.offsetX;
+    const locationY = native.locationY ?? native.offsetY;
+    if (locationX === undefined || locationY === undefined) return;
+
     const gridX = Math.floor(locationX / tileSize);
     const gridY = Math.floor(locationY / tileSize);
     const tile = tileMap.get(`${gridX},${gridY}`);
