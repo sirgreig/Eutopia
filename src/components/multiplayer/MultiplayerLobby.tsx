@@ -26,6 +26,7 @@ import {
   setPlayerReady,
   leaveRoom,
   updateRoomStatus,
+  setRoundState,
   Room,
   RoomSettings,
 } from '../../services/multiplayerService';
@@ -187,6 +188,14 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
   const handleStartGame = async () => {
     if (!room) return;
     Sounds.buttonClick();
+    // Reset round state for a fresh game — wipes any stale data from previous sessions
+    await setRoundState(roomCode, {
+      number: 0,
+      isActive: false,
+      endTime: 0,
+      duration: hostSettings.roundDuration,
+      maxRounds: hostSettings.maxRounds,
+    }).catch(() => { /* non-fatal */ });
     await updateRoomStatus(roomCode, 'playing');
     // The room listener will fire with status 'playing' → triggers onStartGame for both players
   };

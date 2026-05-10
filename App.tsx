@@ -83,7 +83,7 @@ import { NamePromptModal } from './src/components/multiplayer/NamePromptModal';
 import { MultiplayerLobby } from './src/components/multiplayer/MultiplayerLobby';
 import { getPlayer } from './src/services/playerService';
 import { hasPlayerName } from './src/services/playerService';
-import { setIsland as fbSetIsland, listenToIsland as fbListenToIsland, setPlayerState as fbSetPlayerState, listenToPlayerState as fbListenToPlayerState, PlayerState as FbPlayerState } from './src/services/multiplayerService';
+import { setIsland as fbSetIsland, listenToIsland as fbListenToIsland, setPlayerState as fbSetPlayerState, listenToPlayerState as fbListenToPlayerState, PlayerState as FbPlayerState, setRoundState as fbSetRoundState, listenToRoundState as fbListenToRoundState, RoundState as FbRoundState } from './src/services/multiplayerService';
 
 // Fish schools
 import { FishSchoolComponent } from './src/components/game/FishSchool';
@@ -170,6 +170,7 @@ export default function App() {
   const [mpIsHost, setMpIsHost] = useState(false);
   const [opponentIsland, setOpponentIsland] = useState<IslandType | null>(null);
   const [opponentState, setOpponentState] = useState<FbPlayerState | null>(null);
+  const [mpRoundState, setMpRoundState] = useState<FbRoundState | null>(null);
   const isMultiplayer = mpRoomCode !== null && mpOpponentId !== null;
   
   // Free-roam boat system state
@@ -343,6 +344,7 @@ export default function App() {
     setMpIsHost(false);
     setOpponentIsland(null);
     setOpponentState(null);
+    setMpRoundState(null);
     Sounds.playMusic('menu');
   }, []);
 
@@ -470,6 +472,35 @@ export default function App() {
     }
   }, [isMultiplayer, isTutorialActive, skipTutorial]);
 
+  // ============================================
+  // MULTIPLAYER ROUND SYNC (Phase 8C.3)
+  // ============================================
+
+  // Subscribe to round state — drives local round number and isRoundActive in MP
+  useEffect(() => {
+    if (!isMultiplayer || !mpRoomCode) {
+      setMpRoundState(null);
+      return;
+    }
+    const unsubscribe = fbListenToRoundState(mpRoomCode, (rs) => {
+      setMpRoundState(rs);
+    });
+    return unsubscribe;
+  }, [isMultiplayer, mpRoomCode]);
+
+  // Reflect Firebase round state into local state
+  useEffect(() => {
+    if (!isMultiplayer || !mpRoundState) return;
+
+    setRound(mpRoundState.number);
+    setIsRoundActive(mpRoundState.isActive);
+
+    if (mpRoundState.isActive) {
+      const remaining = Math.max(0, Math.ceil((mpRoundState.endTime - Date.now()) / 1000));
+      setTimeRemaining(remaining);
+    }
+  }, [isMultiplayer, mpRoundState?.number, mpRoundState?.isActive, mpRoundState?.endTime]);
+
   // Pause/resume music when app goes to background/foreground
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextAppState) => {
@@ -514,15 +545,37 @@ export default function App() {
     }
   }, [showSetup, isRoundActive, round, maxRounds, isAudioEnabled, showGameOver, score, hasRebels]);
 
-  // Timer effect
+  // Timer effect — solo uses local 1s tick; multiplayer derives from Firebase endTime
   useEffect(() => {
+    if (isMultiplayer) {
+      if (!isRoundActive || !mpRoundState) return;
+      const tick = () => {
+        const remaining = Math.max(0, Math.ceil((mpRoundState.endTime - Date.now()) / 1000));
+        setTimeRemaining(remaining);
+        if (remaining === 0 && isRoundActiveRef.current) {
+          // Run scoring locally and broadcast round-end to Firebase (idempotent)
+          endRound();
+          if (mpRoomCode) {
+            fbSetRoundState(mpRoomCode, {
+              ...mpRoundState,
+              isActive: false,
+            }).catch(() => { /* non-fatal */ });
+          }
+        }
+      };
+      tick();
+      const interval = setInterval(tick, 250);
+      return () => clearInterval(interval);
+    }
+
+    // Solo timer
     if (isRoundActive && timeRemaining > 0) {
       timerRef.current = setTimeout(() => setTimeRemaining(t => t - 1), 1000);
     } else if (isRoundActive && timeRemaining === 0) {
       endRound();
     }
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-  }, [isRoundActive, timeRemaining]);
+  }, [isRoundActive, timeRemaining, isMultiplayer, mpRoundState, mpRoomCode]);
 
   // Rain cloud spawning during rounds
   useEffect(() => {
@@ -1551,6 +1604,23 @@ export default function App() {
       setShowGameOver(true);
       return;
     }
+
+    // Multiplayer: only host writes; both clients react via the round listener
+    if (isMultiplayer) {
+      if (!mpIsHost || !mpRoomCode) return;
+      const newRound = round + 1;
+      fbSetRoundState(mpRoomCode, {
+        number: newRound,
+        isActive: true,
+        endTime: Date.now() + roundDuration * 1000,
+        duration: roundDuration,
+        maxRounds,
+      }).catch(() => { /* non-fatal */ });
+      Sounds.roundStart();
+      return;
+    }
+
+    // Solo: existing flow with transition animation
     const newRound = round + 1;
     setRound(newRound);
     setShowRoundTransition('start');
@@ -1960,11 +2030,19 @@ export default function App() {
               </View>
             </View>
           ) : (
-            <TouchableOpacity style={styles.startBtn} onPress={startRound}>
-              <Text style={styles.startBtnText}>
-                {round === 0 ? '▶ START' : round >= maxRounds ? 'DONE' : '▶ NEXT'}
-              </Text>
-            </TouchableOpacity>
+            isMultiplayer && !mpIsHost ? (
+              <View style={styles.waitingForHost}>
+                <Text style={styles.waitingForHostText}>
+                  {round === 0 ? 'Waiting for host to start...' : round >= maxRounds ? 'Game Over' : 'Waiting for host...'}
+                </Text>
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.startBtn} onPress={startRound}>
+                <Text style={styles.startBtnText}>
+                  {round === 0 ? '▶ START' : round >= maxRounds ? 'DONE' : '▶ NEXT'}
+                </Text>
+              </TouchableOpacity>
+            )
           )}
           <Text style={styles.roundText}>Round {round}/{maxRounds}</Text>
         </View>
@@ -2295,6 +2373,19 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: 'bold',
     fontSize: 14,
+  },
+  waitingForHost: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(74, 144, 217, 0.15)',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#4A90D9',
+  },
+  waitingForHostText: {
+    color: '#88ccee',
+    fontSize: 12,
+    fontWeight: '600',
   },
   modeButton: {
     backgroundColor: 'rgba(255,193,7,0.2)',

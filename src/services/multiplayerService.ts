@@ -379,3 +379,52 @@ export function listenToPlayerState(
 
   return () => off(stateRef);
 }
+
+// ============================================================
+// ROUND STATE SYNC (Phase 8C.3 — Host-Authoritative Timer)
+// ============================================================
+//
+// Host writes round state to Firebase when a round starts.
+// Both clients derive their displayed timer from `endTime`.
+// Either client can write `isActive: false` when their local timer expires.
+
+export type RoundState = {
+  number: number;       // 0 = pre-game, 1..N = active round number
+  isActive: boolean;    // true while round is in progress
+  endTime: number;      // epoch ms when round ends (only meaningful when isActive=true)
+  duration: number;     // round duration in seconds (echoed for sanity)
+  maxRounds: number;    // total rounds in the game
+};
+
+/**
+ * Write the round state. Typically called by the host on START / NEXT,
+ * and by either client when their local timer expires (isActive=false).
+ */
+export async function setRoundState(
+  roomCode: string,
+  state: RoundState
+): Promise<void> {
+  await set(ref(db, `rooms/${roomCode}/round`), state);
+}
+
+/**
+ * Subscribe to the round state.
+ * Returns an unsubscribe function — call it on component unmount.
+ */
+export function listenToRoundState(
+  roomCode: string,
+  callback: (state: RoundState | null) => void
+): () => void {
+  const roundRef = ref(db, `rooms/${roomCode}/round`);
+
+  onValue(roundRef, (snapshot) => {
+    const data = snapshot.val();
+    if (data && typeof data === 'object') {
+      callback(data as RoundState);
+    } else {
+      callback(null);
+    }
+  });
+
+  return () => off(roundRef);
+}
