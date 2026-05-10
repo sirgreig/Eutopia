@@ -12,8 +12,19 @@ import {
     ScrollView,
     useWindowDimensions,
 } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 import { Sounds } from '../../services/soundManager';
 import { GameMode } from '../../types';
+
+// Settings gear icon component
+const SettingsGearIcon: React.FC<{ size?: number; color?: string }> = ({ size = 24, color = '#88a4b8' }) => (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+        <Path
+            d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"
+            fill={color}
+        />
+    </Svg>
+);
 
 interface SelectorProps<T> {
     label: string;
@@ -121,6 +132,9 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onStartGame, onOpenSet
     if (isLandscape) {
         return (
             <View style={styles.container}>
+                <TouchableOpacity style={styles.gearButton} onPress={handleOpenSettings} hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}>
+                    <SettingsGearIcon size={24} />
+                </TouchableOpacity>
                 <ScrollView style={styles.scrollView} contentContainerStyle={styles.landscapeContent} showsVerticalScrollIndicator={false}>
                     <View style={styles.landscapeTitleRow}>
                         <Text style={styles.landscapeTitle}>Eutopia</Text>
@@ -160,9 +174,6 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onStartGame, onOpenSet
                             <TouchableOpacity style={styles.multiplayerButtonCompact} onPress={handleMultiplayer}>
                                 <Text style={styles.multiplayerButtonTextCompact}>Multiplayer</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity style={styles.settingsButtonCompact} onPress={handleOpenSettings}>
-                                <Text style={styles.settingsButtonTextCompact}>Audio Settings</Text>
-                            </TouchableOpacity>
                         </View>
                     </View>
                     <Text style={styles.creditsCompact}>Inspired by Utopia (1981) for Intellivision</Text>
@@ -173,6 +184,9 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onStartGame, onOpenSet
 
     return (
         <View style={styles.container}>
+            <TouchableOpacity style={styles.gearButton} onPress={handleOpenSettings} hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}>
+                <SettingsGearIcon size={24} />
+            </TouchableOpacity>
             <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                 <Text style={styles.title}>Eutopia</Text>
                 <Text style={styles.subtitle}>Build Your Island Paradise</Text>
@@ -207,9 +221,6 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onStartGame, onOpenSet
                     <TouchableOpacity style={styles.multiplayerButton} onPress={handleMultiplayer}>
                         <Text style={styles.multiplayerButtonText}>Multiplayer</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.settingsButton} onPress={handleOpenSettings}>
-                        <Text style={styles.settingsButtonText}>Audio Settings</Text>
-                    </TouchableOpacity>
                 </View>
                 <Text style={styles.credits}>Inspired by Utopia (1981) for Intellivision</Text>
             </ScrollView>
@@ -219,6 +230,7 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onStartGame, onOpenSet
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#1e3a4c' },
+    gearButton: { position: 'absolute', top: 12, right: 16, zIndex: 10, width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(42, 74, 90, 0.6)', justifyContent: 'center', alignItems: 'center' },
     scrollView: { flex: 1 },
     scrollContent: { padding: 24, paddingTop: 60, paddingBottom: 40 },
     title: { fontSize: 42, fontWeight: 'bold', color: '#4ade80', textAlign: 'center', marginBottom: 4, textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: { width: 2, height: 2 }, textShadowRadius: 4 },

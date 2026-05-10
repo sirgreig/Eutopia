@@ -83,6 +83,7 @@ import { NamePromptModal } from './src/components/multiplayer/NamePromptModal';
 import { MultiplayerLobby } from './src/components/multiplayer/MultiplayerLobby';
 import { getPlayer } from './src/services/playerService';
 import { hasPlayerName } from './src/services/playerService';
+import { setIsland as fbSetIsland, listenToIsland as fbListenToIsland } from './src/services/multiplayerService';
 
 // Fish schools
 import { FishSchoolComponent } from './src/components/game/FishSchool';
@@ -162,6 +163,13 @@ export default function App() {
   const [showMultiplayer, setShowMultiplayer] = useState(false);
   const [playerId, setPlayerId] = useState('');
   const [playerName, setPlayerName] = useState('');
+
+  // Multiplayer game state — set when starting from lobby, null in solo
+  const [mpRoomCode, setMpRoomCode] = useState<string | null>(null);
+  const [mpOpponentId, setMpOpponentId] = useState<string | null>(null);
+  const [mpIsHost, setMpIsHost] = useState(false);
+  const [opponentIsland, setOpponentIsland] = useState<IslandType | null>(null);
+  const isMultiplayer = mpRoomCode !== null && mpOpponentId !== null;
   
   // Free-roam boat system state
   const [freeRoamBoats, setFreeRoamBoats] = useState<FreeRoamBoatType[]>([]);
@@ -205,7 +213,7 @@ export default function App() {
     round,
     maxRounds,
     playerIsland: island,
-    enabled: true, // AI is always enabled for now
+    enabled: !isMultiplayer, // AI disabled in multiplayer (real opponent)
   });
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -328,6 +336,11 @@ export default function App() {
   const returnToSetup = useCallback(() => {
     setShowSetup(true);
     setShowGameOver(false);
+    // Clear multiplayer state on exit to setup
+    setMpRoomCode(null);
+    setMpOpponentId(null);
+    setMpIsHost(false);
+    setOpponentIsland(null);
     Sounds.playMusic('menu');
   }, []);
 
@@ -365,6 +378,30 @@ export default function App() {
     };
     init(); 
   }, []);
+
+  // ============================================
+  // MULTIPLAYER ISLAND SYNC (Phase 8C.1)
+  // ============================================
+
+  // Write own island to Firebase whenever it changes (multiplayer only)
+  useEffect(() => {
+    if (!isMultiplayer || !island || !mpRoomCode) return;
+    fbSetIsland(mpRoomCode, playerId, island).catch(() => {
+      // Non-fatal — 8C.2 will add proper retry/throttle logic
+    });
+  }, [island, isMultiplayer, mpRoomCode, playerId]);
+
+  // Subscribe to opponent's island (multiplayer only)
+  useEffect(() => {
+    if (!isMultiplayer || !mpRoomCode || !mpOpponentId) {
+      setOpponentIsland(null);
+      return;
+    }
+    const unsubscribe = fbListenToIsland(mpRoomCode, mpOpponentId, (oppIsland) => {
+      setOpponentIsland(oppIsland);
+    });
+    return unsubscribe;
+  }, [isMultiplayer, mpRoomCode, mpOpponentId]);
 
   // Pause/resume music when app goes to background/foreground
   useEffect(() => {
@@ -1793,7 +1830,11 @@ export default function App() {
           playerId={playerId}
           playerName={playerName}
           onBack={() => setShowMultiplayer(false)}
-          onStartGame={(config, roomCode, isHost) => {
+          onStartGame={(config, roomCode, isHost, opponentId) => {
+            // Capture multiplayer context before starting the game
+            setMpRoomCode(roomCode);
+            setMpOpponentId(opponentId);
+            setMpIsHost(isHost);
             setShowMultiplayer(false);
             startGameWithConfig(config);
           }}

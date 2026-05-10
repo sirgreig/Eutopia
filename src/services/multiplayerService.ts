@@ -18,6 +18,7 @@ import {
   onValue,
   off,
 } from 'firebase/database';
+import { Island } from '../types';
 
 // ============================================================
 // TYPES
@@ -256,4 +257,55 @@ export async function leaveRoom(
 export async function getRoom(roomCode: string): Promise<Room | null> {
   const snapshot = await get(ref(db, `rooms/${roomCode}`));
   return snapshot.exists() ? (snapshot.val() as Room) : null;
+}
+
+// ============================================================
+// ISLAND SYNC (Phase 8C.1)
+// ============================================================
+//
+// Each player writes their own island to rooms/{code}/islands/{playerId}
+// and listens to the opponent's island under the same path.
+// Stored as JSON string for atomic writes — refined to per-tile updates in 8C.2.
+
+/**
+ * Write the player's island to Firebase.
+ * Call once after island generation, then on every meaningful change in 8C.2.
+ */
+export async function setIsland(
+  roomCode: string,
+  playerId: string,
+  island: Island
+): Promise<void> {
+  await set(
+    ref(db, `rooms/${roomCode}/islands/${playerId}`),
+    JSON.stringify(island)
+  );
+}
+
+/**
+ * Subscribe to a specific player's island.
+ * In multiplayer this is called with the opponent's playerId to render their state.
+ * Returns an unsubscribe function — call it on component unmount.
+ */
+export function listenToIsland(
+  roomCode: string,
+  playerId: string,
+  callback: (island: Island | null) => void
+): () => void {
+  const islandRef = ref(db, `rooms/${roomCode}/islands/${playerId}`);
+
+  onValue(islandRef, (snapshot) => {
+    const data = snapshot.val();
+    if (typeof data === 'string') {
+      try {
+        callback(JSON.parse(data) as Island);
+      } catch {
+        callback(null);
+      }
+    } else {
+      callback(null);
+    }
+  });
+
+  return () => off(islandRef);
 }

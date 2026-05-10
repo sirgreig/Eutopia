@@ -38,7 +38,7 @@ interface MultiplayerLobbyProps {
   playerId: string;
   playerName: string;
   onBack: () => void;
-  onStartGame: (config: GameConfig, roomCode: string, isHost: boolean) => void;
+  onStartGame: (config: GameConfig, roomCode: string, isHost: boolean, opponentId: string) => void;
 }
 
 type LobbyView = 'home' | 'hosting' | 'joining' | 'waiting';
@@ -98,13 +98,15 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
 
     if (room.status === 'playing') {
       // Host has started — launch game for both players
+      const opponentId = Object.keys(room.players).find((id) => id !== playerId);
+      if (!opponentId) return; // Shouldn't happen at status 'playing', but guard anyway
       const config: GameConfig = {
         mode: 'original',
         rounds: room.settings.maxRounds,
         roundDuration: room.settings.roundDuration,
         difficulty: room.settings.difficulty,
       };
-      onStartGame(config, roomCode, isHost);
+      onStartGame(config, roomCode, isHost, opponentId);
     }
   }, [room?.status]);
 
@@ -272,24 +274,15 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
         <Text style={styles.copyButtonText}>{codeCopied ? 'Copied!' : 'Copy Code'}</Text>
       </TouchableOpacity>
 
-      {/* Waiting status */}
-      <View style={styles.waitingCard}>
-        {opponent ? (
-          <>
-            <Text style={styles.playerJoined}>{opponent.name} has joined!</Text>
-            <Text style={styles.waitingHint}>
-              Both players need to press Ready to start.
-            </Text>
-          </>
-        ) : (
-          <>
-            <ActivityIndicator color="#4ade80" style={{ marginBottom: 10 }} />
-            <Text style={styles.waitingText}>Waiting for your opponent to join...</Text>
-          </>
-        )}
-      </View>
+      {/* Waiting card — only shown before opponent joins */}
+      {!opponent && (
+        <View style={styles.waitingCard}>
+          <ActivityIndicator color="#4ade80" style={{ marginBottom: 10 }} />
+          <Text style={styles.waitingText}>Waiting for your opponent to join...</Text>
+        </View>
+      )}
 
-      {/* Both players ready UI */}
+      {/* Once opponent joins, show ready section directly — player list serves as "joined" indicator */}
       {opponent && (
         <View style={styles.readySection}>
           <PlayerReadyRow
@@ -494,23 +487,23 @@ const styles = StyleSheet.create({
     backgroundColor: '#1e3a4c',
   },
   centreContent: {
-    flex: 1,
+    flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 28,
-    paddingVertical: 24,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
   },
   screenTitle: {
-    fontSize: 32,
+    fontSize: 26,
     fontWeight: 'bold',
     color: '#4ade80',
-    marginBottom: 6,
+    marginBottom: 4,
     textAlign: 'center',
   },
   screenSubtitle: {
-    fontSize: 15,
+    fontSize: 13,
     color: '#88a4b8',
-    marginBottom: 32,
+    marginBottom: 14,
     textAlign: 'center',
   },
   primaryButton: {
@@ -561,8 +554,8 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   backButton: {
-    marginTop: 12,
-    paddingVertical: 10,
+    marginTop: 8,
+    paddingVertical: 8,
     paddingHorizontal: 24,
   },
   backButtonText: {
@@ -576,12 +569,12 @@ const styles = StyleSheet.create({
   // Room code display (hosting)
   codeDisplay: {
     flexDirection: 'row',
-    gap: 8,
-    marginBottom: 16,
+    gap: 6,
+    marginBottom: 10,
   },
   codeBox: {
-    width: 44,
-    height: 54,
+    width: 38,
+    height: 46,
     backgroundColor: '#0a1a2a',
     borderRadius: 8,
     borderWidth: 2,
@@ -590,7 +583,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   codeChar: {
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: 'bold',
     color: '#4ade80',
     letterSpacing: 2,
@@ -598,9 +591,9 @@ const styles = StyleSheet.create({
   copyButton: {
     backgroundColor: '#1a3a50',
     borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 20,
-    marginBottom: 24,
+    paddingVertical: 6,
+    paddingHorizontal: 18,
+    marginBottom: 14,
     borderWidth: 1,
     borderColor: '#2a5a70',
   },
@@ -675,10 +668,10 @@ const styles = StyleSheet.create({
   readyButton: {
     backgroundColor: '#1a3a50',
     borderRadius: 10,
-    paddingVertical: 14,
+    paddingVertical: 12,
     width: '100%',
     alignItems: 'center',
-    marginTop: 12,
+    marginTop: 8,
     borderWidth: 2,
     borderColor: '#2a5a70',
   },
@@ -694,10 +687,10 @@ const styles = StyleSheet.create({
   startButton: {
     backgroundColor: '#4ade80',
     borderRadius: 10,
-    paddingVertical: 14,
+    paddingVertical: 12,
     width: '100%',
     alignItems: 'center',
-    marginTop: 12,
+    marginTop: 8,
     shadowColor: '#4ade80',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
