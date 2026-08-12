@@ -38,6 +38,12 @@ interface MultiplayerIslandMinimapProps {
   boats: BoatSnapshot[];
   opponentName: string;
   visible: boolean;
+  /** Room code, shown in the expanded view so a player can rejoin if needed */
+  roomCode?: string;
+  /** Phase 8E — true when the opponent's heartbeat has gone stale */
+  isStale?: boolean;
+  /** Phase 8E — ms since the opponent's last state write */
+  msSinceSeen?: number;
 }
 
 // Fog-of-war palette — no per-building-type colours
@@ -54,6 +60,9 @@ export const MultiplayerIslandMinimap: React.FC<MultiplayerIslandMinimapProps> =
   boats,
   opponentName,
   visible,
+  roomCode,
+  isStale = false,
+  msSinceSeen = 0,
 }) => {
   const [expanded, setExpanded] = useState(false);
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
@@ -203,6 +212,14 @@ export const MultiplayerIslandMinimap: React.FC<MultiplayerIslandMinimapProps> =
                 Building types are hidden — you can see where they build, not what.
               </Text>
             </View>
+
+            {roomCode && (
+              <View style={styles.roomCodeBox}>
+                <Text style={styles.roomCodeLabel}>ROOM CODE</Text>
+                <Text style={styles.roomCodeValue}>{roomCode}</Text>
+                <Text style={styles.roomCodeHint}>Use this to rejoin if you get disconnected</Text>
+              </View>
+            )}
           </ScrollView>
 
           <TouchableOpacity style={styles.closeButton} onPress={() => setExpanded(false)}>
@@ -216,15 +233,17 @@ export const MultiplayerIslandMinimap: React.FC<MultiplayerIslandMinimapProps> =
   // Compact minimap
   return (
     <TouchableOpacity
-      style={styles.container}
+      style={[styles.container, isStale && styles.containerStale]}
       onPress={() => setExpanded(true)}
       activeOpacity={0.8}
     >
       <View style={styles.header}>
-        <Text style={styles.title} numberOfLines={1}>{opponentName}</Text>
+        <Text style={[styles.title, isStale && styles.titleStale]} numberOfLines={1}>
+          {opponentName}
+        </Text>
       </View>
 
-      <View style={styles.statsRow}>
+      <View style={[styles.statsRow, isStale && styles.dimmed]}>
         <Text style={styles.statText}>⭐{score}</Text>
         <Text style={styles.statText}>💰{gold}</Text>
         <Text style={styles.statText}>
@@ -232,14 +251,20 @@ export const MultiplayerIslandMinimap: React.FC<MultiplayerIslandMinimapProps> =
         </Text>
       </View>
 
-      <View style={styles.minimapContainer}>
+      <View style={[styles.minimapContainer, isStale && styles.dimmed]}>
         {renderIsland(MINI_TILE_SIZE)}
       </View>
 
-      <View style={styles.statsRow}>
-        <Text style={styles.subStatText}>Built: {builtCount}</Text>
-        <Text style={styles.subStatText}>Boats: {boats.length}</Text>
-      </View>
+      {isStale ? (
+        <Text style={styles.staleNotice}>
+          Last seen {Math.floor(msSinceSeen / 1000)}s ago
+        </Text>
+      ) : (
+        <View style={styles.statsRow}>
+          <Text style={styles.subStatText}>Built: {builtCount}</Text>
+          <Text style={styles.subStatText}>Boats: {boats.length}</Text>
+        </View>
+      )}
 
       <Text style={styles.tapHint}>Tap to expand</Text>
     </TouchableOpacity>
@@ -271,6 +296,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
     color: '#88ccee',
+  },
+  containerStale: {
+    borderColor: '#c77b28',
+  },
+  titleStale: {
+    color: '#c77b28',
+  },
+  dimmed: {
+    opacity: 0.35,
+  },
+  staleNotice: {
+    fontSize: 9,
+    color: '#c77b28',
+    textAlign: 'center',
+    fontWeight: '600',
+    marginBottom: 2,
   },
   statsRow: {
     flexDirection: 'row',
@@ -413,6 +454,32 @@ const styles = StyleSheet.create({
     color: '#667788',
     fontStyle: 'italic',
     marginTop: 4,
+  },
+  roomCodeBox: {
+    backgroundColor: '#0a1a2a',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#2a4a5a',
+  },
+  roomCodeLabel: {
+    fontSize: 9,
+    color: '#667788',
+    letterSpacing: 1.5,
+    fontWeight: '600',
+  },
+  roomCodeValue: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#4ade80',
+    letterSpacing: 4,
+    marginVertical: 2,
+  },
+  roomCodeHint: {
+    fontSize: 9,
+    color: '#556677',
   },
   closeButton: {
     backgroundColor: '#2a4a5a',

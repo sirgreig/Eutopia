@@ -1,6 +1,6 @@
 # Portfolio Overview: Eutopia
 
-*Last Updated: March 6, 2026 (Session 13)*
+*Last Updated: August 11, 2026*
 
 ## App Identity
 - **Name:** Eutopia (Greek: good place - etymological root of "Utopia")
@@ -18,7 +18,7 @@
 | 6 | Animations & Polish | Complete |
 | 7 | AI Opponent | Complete (basic) |
 | SDK 55 | Migration + expo-audio | Complete — merged to main, tagged v0.7.0 |
-| 8 | Multiplayer (8A-8E) | Next — starting 8A |
+| 8 | Multiplayer (8A-8E) | In progress — 8A-8D complete, 8E active |
 | 9 | Enhanced Mode Features | Planned |
 | 10 | Final Polish & Deployment | Planned |
 
@@ -32,7 +32,9 @@
 - Score change animation, gold flash, image preloading
 - Setup screen with mode/rounds/difficulty, How to Play tutorial
 - SDK 55 upgrade complete — on main branch, v0.7.0 tagged
-- Remaining: multiplayer (Firebase, sub-phased 8A-8E), enhanced mode features, deployment
+- Multiplayer 8A-8D complete: Firebase rooms, lobby with room codes, full state sync,
+  host-authoritative round timer, synchronised weather, fog-of-war opponent minimap
+- Remaining: 8E disconnect handling, enhanced mode features, deployment
 
 ## Brand Integration
 
@@ -70,7 +72,8 @@
 - expo-audio@55.0.0 (migrated from expo-av; pinned to 55.0.0 for Expo Go compatibility)
 - Custom sound manager with music crossfading and tension variants
 - Google AdMob + react-native-iap (planned)
-- Firebase Realtime DB for multiplayer (planned, dedicated project)
+- Firebase Realtime DB for multiplayer (LIVE — dedicated project `eutopia-2f19f`,
+  Firebase JS SDK, no auth, player identity via AsyncStorage random ID)
 - Firebase Analytics + Crashlytics (planned)
 - EAS Build profiles configured (development / development-device / preview / production)
 
@@ -83,18 +86,25 @@
 - Mar 2026: PNG art assets, building animations, responsive layouts
 - Mar 2026: Phase 6 complete (all animations, overlays, score effects, image preloading)
 - Mar 2026: SDK 55 migration complete — expo-audio, Android fixes, full test pass, v0.7.0 tagged
+- Aug 2026: Multiplayer 8A-8D complete — Firebase backend, lobby, state sync,
+  round timer authority, spawn event parity, opponent minimap
 
 **Upcoming:**
-- Phase 8A: Firebase project + multiplayer data model
-- Phase 8B-8E: Lobby, sync, minimap, disconnect handling
+- Phase 8E: disconnect handling, forfeit timeout, reconnection, host migration
 - Phase 9 enhanced features
+- EAS preview build for iOS verification on a real device (after Phase 8)
 - TestFlight beta
 - App Store submission
 - Update Expo Go on iOS once all Tartan Studios apps on SDK 55
 
+**Deferred decision:** PvP boat combat (as in the 1981 original) is not implemented
+and would require a shared-grid rework — single map containing both islands, high-rate
+boat position sync, host-authoritative collision. Parked for Phase 9/10.
+
 ## Action Items for Portfolio Coordination
-- Firebase project creation for multiplayer (Phase 8A — immediate next step)
-- AdMob interstitial ad unit creation in console
+- AdMob interstitial ad unit creation in console (still outstanding — blocks TestFlight)
 - App Store / Play Store listings preparation
-- GitHub commits planned after each Phase 8 sub-phase
+- GitHub commits after each Phase 8 sub-phase
 - Coordinate SDK 55 Expo Go update with other Tartan Studios app migrations (Eutopia done; others pending)
+- Monitor Firebase Realtime DB usage now that multiplayer is live — costs are intended
+  to be offset by between-round ad revenue, which is not yet implemented

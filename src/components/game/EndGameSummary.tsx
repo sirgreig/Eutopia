@@ -42,6 +42,10 @@ interface EndGameSummaryProps {
         gdp: number;
     };
     difficulty?: 'easy' | 'normal' | 'hard';
+    /** Phase 8E — when set, the faceoff shows this human opponent instead of the AI */
+    opponentName?: string;
+    /** Phase 8E — win awarded because the opponent disconnected */
+    wonByForfeit?: boolean;
     onPlayAgain: () => void;
     onMainMenu?: () => void;
 }
@@ -56,6 +60,8 @@ export const EndGameSummary: React.FC<EndGameSummaryProps> = ({
     aiScore,
     aiScoreBreakdown,
     difficulty,
+    opponentName,
+    wonByForfeit = false,
     onPlayAgain,
     onMainMenu,
 }) => {
@@ -67,6 +73,7 @@ export const EndGameSummary: React.FC<EndGameSummaryProps> = ({
     const isTie = hasAI && score === aiScore;
     
     const getResultText = () => {
+        if (wonByForfeit) return { text: 'Victory by Forfeit 🏆', color: '#4ade80', emoji: '🏆' };
         if (isTie) return { text: "It's a Tie! 🤝", color: '#ffc107', emoji: '🤝' };
         if (playerWins) return { text: 'Victory! 🏆', color: '#4ade80', emoji: '🏆' };
         return { text: 'Defeat 💀', color: '#e53935', emoji: '💀' };
@@ -135,6 +142,14 @@ export const EndGameSummary: React.FC<EndGameSummaryProps> = ({
                     {/* Result Header — always full width */}
                     <View style={s.header}>
                         <Text style={[s.resultText, { color: result.color }]}>{result.text}</Text>
+
+                        {wonByForfeit && (
+                            <View style={s.forfeitNotice}>
+                                <Text style={s.forfeitText}>
+                                    {opponentName || 'Your opponent'} disconnected and did not return.
+                                </Text>
+                            </View>
+                        )}
                         
                         {/* Score face-off */}
                         {hasAI ? (
@@ -147,8 +162,8 @@ export const EndGameSummary: React.FC<EndGameSummaryProps> = ({
                                 <Text style={s.vs}>VS</Text>
                                 <View style={s.scoreBlock}>
                                     <View style={s.aiLabel}>
-                                        <Text style={s.scoreOwner}>🤖 AI</Text>
-                                        {difficulty && (
+                                        <Text style={s.scoreOwner}>{opponentName ? `👤 ${opponentName}` : '🤖 AI'}</Text>
+                                        {difficulty && !opponentName && (
                                             <View style={[s.diffBadge, { backgroundColor: difficultyColors[difficulty] || '#888' }]}>
                                                 <Text style={s.diffText}>{difficulty}</Text>
                                             </View>
@@ -180,7 +195,7 @@ export const EndGameSummary: React.FC<EndGameSummaryProps> = ({
                                 {hasAI && (
                                     <>
                                         <View style={s.barBg} />
-                                        <Text style={s.colHeader}>AI</Text>
+                                <Text style={s.colHeader}>{opponentName ? 'Opp' : 'AI'}</Text>
                                     </>
                                 )}
                             </View>
@@ -273,6 +288,20 @@ const s = StyleSheet.create({
         fontSize: 22,
         fontWeight: 'bold',
         marginBottom: 8,
+    },
+    forfeitNotice: {
+        backgroundColor: 'rgba(74, 222, 128, 0.12)',
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#4ade80',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        marginBottom: 8,
+    },
+    forfeitText: {
+        fontSize: 12,
+        color: '#a8e6c0',
+        textAlign: 'center',
     },
     scoreFaceoff: {
         flexDirection: 'row',

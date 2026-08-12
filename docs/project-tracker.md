@@ -507,31 +507,50 @@ Original game had fixed rain patterns favoring certain areas. Options:
 
 ```
 C:\Dev\Eutopia\
-├── App.tsx                          # Main game component
+├── App.tsx                              # Main game component
 ├── docs/
-│   └── project-tracker.md           # This file
+│   ├── project-tracker.md               # This file — rebuild bible
+│   ├── PROJECT_STATUS.md                # Daily driver
+│   └── Eutopia_PORTFOLIO_OVERVIEW.md    # Master plan
 ├── src/
 │   ├── components/
 │   │   ├── game/
-│   │   │   ├── Icons.tsx            # All SVG building/boat icons (14 icons)
-│   │   │   ├── Island.tsx           # Map renderer with animated tiles
-│   │   │   ├── RainCloud.tsx        # Animated rain cloud
-│   │   │   ├── RebelIcon.tsx        # Rebel warning icon (pulsing)
-│   │   │   ├── ScoreDisplay.tsx     # Score breakdown panel
-│   │   │   └── EndGameSummary.tsx   # Game over screen
-│   │   └── index.ts
+│   │   │   ├── Icons.tsx                        # PNG building/boat icons + ICON_IMAGES
+│   │   │   ├── Island.tsx                       # Map renderer, unified tap layer
+│   │   │   ├── AnimatedBuilding.tsx             # Idle animations, smoke, fort flag
+│   │   │   ├── AnimatedBuildMenu.tsx            # Contextual build menu
+│   │   │   ├── AnimatedResourceBar.tsx          # Gold/pop/score with change pulse
+│   │   │   ├── RainCloud.tsx / StormCloud.tsx / HurricaneCloud.tsx
+│   │   │   ├── FishSchool.tsx / PirateShip.tsx / FreeRoamBoat.tsx
+│   │   │   ├── AIIslandMinimap.tsx              # Solo: AI opponent minimap
+│   │   │   ├── MultiplayerIslandMinimap.tsx     # MP: human opponent, fog of war
+│   │   │   ├── ScoreDisplay.tsx / EndGameSummary.tsx / Toast.tsx
+│   │   │   ├── RoundTransition.tsx / RebelIcon.tsx
+│   │   │   └── TutorialOverlay.tsx
+│   │   ├── multiplayer/
+│   │   │   ├── MultiplayerLobby.tsx             # Host/join/waiting room
+│   │   │   └── NamePromptModal.tsx              # First-run player name
+│   │   ├── setup/SetupScreen.tsx            # Mode/rounds/difficulty + MP entry
+│   │   └── settings/SettingsScreen.tsx
 │   ├── config/
-│   │   └── audioSettings.ts         # [PLANNED] Audio settings layout
-│   ├── constants/
-│   │   └── game.ts                  # Balance values, building costs
+│   │   └── firebaseConfig.ts                # eutopia-2f19f Realtime DB
+│   ├── constants/game.ts                    # Balance values, building costs
+│   ├── hooks/
+│   │   ├── useAIOpponent.ts                 # Disabled when isMultiplayer
+│   │   ├── useAudioSettings.ts / useTutorial.ts / useAds.ts
 │   ├── services/
-│   │   ├── islandGenerator.ts       # Island shape generation
-│   │   └── audioManager.ts          # [PLANNED] Sound playback service
-│   ├── state/
-│   │   └── gameStore.ts             # Game state (Zustand)
-│   └── types/
-│       └── index.ts                 # TypeScript definitions
+│   │   ├── islandGenerator.ts / coastlineDetection.ts / boatMovement.ts
+│   │   ├── soundManager.ts                  # expo-audio
+│   │   ├── adService.ts
+│   │   ├── playerService.ts                 # AsyncStorage player id + name
+│   │   └── multiplayerService.ts            # Rooms, islands, state, round, events
+│   └── types/index.ts                       # TypeScript definitions
+└── assets/
+    ├── images/*.png                         # 14 building/boat icons
+    └── audio/*.mp3                          # SFX + music tracks
 ```
+
+**Legacy / safe to delete:** `src/components/game/BuildMenu_DELETE.tsx`
 
 ---
 
@@ -1071,38 +1090,39 @@ export const SOUND_KEYS = {
 - [ ] Difficulty tuning parameters
 - [ ] Aggression scaling
 
-### Phase 8: Multiplayer ← NEXT
+### Phase 8: Multiplayer ← IN PROGRESS (8A–8D complete)
 
-**8A: Firebase Project + Data Model**
-- [ ] Create dedicated Firebase project for Eutopia (separate from IJBA and all other apps)
-- [ ] Firebase Realtime DB setup and config
-- [ ] Game room data structure (room state, player states, round sync)
-- [ ] Firebase config file (firebaseConfig.ts)
-- [ ] Service layer: create room, join room, listen for changes
+**8A: Firebase Project + Data Model — ✅ COMPLETE**
+- [x] Dedicated Firebase project for Eutopia (`eutopia-2f19f`)
+- [x] Firebase Realtime DB setup and config
+- [x] Game room data structure (room state, player states, round sync)
+- [x] Firebase config file (`src/config/firebaseConfig.ts`)
+- [x] Service layer (`src/services/multiplayerService.ts`): create/join/listen
+- [x] Player identity via AsyncStorage random ID (no auth)
 
-**8B: Lobby UI + Room Flow**
-- [ ] Host/join screen (room codes)
-- [ ] Waiting room with ready-up
-- [ ] Player connected/disconnected status display
-- [ ] Transition from lobby to game start
+**8B: Lobby UI + Room Flow — ✅ COMPLETE**
+- [x] Host/join screen with 6-character room codes
+- [x] Waiting room with ready-up
+- [x] Name prompt modal for first-time players
+- [x] Transition from lobby to game start
 
-**8C: Game State Sync**
-- [ ] Sync building placements in real-time
-- [ ] Sync boat movements in real-time
-- [ ] Sync gold/population/score
-- [ ] Round timer authority (host is source of truth)
-- [ ] Round start/end synchronization
-- [ ] Between-round ready-up flow
+**8C: Game State Sync — ✅ COMPLETE**
+- [x] 8C.1 — Island layout sync
+- [x] 8C.2 — Live player state sync (gold, population, score, boats) @ 500ms
+- [x] 8C.3 — Host-authoritative round timer
+- [x] 8C.4 — Host-broadcast spawn events (rain, storm, hurricane, pirate)
 
-**8D: Opponent Minimap + Visibility**
-- [ ] Render opponent island as read-only minimap
-- [ ] Tap to expand/inspect opponent island
-- [ ] Real-time updates from synced state
+**8D: Opponent Minimap + Visibility — ✅ COMPLETE**
+- [x] `MultiplayerIslandMinimap.tsx` — read-only opponent view
+- [x] Tap to expand, live updates, opponent name from room record
+- [x] Fog of war on building TYPES (generic marker per occupied tile)
 
-**8E: Disconnect Handling + Polish**
+**8E: Disconnect Handling + Polish — 🔶 IN PROGRESS**
+- [ ] Heartbeat / `lastSeen` timestamps
+- [ ] Connection-lost banner + round pause
 - [ ] 3-minute forfeit timeout on disconnect
 - [ ] Reconnection support
-- [ ] Edge cases (both disconnect, host migration or forfeit)
+- [ ] Host migration if host drops
 - [ ] GitHub tag for Phase 8 complete
 
 **Backend:** Dedicated Firebase Realtime DB project (not shared with IJBA or other apps)
@@ -1183,7 +1203,7 @@ BALANCE = {
 
 ---
 
-*Last Updated: Session 13 (Mar 6, 2026)*
+*Last Updated: August 11, 2026*
 
 ---
 
@@ -1200,7 +1220,7 @@ BALANCE = {
 | 6 | Animations & Polish | ✅ Complete |
 | SDK 55 | Migration + expo-audio | ✅ Complete — v0.7.0 tagged |
 | 7 | AI Opponent | 🔶 Basic AI functional, enhancements planned |
-| 8 | Multiplayer | 🔶 Next — starting 8A |
+| 8 | Multiplayer | 🔶 In progress — 8A–8D complete, 8E active |
 | 9 | Enhanced Mode Features | 🔜 Planned |
 | 10 | Final Polish | 🔜 Planned |
 
@@ -1212,14 +1232,19 @@ BALANCE = {
 - iOS testing resumes once all other Tartan Studios apps migrate to SDK 55
 
 **Known Issues:**
-- PT boat combat not yet implemented
+- PvP boat combat not implemented — and not possible without a shared-grid rework
+  (see PROJECT_STATUS.md Known Issues). Each player's island occupies its own
+  coordinate space; there is no shared water. Deferred pending a decision.
 - Enhanced mode building effects not yet implemented (Dock, Lighthouse, etc.)
 - Tutorial spotlight positions are approximate/hardcoded
 - Icon first-render delay on Android dev builds (non-issue in production EAS builds)
+- Music occasionally silent on cold emulator boot (play() before native load completes)
 
 **Recent Highlights:**
+- Phase 8A–8D complete: Firebase multiplayer, lobby, full state sync, opponent minimap
+- Host-authoritative round timer eliminates clock drift between players
+- Host-broadcast spawn events keep weather frequency identical, positions independent
+- Fog of war on opponent minimap: where they build is visible, what they build is not
+- Farm idle sway animation removed (crops no longer rock)
 - SDK 55 migration complete: expo-audio, Android overflow fix, preload decoupled
 - Phase 6 complete: smoke overlays, fort flag, score animation, image preloading
-- Crop cost rebalanced from 3 to 5 gold
-- Build menu icons enlarged ~30%, name+cost in single row
-- Phase 8 Multiplayer planned and sub-phased (8A-8E)

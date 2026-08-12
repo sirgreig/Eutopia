@@ -74,6 +74,7 @@ import { SetupScreen, GameConfig } from './src/components/setup/SetupScreen';
 import { useAIOpponent } from './src/hooks/useAIOpponent';
 import { AIIslandMinimap } from './src/components/game/AIIslandMinimap';
 import { MultiplayerIslandMinimap } from './src/components/game/MultiplayerIslandMinimap';
+import { ConnectionBanner } from './src/components/game/ConnectionBanner';
 
 // Tutorial imports
 import { useTutorial } from './src/hooks/useTutorial';
@@ -83,8 +84,8 @@ import { TutorialOverlay } from './src/components/game/TutorialOverlay';
 import { NamePromptModal } from './src/components/multiplayer/NamePromptModal';
 import { MultiplayerLobby } from './src/components/multiplayer/MultiplayerLobby';
 import { getPlayer } from './src/services/playerService';
-import { hasPlayerName } from './src/services/playerService';
-import { setIsland as fbSetIsland, listenToIsland as fbListenToIsland, setPlayerState as fbSetPlayerState, listenToPlayerState as fbListenToPlayerState, PlayerState as FbPlayerState, setRoundState as fbSetRoundState, listenToRoundState as fbListenToRoundState, RoundState as FbRoundState, pushSpawnEvent as fbPushSpawnEvent, listenToSpawnEvents as fbListenToSpawnEvents, SpawnEvent as FbSpawnEvent } from './src/services/multiplayerService';
+import { hasPlayerName, saveActiveSession, getActiveSession, clearActiveSession } from './src/services/playerService';
+import { setIsland as fbSetIsland, listenToIsland as fbListenToIsland, setPlayerState as fbSetPlayerState, listenToPlayerState as fbListenToPlayerState, PlayerState as FbPlayerState, setRoundState as fbSetRoundState, listenToRoundState as fbListenToRoundState, RoundState as FbRoundState, pushSpawnEvent as fbPushSpawnEvent, listenToSpawnEvents as fbListenToSpawnEvents, SpawnEvent as FbSpawnEvent, promoteToHost as fbPromoteToHost, rejoinRoom as fbRejoinRoom } from './src/services/multiplayerService';
 
 // Fish schools
 import { FishSchoolComponent } from './src/components/game/FishSchool';
@@ -92,6 +93,10 @@ import { PirateShipComponent } from './src/components/game/PirateShip';
 import { isPointInWater } from './src/services/coastlineDetection';
 
 const MENU_ICON_SIZE = 28;
+
+// Phase 8E — connection thresholds (ms)
+const MP_STALE_MS = 10000;     // opponent considered disconnected
+const MP_FORFEIT_MS = 180000;  // 3 minutes → forfeit
 
 const MenuBuildingIcon = ({ type }: { type: string }) => {
   switch (type) {
@@ -173,6 +178,11 @@ export default function App() {
   const [opponentIsland, setOpponentIsland] = useState<IslandType | null>(null);
   const [opponentState, setOpponentState] = useState<FbPlayerState | null>(null);
   const [mpRoundState, setMpRoundState] = useState<FbRoundState | null>(null);
+  // Phase 8E — connection monitoring
+  const [mpNowTick, setMpNowTick] = useState<number>(Date.now());
+  const [mpWonByForfeit, setMpWonByForfeit] = useState(false);
+  // True between a successful rejoin and the island being restored from Firebase
+  const [isRejoining, setIsRejoining] = useState(false);
   const isMultiplayer = mpRoomCode !== null && mpOpponentId !== null;
   
   // Free-roam boat system state
@@ -340,6 +350,8 @@ export default function App() {
   const returnToSetup = useCallback(() => {
     setShowSetup(true);
     setShowGameOver(false);
+    // Deliberately leaving a game — drop the rejoin record
+    clearActiveSession();
     // Clear multiplayer state on exit to setup
     setMpRoomCode(null);
     setMpOpponentId(null);
@@ -348,6 +360,7 @@ export default function App() {
     setOpponentIsland(null);
     setOpponentState(null);
     setMpRoundState(null);
+    setMpWonByForfeit(false);
     Sounds.playMusic('menu');
   }, []);
 
@@ -371,6 +384,28 @@ export default function App() {
         setShowNamePrompt(true);
       }
 
+      // Phase 8E — attempt to rejoin an in-progress multiplayer game.
+      // Only fires if a session was saved and the room is still 'playing'.
+      const session = await getActiveSession();
+      if (session && player.name) {
+        const result = await fbRejoinRoom(session.roomCode, player.id);
+        if (result.success) {
+          setMpRoomCode(session.roomCode);
+          setMpOpponentId(result.opponentId);
+          setMpOpponentName(result.opponentName);
+          setMpIsHost(result.isHost);
+          setMode('original');
+          setMaxRounds(result.room.settings.maxRounds);
+          setRoundDuration(result.room.settings.roundDuration);
+          setDifficulty(result.room.settings.difficulty);
+          setIsRejoining(true);
+          setShowSetup(false);
+          // Island is restored from Firebase by the rejoin effect below
+        } else {
+          await clearActiveSession();
+        }
+      }
+
       // Preload PNG icons — best-effort only (fails silently on Android dev builds
       // where Metro serves assets via HTTP and downloadAsync is rejected)
       try {
@@ -385,6 +420,23 @@ export default function App() {
     };
     init(); 
   }, []);
+
+  // Phase 8E — restore this player's own island from Firebase after a rejoin.
+  // Runs once; the normal island-write effect is inert while `island` is null,
+  // so there's no risk of clobbering the stored copy before it loads.
+  useEffect(() => {
+    if (!isRejoining || !mpRoomCode || !playerId) return;
+
+    const unsubscribe = fbListenToIsland(mpRoomCode, playerId, (ownIsland) => {
+      if (ownIsland) {
+        setIsland(ownIsland);
+        setCoastline(generateCoastline(ownIsland));
+        setIsRejoining(false);
+        showToast('Rejoined game in progress', 'stability');
+      }
+    });
+    return unsubscribe;
+  }, [isRejoining, mpRoomCode, playerId]);
 
   // ============================================
   // MULTIPLAYER ISLAND SYNC (Phase 8C.1)
@@ -503,6 +555,103 @@ export default function App() {
       setTimeRemaining(remaining);
     }
   }, [isMultiplayer, mpRoundState?.number, mpRoundState?.isActive, mpRoundState?.endTime]);
+
+  // ============================================
+  // MULTIPLAYER CONNECTION MONITORING (Phase 8E)
+  // ============================================
+  //
+  // The opponent's PlayerState.updatedAt doubles as a heartbeat — it is rewritten
+  // every 500ms by the existing state interval, so no extra Firebase traffic is
+  // needed. We tick a local clock once a second and measure staleness against it
+  // (rather than against snapshot arrivals, which stop entirely on disconnect).
+
+  useEffect(() => {
+    if (!isMultiplayer) return;
+    const interval = setInterval(() => setMpNowTick(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [isMultiplayer]);
+
+  const mpMsSinceOpponentSeen =
+    isMultiplayer && opponentState ? Math.max(0, mpNowTick - opponentState.updatedAt) : null;
+
+  const isOpponentStale =
+    mpMsSinceOpponentSeen !== null && mpMsSinceOpponentSeen > MP_STALE_MS;
+
+  const mpMsUntilForfeit =
+    mpMsSinceOpponentSeen !== null ? Math.max(0, MP_FORFEIT_MS - mpMsSinceOpponentSeen) : 0;
+
+  // Remaining seconds stashed when a round is paused for a disconnect
+  const mpPausedRemainingRef = useRef<number | null>(null);
+
+  // Host pauses the active round while the opponent is missing, and resumes it
+  // with the same remaining time once they return. Guests never write round state.
+  useEffect(() => {
+    if (!isMultiplayer || !mpIsHost || !mpRoomCode || !mpRoundState) return;
+
+    if (isOpponentStale && mpRoundState.isActive) {
+      const remaining = Math.max(1, Math.ceil((mpRoundState.endTime - Date.now()) / 1000));
+      mpPausedRemainingRef.current = remaining;
+      fbSetRoundState(mpRoomCode, { ...mpRoundState, isActive: false }).catch(() => {});
+      showToast('Round paused — opponent disconnected', 'rebel');
+    } else if (!isOpponentStale && !mpRoundState.isActive && mpPausedRemainingRef.current !== null) {
+      const remaining = mpPausedRemainingRef.current;
+      mpPausedRemainingRef.current = null;
+      fbSetRoundState(mpRoomCode, {
+        ...mpRoundState,
+        isActive: true,
+        endTime: Date.now() + remaining * 1000,
+      }).catch(() => {});
+      showToast('Opponent reconnected — round resumed', 'stability');
+    }
+  }, [isMultiplayer, mpIsHost, mpRoomCode, isOpponentStale, mpRoundState]);
+
+  // Forfeit: opponent gone past the threshold — award the win
+  useEffect(() => {
+    if (!isMultiplayer || showGameOver || round === 0) return;
+    if (mpMsSinceOpponentSeen !== null && mpMsSinceOpponentSeen >= MP_FORFEIT_MS) {
+      mpPausedRemainingRef.current = null;
+      setMpWonByForfeit(true);
+      setIsRoundActive(false);
+      setShowGameOver(true);
+    }
+  }, [isMultiplayer, mpMsSinceOpponentSeen, showGameOver, round]);
+
+  // Host migration — if the HOST is the one who vanished, the surviving guest
+  // promotes itself so round advancement isn't dead in the water. All round state
+  // already lives in Firebase, so promotion costs nothing but the flag.
+  const mpPromotionAttemptedRef = useRef(false);
+  useEffect(() => {
+    if (!isMultiplayer || mpIsHost || !mpRoomCode || !mpOpponentId) return;
+    if (!isOpponentStale || showGameOver) return;
+    if (mpPromotionAttemptedRef.current) return;
+
+    mpPromotionAttemptedRef.current = true;
+    fbPromoteToHost(mpRoomCode, playerId, mpOpponentId)
+      .then((promoted) => {
+        if (promoted) {
+          setMpIsHost(true);
+          showToast('You are now the host', 'stability');
+          saveActiveSession({
+            roomCode: mpRoomCode,
+            opponentId: mpOpponentId,
+            opponentName: mpOpponentName,
+            isHost: true,
+            startedAt: Date.now(),
+          });
+        }
+      })
+      .catch(() => { /* non-fatal — forfeit timer still runs */ });
+  }, [isMultiplayer, mpIsHost, mpRoomCode, mpOpponentId, isOpponentStale, showGameOver, playerId, mpOpponentName]);
+
+  // Reset promotion guard when the opponent returns
+  useEffect(() => {
+    if (!isOpponentStale) mpPromotionAttemptedRef.current = false;
+  }, [isOpponentStale]);
+
+  // Clear the saved session once the game is over — nothing left to rejoin
+  useEffect(() => {
+    if (showGameOver) clearActiveSession();
+  }, [showGameOver]);
 
   // ============================================
   // SPAWN-LOCALLY FUNCTIONS (Phase 8C.4)
@@ -1943,6 +2092,8 @@ export default function App() {
             setMpOpponentName(opponentName);
             setMpIsHost(isHost);
             setShowMultiplayer(false);
+            // Persist so a disconnect can be recovered without the room code
+            saveActiveSession({ roomCode, opponentId, opponentName, isHost, startedAt: Date.now() });
             startGameWithConfig(config);
           }}
         />
@@ -2174,6 +2325,14 @@ export default function App() {
         </View>
       )}
       
+      {/* Opponent connection banner (Phase 8E) */}
+      <ConnectionBanner
+        opponentName={mpOpponentName}
+        msSinceSeen={mpMsSinceOpponentSeen ?? 0}
+        msUntilForfeit={mpMsUntilForfeit}
+        visible={isMultiplayer && isOpponentStale && !showGameOver && round > 0}
+      />
+
       {/* Opponent minimap — AI in solo, human opponent in multiplayer */}
       {isMultiplayer ? (
         <MultiplayerIslandMinimap
@@ -2183,6 +2342,9 @@ export default function App() {
           population={opponentState?.population ?? 0}
           boats={opponentState?.boats ?? []}
           opponentName={mpOpponentName}
+          roomCode={mpRoomCode ?? undefined}
+          isStale={isOpponentStale}
+          msSinceSeen={mpMsSinceOpponentSeen ?? 0}
           visible={round > 0 && !showBuildMenu && !showGameOver}
         />
       ) : (
@@ -2216,9 +2378,11 @@ export default function App() {
             fishing: freeRoamBoats.filter(b => b.type === 'fishing').length,
             pt: freeRoamBoats.filter(b => b.type === 'pt').length,
           }}
-          aiScore={aiScore}
-          aiScoreBreakdown={aiScoreBreakdown}
-          difficulty={difficulty}
+          aiScore={isMultiplayer ? (opponentState?.score ?? 0) : aiScore}
+          aiScoreBreakdown={isMultiplayer ? opponentState?.scoreBreakdown : aiScoreBreakdown}
+          difficulty={isMultiplayer ? undefined : difficulty}
+          opponentName={isMultiplayer ? mpOpponentName : undefined}
+          wonByForfeit={mpWonByForfeit}
           onPlayAgain={() => { initGame(); initializeAI(); }}
           onMainMenu={returnToSetup}
         />

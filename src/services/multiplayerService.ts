@@ -262,6 +262,80 @@ export async function getRoom(roomCode: string): Promise<Room | null> {
 }
 
 // ============================================================
+// HOST MIGRATION + REJOIN (Phase 8E)
+// ============================================================
+
+/**
+ * Promote a player to host. Called by the surviving guest when the original
+ * host's heartbeat goes stale during an in-progress game.
+ *
+ * Guarded: only succeeds if `expectedCurrentHostId` still matches, so a host
+ * that recovers mid-promotion cannot end up with two hosts writing round state.
+ */
+export async function promoteToHost(
+  roomCode: string,
+  newHostId: string,
+  expectedCurrentHostId: string
+): Promise<boolean> {
+  const room = await getRoom(roomCode);
+  if (!room) return false;
+  if (room.hostId !== expectedCurrentHostId) return false; // someone else already migrated
+
+  const updates: Record<string, unknown> = { hostId: newHostId };
+  await update(ref(db, `rooms/${roomCode}`), updates);
+
+  // Flip the per-player isHost flags so the lobby/room view stays consistent
+  await update(ref(db, `rooms/${roomCode}/players/${newHostId}`), { isHost: true });
+  if (room.players?.[expectedCurrentHostId]) {
+    await update(ref(db, `rooms/${roomCode}/players/${expectedCurrentHostId}`), { isHost: false });
+  }
+
+  return true;
+}
+
+export type RejoinResult =
+  | { success: true; room: Room; isHost: boolean; opponentId: string; opponentName: string }
+  | { success: false; error: string };
+
+/**
+ * Rejoin a game that is already in progress.
+ *
+ * Distinct from joinRoom(), which deliberately refuses rooms that have already
+ * started. This path is only valid for a player whose id is already present in
+ * the room — i.e. someone returning after a disconnect.
+ */
+export async function rejoinRoom(
+  roomCode: string,
+  playerId: string
+): Promise<RejoinResult> {
+  try {
+    const room = await getRoom(roomCode);
+    if (!room) return { success: false, error: 'That game no longer exists.' };
+    if (room.status !== 'playing') return { success: false, error: 'That game is no longer in progress.' };
+
+    const playerIds = Object.keys(room.players || {});
+    if (!playerIds.includes(playerId)) {
+      return { success: false, error: 'You are not part of that game.' };
+    }
+
+    const opponentId = playerIds.find((id) => id !== playerId);
+    if (!opponentId) return { success: false, error: 'Your opponent has left the game.' };
+
+    await update(ref(db, `rooms/${roomCode}/players/${playerId}`), { connected: true });
+
+    return {
+      success: true,
+      room,
+      isHost: room.hostId === playerId,
+      opponentId,
+      opponentName: room.players[opponentId]?.name || 'Opponent',
+    };
+  } catch {
+    return { success: false, error: 'Failed to rejoin. Please try again.' };
+  }
+}
+
+// ============================================================
 // ISLAND SYNC (Phase 8C.1)
 // ============================================================
 //

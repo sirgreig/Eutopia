@@ -9,6 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const PLAYER_ID_KEY = '@eutopia_player_id';
 const PLAYER_NAME_KEY = '@eutopia_player_name';
+const ACTIVE_SESSION_KEY = '@eutopia_active_session';
 
 /**
  * Generate a random player ID.
@@ -77,4 +78,58 @@ export async function getPlayer(): Promise<{ id: string; name: string | null }> 
 export async function hasPlayerName(): Promise<boolean> {
   const name = await getPlayerName();
   return name !== null && name.trim().length > 0;
+}
+
+// ============================================================
+// ACTIVE MULTIPLAYER SESSION (Phase 8E)
+// ============================================================
+//
+// Written when a multiplayer game starts so a player who force-quits, crashes,
+// or loses connection can be dropped straight back into the game on relaunch
+// without having to remember the room code.
+//
+// Cleared on game over and on quit-to-menu.
+
+export type ActiveSession = {
+  roomCode: string;
+  opponentId: string;
+  opponentName: string;
+  isHost: boolean;
+  startedAt: number;
+};
+
+// Sessions older than this are ignored on relaunch — a stale record from a game
+// abandoned days ago should not hijack the setup screen.
+const SESSION_MAX_AGE_MS = 6 * 60 * 60 * 1000; // 6 hours
+
+export async function saveActiveSession(session: ActiveSession): Promise<void> {
+  try {
+    await AsyncStorage.setItem(ACTIVE_SESSION_KEY, JSON.stringify(session));
+  } catch {
+    // Non-fatal — reconnection just won't be automatic
+  }
+}
+
+export async function getActiveSession(): Promise<ActiveSession | null> {
+  try {
+    const raw = await AsyncStorage.getItem(ACTIVE_SESSION_KEY);
+    if (!raw) return null;
+    const session = JSON.parse(raw) as ActiveSession;
+    if (!session.roomCode || !session.opponentId) return null;
+    if (Date.now() - session.startedAt > SESSION_MAX_AGE_MS) {
+      await clearActiveSession();
+      return null;
+    }
+    return session;
+  } catch {
+    return null;
+  }
+}
+
+export async function clearActiveSession(): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(ACTIVE_SESSION_KEY);
+  } catch {
+    // Non-fatal
+  }
 }
