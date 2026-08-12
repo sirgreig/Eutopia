@@ -40,7 +40,7 @@ interface MultiplayerLobbyProps {
   playerId: string;
   playerName: string;
   onBack: () => void;
-  onStartGame: (config: GameConfig, roomCode: string, isHost: boolean, opponentId: string) => void;
+  onStartGame: (config: GameConfig, roomCode: string, isHost: boolean, opponentId: string, opponentName: string) => void;
 }
 
 type LobbyView = 'home' | 'hosting' | 'joining' | 'waiting';
@@ -102,13 +102,14 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
       // Host has started — launch game for both players
       const opponentId = Object.keys(room.players).find((id) => id !== playerId);
       if (!opponentId) return; // Shouldn't happen at status 'playing', but guard anyway
+      const opponentName = room.players[opponentId]?.name || 'Opponent';
       const config: GameConfig = {
         mode: 'original',
         rounds: room.settings.maxRounds,
         roundDuration: room.settings.roundDuration,
         difficulty: room.settings.difficulty,
       };
-      onStartGame(config, roomCode, isHost, opponentId);
+      onStartGame(config, roomCode, isHost, opponentId, opponentName);
     }
   }, [room?.status]);
 

@@ -19,7 +19,7 @@ const IDLE_CONFIG: Record<string, {
   speed?: number;
 }> = {
   house:       { type: 'breathe', intensity: 0.015, speed: 3000 },
-  farm:        { type: 'sway',    intensity: 2.5,   speed: 2500 },
+  farm:        { type: 'none' },
   factory:     { type: 'vibrate', intensity: 0.4,   speed: 150 },
   hospital:    { type: 'pulse',   intensity: 0.04,  speed: 2000 },
   school:      { type: 'bob',     intensity: 1.2,   speed: 2800 },

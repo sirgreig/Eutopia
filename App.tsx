@@ -73,6 +73,7 @@ import { SetupScreen, GameConfig } from './src/components/setup/SetupScreen';
 // AI Opponent imports
 import { useAIOpponent } from './src/hooks/useAIOpponent';
 import { AIIslandMinimap } from './src/components/game/AIIslandMinimap';
+import { MultiplayerIslandMinimap } from './src/components/game/MultiplayerIslandMinimap';
 
 // Tutorial imports
 import { useTutorial } from './src/hooks/useTutorial';
@@ -167,6 +168,7 @@ export default function App() {
   // Multiplayer game state — set when starting from lobby, null in solo
   const [mpRoomCode, setMpRoomCode] = useState<string | null>(null);
   const [mpOpponentId, setMpOpponentId] = useState<string | null>(null);
+  const [mpOpponentName, setMpOpponentName] = useState<string>('Opponent');
   const [mpIsHost, setMpIsHost] = useState(false);
   const [opponentIsland, setOpponentIsland] = useState<IslandType | null>(null);
   const [opponentState, setOpponentState] = useState<FbPlayerState | null>(null);
@@ -341,6 +343,7 @@ export default function App() {
     // Clear multiplayer state on exit to setup
     setMpRoomCode(null);
     setMpOpponentId(null);
+    setMpOpponentName('Opponent');
     setMpIsHost(false);
     setOpponentIsland(null);
     setOpponentState(null);
@@ -1933,10 +1936,11 @@ export default function App() {
           playerId={playerId}
           playerName={playerName}
           onBack={() => setShowMultiplayer(false)}
-          onStartGame={(config, roomCode, isHost, opponentId) => {
+          onStartGame={(config, roomCode, isHost, opponentId, opponentName) => {
             // Capture multiplayer context before starting the game
             setMpRoomCode(roomCode);
             setMpOpponentId(opponentId);
+            setMpOpponentName(opponentName);
             setMpIsHost(isHost);
             setShowMultiplayer(false);
             startGameWithConfig(config);
@@ -2170,26 +2174,27 @@ export default function App() {
         </View>
       )}
       
-      {/* AI Opponent Minimap */}
-      <AIIslandMinimap
-        island={aiIsland}
-        score={aiScore}
-        gold={aiGold}
-        population={aiPopulation}
-        difficulty={difficulty}
-        visible={round > 0 && !showBuildMenu && !showGameOver}
-        lastAction={lastAIAction}
-      />
-
-      {/* Multiplayer opponent debug readout (8C.2) — replaced with proper minimap in 8D */}
-      {isMultiplayer && opponentState && round > 0 && !showBuildMenu && !showGameOver && (
-        <View style={styles.opponentDebugReadout}>
-          <Text style={styles.opponentDebugTitle}>Opponent</Text>
-          <Text style={styles.opponentDebugLine}>{opponentState.gold}g</Text>
-          <Text style={styles.opponentDebugLine}>Pop: {opponentState.population}</Text>
-          <Text style={styles.opponentDebugLine}>Score: {opponentState.score}</Text>
-          <Text style={styles.opponentDebugLine}>Boats: {opponentState.boats.length}</Text>
-        </View>
+      {/* Opponent minimap — AI in solo, human opponent in multiplayer */}
+      {isMultiplayer ? (
+        <MultiplayerIslandMinimap
+          island={opponentIsland}
+          score={opponentState?.score ?? 0}
+          gold={opponentState?.gold ?? 0}
+          population={opponentState?.population ?? 0}
+          boats={opponentState?.boats ?? []}
+          opponentName={mpOpponentName}
+          visible={round > 0 && !showBuildMenu && !showGameOver}
+        />
+      ) : (
+        <AIIslandMinimap
+          island={aiIsland}
+          score={aiScore}
+          gold={aiGold}
+          population={aiPopulation}
+          difficulty={difficulty}
+          visible={round > 0 && !showBuildMenu && !showGameOver}
+          lastAction={lastAIAction}
+        />
       )}
       
       {/* End Game Summary */}
@@ -2395,34 +2400,7 @@ const styles = StyleSheet.create({
     left: 12,
     zIndex: 100,
   },
-  // Multiplayer opponent debug readout (8C.2 — temporary, replaced in 8D)
-  opponentDebugReadout: {
-    position: 'absolute',
-    top: 70,
-    right: 12,
-    backgroundColor: 'rgba(0,0,0,0.85)',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#4ade80',
-    zIndex: 100,
-    minWidth: 110,
-  },
-  opponentDebugTitle: {
-    color: '#4ade80',
-    fontSize: 11,
-    fontWeight: 'bold',
-    marginBottom: 4,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  opponentDebugLine: {
-    color: '#fff',
-    fontSize: 12,
-    fontVariant: ['tabular-nums'],
-    lineHeight: 16,
-  },
+  // Multiplayer opponent debug readout (8C.2 — removed in 8D, styles retired)
   // Menu styles - NO MODAL
   menuOverlay: {
     position: 'absolute',
