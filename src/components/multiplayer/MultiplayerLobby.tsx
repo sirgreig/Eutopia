@@ -27,6 +27,7 @@ import {
   leaveRoom,
   updateRoomStatus,
   setRoundState,
+  clearSpawnEvents,
   Room,
   RoomSettings,
 } from '../../services/multiplayerService';
@@ -196,6 +197,8 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
       duration: hostSettings.roundDuration,
       maxRounds: hostSettings.maxRounds,
     }).catch(() => { /* non-fatal */ });
+    // Clear leftover spawn events from any prior session
+    await clearSpawnEvents(roomCode).catch(() => { /* non-fatal */ });
     await updateRoomStatus(roomCode, 'playing');
     // The room listener will fire with status 'playing' → triggers onStartGame for both players
   };

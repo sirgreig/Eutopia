@@ -17,6 +17,8 @@ import {
   remove,
   onValue,
   off,
+  push,
+  onChildAdded,
 } from 'firebase/database';
 import { Island } from '../types';
 
@@ -427,4 +429,61 @@ export function listenToRoundState(
   });
 
   return () => off(roundRef);
+}
+
+// ============================================================
+// SPAWN EVENT BROADCAST (Phase 8C.4)
+// ============================================================
+//
+// Host rolls the dice for weather and pirate spawns; on success it pushes
+// a typed event under rooms/{code}/events/. Both clients listen and
+// instantiate the corresponding entity locally with their own random
+// positions — frequency stays in lockstep, positions remain independent.
+
+export type SpawnEventType = 'rain' | 'storm' | 'hurricane' | 'pirate';
+
+export type SpawnEvent = {
+  type: SpawnEventType;
+  spawnedAt: number; // epoch ms; used to filter out replays from previous sessions
+};
+
+/**
+ * Push a new spawn event. Host calls this when its local dice roll succeeds.
+ */
+export async function pushSpawnEvent(
+  roomCode: string,
+  event: SpawnEvent
+): Promise<void> {
+  const eventsRef = ref(db, `rooms/${roomCode}/events`);
+  await push(eventsRef, event);
+}
+
+/**
+ * Subscribe to spawn events. Fires once per new event added under
+ * rooms/{code}/events/ AFTER subscription begins (events written before
+ * the subscriber attached are ignored via timestamp filter).
+ */
+export function listenToSpawnEvents(
+  roomCode: string,
+  callback: (event: SpawnEvent) => void
+): () => void {
+  const eventsRef = ref(db, `rooms/${roomCode}/events`);
+  const subscribedAt = Date.now();
+
+  onChildAdded(eventsRef, (snapshot) => {
+    const event = snapshot.val();
+    if (event && typeof event === 'object' && event.spawnedAt >= subscribedAt) {
+      callback(event as SpawnEvent);
+    }
+  });
+
+  return () => off(eventsRef);
+}
+
+/**
+ * Clear all spawn events for a room. Called by host when starting a new game
+ * to wipe stale events from prior sessions.
+ */
+export async function clearSpawnEvents(roomCode: string): Promise<void> {
+  await remove(ref(db, `rooms/${roomCode}/events`));
 }

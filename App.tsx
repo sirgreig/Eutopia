@@ -83,7 +83,7 @@ import { NamePromptModal } from './src/components/multiplayer/NamePromptModal';
 import { MultiplayerLobby } from './src/components/multiplayer/MultiplayerLobby';
 import { getPlayer } from './src/services/playerService';
 import { hasPlayerName } from './src/services/playerService';
-import { setIsland as fbSetIsland, listenToIsland as fbListenToIsland, setPlayerState as fbSetPlayerState, listenToPlayerState as fbListenToPlayerState, PlayerState as FbPlayerState, setRoundState as fbSetRoundState, listenToRoundState as fbListenToRoundState, RoundState as FbRoundState } from './src/services/multiplayerService';
+import { setIsland as fbSetIsland, listenToIsland as fbListenToIsland, setPlayerState as fbSetPlayerState, listenToPlayerState as fbListenToPlayerState, PlayerState as FbPlayerState, setRoundState as fbSetRoundState, listenToRoundState as fbListenToRoundState, RoundState as FbRoundState, pushSpawnEvent as fbPushSpawnEvent, listenToSpawnEvents as fbListenToSpawnEvents, SpawnEvent as FbSpawnEvent } from './src/services/multiplayerService';
 
 // Fish schools
 import { FishSchoolComponent } from './src/components/game/FishSchool';
@@ -501,6 +501,130 @@ export default function App() {
     }
   }, [isMultiplayer, mpRoundState?.number, mpRoundState?.isActive, mpRoundState?.endTime]);
 
+  // ============================================
+  // SPAWN-LOCALLY FUNCTIONS (Phase 8C.4)
+  // ============================================
+  // Used by both the local dice-roll path (solo / MP host) and the
+  // event listener (MP guest, and MP host receiving its own broadcast).
+
+  const computeCloudPath = useCallback((cloudWidth: number, cloudHeight: number) => {
+    const margin = 20;
+    const gridW = GRID_WIDTH * tileSize;
+    const gridH = GRID_HEIGHT * tileSize;
+    const gridX = (screenWidth - gridW) / 2;
+    const gridY = 56 + ((screenHeight - 56) - gridH) / 2;
+    const randIslandY = gridY + Math.random() * gridH - cloudHeight / 2;
+    const randIslandX = gridX + Math.random() * gridW - cloudWidth / 2;
+    const angleVariation = (Math.random() - 0.5) * screenHeight * 0.15;
+    const dir = Math.floor(Math.random() * 8);
+    let sX: number, sY: number, eX: number, eY: number;
+    switch (dir) {
+      case 0: sX = -margin; sY = randIslandY; eX = screenWidth + margin; eY = randIslandY + angleVariation; break;
+      case 1: sX = screenWidth + margin; sY = randIslandY; eX = -margin; eY = randIslandY + angleVariation; break;
+      case 2: sX = randIslandX; sY = -margin; eX = randIslandX + angleVariation; eY = screenHeight + margin; break;
+      case 3: sX = randIslandX; sY = screenHeight + margin; eX = randIslandX + angleVariation; eY = -margin; break;
+      case 4: sX = -margin; sY = -margin; eX = screenWidth + margin; eY = screenHeight + margin; break;
+      case 5: sX = screenWidth + margin; sY = -margin; eX = -margin; eY = screenHeight + margin; break;
+      case 6: sX = -margin; sY = screenHeight + margin; eX = screenWidth + margin; eY = -margin; break;
+      case 7: default: sX = screenWidth + margin; sY = screenHeight + margin; eX = -margin; eY = -margin; break;
+    }
+    return { sX, sY, eX, eY };
+  }, [tileSize, screenWidth, screenHeight]);
+
+  const spawnRainCloudLocally = useCallback(() => {
+    if (rainCloud || stormCloud || hurricaneCloud) return;
+    const cloudWidth = tileSize * 2;
+    const cloudHeight = tileSize * 1.5;
+    const { sX, sY, eX, eY } = computeCloudPath(cloudWidth, cloudHeight);
+    const pathLength = Math.sqrt(Math.pow(eX - sX, 2) + Math.pow(eY - sY, 2));
+    const speed = 25;
+    const dur = Math.max(10000, Math.min(60000, (pathLength / speed) * 1000));
+    rainStartTimeRef.current = Date.now();
+    rainGoldAccumRef.current = 0;
+    rainTotalPausedRef.current = 0;
+    rainPauseStartRef.current = 0;
+    setRainCloud({ startX: sX, startY: sY, endX: eX, endY: eY, duration: dur });
+    Sounds.thunderCrack();
+  }, [rainCloud, stormCloud, hurricaneCloud, tileSize, computeCloudPath]);
+
+  const spawnStormCloudLocally = useCallback(() => {
+    if (stormCloud || hurricaneCloud) return;
+    setRainCloud(null); // Storm overrides rain
+    const stormDiff = STORM_DIFFICULTY[difficulty] || STORM_DIFFICULTY.normal;
+    const cloudWidth = tileSize * 2.4;
+    const cloudHeight = tileSize * 2;
+    const { sX, sY, eX, eY } = computeCloudPath(cloudWidth, cloudHeight);
+    const pathLength = Math.sqrt(Math.pow(eX - sX, 2) + Math.pow(eY - sY, 2));
+    const dur = Math.max(10000, Math.min(60000, (pathLength / stormDiff.speed) * 1000));
+    stormStartTimeRef.current = Date.now();
+    stormDamagedTilesRef.current = new Set();
+    stormTotalPausedRef.current = 0;
+    stormPauseStartRef.current = 0;
+    setStormCloud({ startX: sX, startY: sY, endX: eX, endY: eY, duration: dur });
+    showToast('⛈️ Tropical storm approaching!', 'rebel');
+    Sounds.rebelAppear();
+    Sounds.thunderCrack();
+  }, [stormCloud, hurricaneCloud, tileSize, difficulty, computeCloudPath]);
+
+  const spawnHurricaneCloudLocally = useCallback(() => {
+    if (hurricaneCloud) return;
+    setRainCloud(null);
+    setStormCloud(null);
+    const hurDiff = HURRICANE_DIFFICULTY[difficulty] || HURRICANE_DIFFICULTY.normal;
+    const cloudSize = tileSize * 3;
+    const { sX, sY, eX, eY } = computeCloudPath(cloudSize, cloudSize);
+    const pathLength = Math.sqrt(Math.pow(eX - sX, 2) + Math.pow(eY - sY, 2));
+    const dur = Math.max(12000, Math.min(70000, (pathLength / hurDiff.speed) * 1000));
+    hurricaneStartTimeRef.current = Date.now();
+    hurricaneDamagedTilesRef.current = new Set();
+    hurricaneTotalPausedRef.current = 0;
+    hurricanePauseStartRef.current = 0;
+    hurricaneBuildingsDestroyedRef.current = 0;
+    setHurricaneCloud({ startX: sX, startY: sY, endX: eX, endY: eY, duration: dur });
+    showToast('🌀 HURRICANE approaching!', 'rebel');
+    Sounds.rebelAppear();
+    Sounds.thunderCrack();
+  }, [hurricaneCloud, tileSize, difficulty, computeCloudPath]);
+
+  const spawnPirateLocally = useCallback(() => {
+    if (!island) return;
+    const diffSettings = PIRATE_DIFFICULTY[difficulty] || PIRATE_DIFFICULTY.normal;
+    if (piratesRef.current.length >= diffSettings.maxActive) return;
+    const edge = Math.floor(Math.random() * 4);
+    let spawnPos: WaterPosition;
+    switch (edge) {
+      case 0: spawnPos = { x: Math.random() * GRID_WIDTH, y: 0.1 }; break;
+      case 1: spawnPos = { x: Math.random() * GRID_WIDTH, y: GRID_HEIGHT - 0.1 }; break;
+      case 2: spawnPos = { x: 0.1, y: Math.random() * GRID_HEIGHT }; break;
+      case 3: default: spawnPos = { x: GRID_WIDTH - 0.1, y: Math.random() * GRID_HEIGHT }; break;
+    }
+    if (!isPointInWater(spawnPos, island)) return;
+    const newPirate: PirateShipType = {
+      id: `pirate-${Date.now()}`,
+      position: spawnPos,
+      velocity: { vx: 0, vy: 0 },
+      speed: diffSettings.speed,
+      targetFishId: null,
+    };
+    piratesRef.current = [...piratesRef.current, newPirate];
+    setPirates([...piratesRef.current]);
+    showToast('Pirates spotted!', 'rebel');
+  }, [island, difficulty]);
+
+  // Subscribe to spawn events from the host (multiplayer only)
+  useEffect(() => {
+    if (!isMultiplayer || !mpRoomCode) return;
+    const unsubscribe = fbListenToSpawnEvents(mpRoomCode, (event) => {
+      switch (event.type) {
+        case 'rain': spawnRainCloudLocally(); break;
+        case 'storm': spawnStormCloudLocally(); break;
+        case 'hurricane': spawnHurricaneCloudLocally(); break;
+        case 'pirate': spawnPirateLocally(); break;
+      }
+    });
+    return unsubscribe;
+  }, [isMultiplayer, mpRoomCode, spawnRainCloudLocally, spawnStormCloudLocally, spawnHurricaneCloudLocally, spawnPirateLocally]);
+
   // Pause/resume music when app goes to background/foreground
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextAppState) => {
@@ -580,86 +704,27 @@ export default function App() {
   // Rain cloud spawning during rounds
   useEffect(() => {
     if (isRoundActive) {
-      const spawnRain = () => {
+      // In MP, only host rolls dice; events are broadcast to both clients
+      if (isMultiplayer && !mpIsHost) return;
+
+      const tryRollRainSpawn = () => {
         if (rainCloud) return; // Only one cloud at a time
-        if (stormCloud) return; // Don't spawn rain during storm
-        if (hurricaneCloud) return; // Don't spawn rain during hurricane
-        if (Math.random() < 0.3) { // 30% chance each check
-          const cloudWidth = tileSize * 2;
-          const cloudHeight = tileSize * 1.5;
-          const margin = 20; // Start just off-screen
-          
-          // Grid area bounds for targeting cloud path through island
-          const gridW = GRID_WIDTH * tileSize;
-          const gridH = GRID_HEIGHT * tileSize;
-          const gridX = (screenWidth - gridW) / 2;
-          const gridY = 56 + ((screenHeight - 56) - gridH) / 2;
-          
-          // Random position within island area for perpendicular axis
-          const randIslandY = gridY + Math.random() * gridH - cloudHeight / 2;
-          const randIslandX = gridX + Math.random() * gridW - cloudWidth / 2;
-          
-          // Slight angle variation so paths aren't perfectly straight
-          const angleVariation = (Math.random() - 0.5) * screenHeight * 0.15;
-          
-          // Pick random direction: 0-3 cardinal, 4-7 diagonal
-          const dir = Math.floor(Math.random() * 8);
-          let sX: number, sY: number, eX: number, eY: number;
-          
-          switch (dir) {
-            case 0: // Left to right
-              sX = -margin; sY = randIslandY;
-              eX = screenWidth + margin; eY = randIslandY + angleVariation;
-              break;
-            case 1: // Right to left
-              sX = screenWidth + margin; sY = randIslandY;
-              eX = -margin; eY = randIslandY + angleVariation;
-              break;
-            case 2: // Top to bottom
-              sX = randIslandX; sY = -margin;
-              eX = randIslandX + angleVariation; eY = screenHeight + margin;
-              break;
-            case 3: // Bottom to top
-              sX = randIslandX; sY = screenHeight + margin;
-              eX = randIslandX + angleVariation; eY = -margin;
-              break;
-            case 4: // Top-left to bottom-right
-              sX = -margin; sY = -margin;
-              eX = screenWidth + margin; eY = screenHeight + margin;
-              break;
-            case 5: // Top-right to bottom-left
-              sX = screenWidth + margin; sY = -margin;
-              eX = -margin; eY = screenHeight + margin;
-              break;
-            case 6: // Bottom-left to top-right
-              sX = -margin; sY = screenHeight + margin;
-              eX = screenWidth + margin; eY = -margin;
-              break;
-            case 7: // Bottom-right to top-left
-            default:
-              sX = screenWidth + margin; sY = screenHeight + margin;
-              eX = -margin; eY = -margin;
-              break;
+        if (stormCloud) return;
+        if (hurricaneCloud) return;
+        if (Math.random() < 0.3) {
+          if (isMultiplayer && mpRoomCode) {
+            fbPushSpawnEvent(mpRoomCode, { type: 'rain', spawnedAt: Date.now() }).catch(() => {});
+            // Host also spawns locally for zero perceived latency; the event listener
+            // de-duplicates via the rainCloud guard.
           }
-          
-          // Duration proportional to path length for consistent speed
-          const pathLength = Math.sqrt(Math.pow(eX - sX, 2) + Math.pow(eY - sY, 2));
-          const speed = 25; // pixels per second
-          const dur = Math.max(10000, Math.min(60000, (pathLength / speed) * 1000));
-          
-          rainStartTimeRef.current = Date.now();
-          rainGoldAccumRef.current = 0;
-          rainTotalPausedRef.current = 0;
-          rainPauseStartRef.current = 0;
-          setRainCloud({ startX: sX, startY: sY, endX: eX, endY: eY, duration: dur });
-          Sounds.thunderCrack();
+          spawnRainCloudLocally();
         }
       };
-      
-      rainTimerRef.current = setInterval(spawnRain, 5000);
+
+      rainTimerRef.current = setInterval(tryRollRainSpawn, 5000);
       return () => { if (rainTimerRef.current) clearInterval(rainTimerRef.current); };
     }
-  }, [isRoundActive, island, tileSize, screenWidth, screenHeight, rainCloud, stormCloud, hurricaneCloud]);
+  }, [isRoundActive, rainCloud, stormCloud, hurricaneCloud, isMultiplayer, mpIsHost, mpRoomCode, spawnRainCloudLocally]);
 
   // Rain pause tracking — freeze elapsed time between rounds
   useEffect(() => {
@@ -736,59 +801,24 @@ export default function App() {
   // Tropical storm spawning during rounds (rarer than rain)
   useEffect(() => {
     if (isRoundActive && round > 1) { // No storms in round 1
+      // In MP, only host rolls dice; events are broadcast to both clients
+      if (isMultiplayer && !mpIsHost) return;
+
       const stormDiff = STORM_DIFFICULTY[difficulty] || STORM_DIFFICULTY.normal;
-      const spawnStorm = () => {
+      const tryRollStormSpawn = () => {
         if (stormCloud) return; // Only one storm at a time
         if (hurricaneCloud) return; // Don't spawn storm during hurricane
         if (Math.random() >= stormDiff.spawnChance) return;
-        
-        // Storm overrides active rain
-        setRainCloud(null);
-        
-        const cloudWidth = tileSize * 2.4;
-        const cloudHeight = tileSize * 2;
-        const margin = 20;
-        
-        const gridW = GRID_WIDTH * tileSize;
-        const gridH = GRID_HEIGHT * tileSize;
-        const gridX = (screenWidth - gridW) / 2;
-        const gridY = 56 + ((screenHeight - 56) - gridH) / 2;
-        
-        const randIslandY = gridY + Math.random() * gridH - cloudHeight / 2;
-        const randIslandX = gridX + Math.random() * gridW - cloudWidth / 2;
-        const angleVariation = (Math.random() - 0.5) * screenHeight * 0.15;
-        
-        const dir = Math.floor(Math.random() * 8);
-        let sX: number, sY: number, eX: number, eY: number;
-        
-        switch (dir) {
-          case 0: sX = -margin; sY = randIslandY; eX = screenWidth + margin; eY = randIslandY + angleVariation; break;
-          case 1: sX = screenWidth + margin; sY = randIslandY; eX = -margin; eY = randIslandY + angleVariation; break;
-          case 2: sX = randIslandX; sY = -margin; eX = randIslandX + angleVariation; eY = screenHeight + margin; break;
-          case 3: sX = randIslandX; sY = screenHeight + margin; eX = randIslandX + angleVariation; eY = -margin; break;
-          case 4: sX = -margin; sY = -margin; eX = screenWidth + margin; eY = screenHeight + margin; break;
-          case 5: sX = screenWidth + margin; sY = -margin; eX = -margin; eY = screenHeight + margin; break;
-          case 6: sX = -margin; sY = screenHeight + margin; eX = screenWidth + margin; eY = -margin; break;
-          case 7: default: sX = screenWidth + margin; sY = screenHeight + margin; eX = -margin; eY = -margin; break;
+        if (isMultiplayer && mpRoomCode) {
+          fbPushSpawnEvent(mpRoomCode, { type: 'storm', spawnedAt: Date.now() }).catch(() => {});
         }
-        
-        const pathLength = Math.sqrt(Math.pow(eX - sX, 2) + Math.pow(eY - sY, 2));
-        const dur = Math.max(10000, Math.min(60000, (pathLength / stormDiff.speed) * 1000));
-        
-        stormStartTimeRef.current = Date.now();
-        stormDamagedTilesRef.current = new Set();
-        stormTotalPausedRef.current = 0;
-        stormPauseStartRef.current = 0;
-        setStormCloud({ startX: sX, startY: sY, endX: eX, endY: eY, duration: dur });
-        showToast('⛈️ Tropical storm approaching!', 'rebel');
-        Sounds.rebelAppear();
-        Sounds.thunderCrack();
+        spawnStormCloudLocally();
       };
-      
-      stormTimerRef.current = setInterval(spawnStorm, BALANCE.stormSpawnInterval);
+
+      stormTimerRef.current = setInterval(tryRollStormSpawn, BALANCE.stormSpawnInterval);
       return () => { if (stormTimerRef.current) clearInterval(stormTimerRef.current); };
     }
-  }, [isRoundActive, round, island, tileSize, screenWidth, screenHeight, stormCloud, hurricaneCloud, difficulty]);
+  }, [isRoundActive, round, stormCloud, hurricaneCloud, difficulty, isMultiplayer, mpIsHost, mpRoomCode, spawnStormCloudLocally]);
 
   // Storm pause tracking — freeze elapsed time between rounds
   useEffect(() => {
@@ -949,59 +979,23 @@ export default function App() {
   // Hurricane spawning during rounds (rare, late-game)
   useEffect(() => {
     if (isRoundActive && round >= BALANCE.hurricaneMinRound) {
+      // In MP, only host rolls dice; events are broadcast to both clients
+      if (isMultiplayer && !mpIsHost) return;
+
       const hurDiff = HURRICANE_DIFFICULTY[difficulty] || HURRICANE_DIFFICULTY.normal;
-      const spawnHurricane = () => {
+      const tryRollHurricaneSpawn = () => {
         if (hurricaneCloud) return; // Only one hurricane at a time
         if (Math.random() >= hurDiff.spawnChance) return;
-        
-        // Hurricane overrides rain and storm
-        setRainCloud(null);
-        setStormCloud(null);
-        
-        const cloudSize = tileSize * 3;
-        const margin = 20;
-        
-        const gridW = GRID_WIDTH * tileSize;
-        const gridH = GRID_HEIGHT * tileSize;
-        const gridX = (screenWidth - gridW) / 2;
-        const gridY = 56 + ((screenHeight - 56) - gridH) / 2;
-        
-        const randIslandY = gridY + Math.random() * gridH - cloudSize / 2;
-        const randIslandX = gridX + Math.random() * gridW - cloudSize / 2;
-        const angleVariation = (Math.random() - 0.5) * screenHeight * 0.15;
-        
-        const dir = Math.floor(Math.random() * 8);
-        let sX: number, sY: number, eX: number, eY: number;
-        
-        switch (dir) {
-          case 0: sX = -margin; sY = randIslandY; eX = screenWidth + margin; eY = randIslandY + angleVariation; break;
-          case 1: sX = screenWidth + margin; sY = randIslandY; eX = -margin; eY = randIslandY + angleVariation; break;
-          case 2: sX = randIslandX; sY = -margin; eX = randIslandX + angleVariation; eY = screenHeight + margin; break;
-          case 3: sX = randIslandX; sY = screenHeight + margin; eX = randIslandX + angleVariation; eY = -margin; break;
-          case 4: sX = -margin; sY = -margin; eX = screenWidth + margin; eY = screenHeight + margin; break;
-          case 5: sX = screenWidth + margin; sY = -margin; eX = -margin; eY = screenHeight + margin; break;
-          case 6: sX = -margin; sY = screenHeight + margin; eX = screenWidth + margin; eY = -margin; break;
-          case 7: default: sX = screenWidth + margin; sY = screenHeight + margin; eX = -margin; eY = -margin; break;
+        if (isMultiplayer && mpRoomCode) {
+          fbPushSpawnEvent(mpRoomCode, { type: 'hurricane', spawnedAt: Date.now() }).catch(() => {});
         }
-        
-        const pathLength = Math.sqrt(Math.pow(eX - sX, 2) + Math.pow(eY - sY, 2));
-        const dur = Math.max(12000, Math.min(70000, (pathLength / hurDiff.speed) * 1000));
-        
-        hurricaneStartTimeRef.current = Date.now();
-        hurricaneDamagedTilesRef.current = new Set();
-        hurricaneTotalPausedRef.current = 0;
-        hurricanePauseStartRef.current = 0;
-        hurricaneBuildingsDestroyedRef.current = 0;
-        setHurricaneCloud({ startX: sX, startY: sY, endX: eX, endY: eY, duration: dur });
-        showToast('🌀 HURRICANE approaching!', 'rebel');
-        Sounds.rebelAppear();
-        Sounds.thunderCrack();
+        spawnHurricaneCloudLocally();
       };
-      
-      hurricaneTimerRef.current = setInterval(spawnHurricane, BALANCE.hurricaneSpawnInterval);
+
+      hurricaneTimerRef.current = setInterval(tryRollHurricaneSpawn, BALANCE.hurricaneSpawnInterval);
       return () => { if (hurricaneTimerRef.current) clearInterval(hurricaneTimerRef.current); };
     }
-  }, [isRoundActive, round, island, tileSize, screenWidth, screenHeight, hurricaneCloud, difficulty]);
+  }, [isRoundActive, round, hurricaneCloud, difficulty, isMultiplayer, mpIsHost, mpRoomCode, spawnHurricaneCloudLocally]);
 
   // Hurricane pause tracking — freeze elapsed time between rounds
   useEffect(() => {
@@ -1360,7 +1354,7 @@ export default function App() {
   // PIRATE SHIP SYSTEM
   // ============================================
   
-  // Pirate spawning — check every interval, spawn at random water edge
+  // Pirate spawning — host rolls dice; events broadcast to both clients
   useEffect(() => {
     if (!isRoundActive || !island) {
       if (pirateSpawnIntervalRef.current) {
@@ -1369,59 +1363,31 @@ export default function App() {
       }
       return;
     }
-    
+
+    // In MP, only host rolls dice; events are broadcast to both clients
+    if (isMultiplayer && !mpIsHost) return;
+
     const diffSettings = PIRATE_DIFFICULTY[difficulty] || PIRATE_DIFFICULTY.normal;
-    
+
     pirateSpawnIntervalRef.current = setInterval(() => {
-      // Check max active
+      // Check max active (host's local count is the source of truth for the dice roll)
       if (piratesRef.current.length >= diffSettings.maxActive) return;
-      
       // Random spawn chance
       if (Math.random() > diffSettings.spawnChance) return;
-      
-      // Spawn at random edge water position
-      const edge = Math.floor(Math.random() * 4); // 0=top, 1=bottom, 2=left, 3=right
-      let spawnPos: WaterPosition;
-      
-      switch (edge) {
-        case 0: // top
-          spawnPos = { x: Math.random() * GRID_WIDTH, y: 0.1 };
-          break;
-        case 1: // bottom
-          spawnPos = { x: Math.random() * GRID_WIDTH, y: GRID_HEIGHT - 0.1 };
-          break;
-        case 2: // left
-          spawnPos = { x: 0.1, y: Math.random() * GRID_HEIGHT };
-          break;
-        case 3: // right
-        default:
-          spawnPos = { x: GRID_WIDTH - 0.1, y: Math.random() * GRID_HEIGHT };
-          break;
+
+      if (isMultiplayer && mpRoomCode) {
+        fbPushSpawnEvent(mpRoomCode, { type: 'pirate', spawnedAt: Date.now() }).catch(() => {});
       }
-      
-      // Only spawn in water
-      if (!isPointInWater(spawnPos, island)) return;
-      
-      const newPirate: PirateShipType = {
-        id: `pirate-${Date.now()}`,
-        position: spawnPos,
-        velocity: { vx: 0, vy: 0 },
-        speed: diffSettings.speed,
-        targetFishId: null,
-      };
-      
-      piratesRef.current = [...piratesRef.current, newPirate];
-      setPirates([...piratesRef.current]);
-      showToast('Pirates spotted!', 'rebel');
+      spawnPirateLocally();
     }, BALANCE.pirateSpawnInterval);
-    
+
     return () => {
       if (pirateSpawnIntervalRef.current) {
         clearInterval(pirateSpawnIntervalRef.current);
         pirateSpawnIntervalRef.current = null;
       }
     };
-  }, [isRoundActive, island, difficulty]);
+  }, [isRoundActive, island, difficulty, isMultiplayer, mpIsHost, mpRoomCode, spawnPirateLocally]);
   
   // Pirate movement + collision — update every 100ms
   useEffect(() => {
