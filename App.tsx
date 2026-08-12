@@ -752,7 +752,7 @@ export default function App() {
     }
     if (!isPointInWater(spawnPos, island)) return;
     const newPirate: PirateShipType = {
-      id: `pirate-${Date.now()}`,
+      id: `pirate-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       position: spawnPos,
       velocity: { vx: 0, vy: 0 },
       speed: diffSettings.speed,
@@ -1528,7 +1528,11 @@ export default function App() {
       if (Math.random() > diffSettings.spawnChance) return;
 
       if (isMultiplayer && mpRoomCode) {
+        // Pirates have no singleton guard (several can be active at once), so unlike
+        // the weather types the host must NOT also spawn locally — it would receive
+        // its own broadcast and end up with two pirates from one dice roll.
         fbPushSpawnEvent(mpRoomCode, { type: 'pirate', spawnedAt: Date.now() }).catch(() => {});
+        return;
       }
       spawnPirateLocally();
     }, BALANCE.pirateSpawnInterval);
