@@ -8,6 +8,15 @@ import Constants from 'expo-constants';
 // Check if we're running in Expo Go (no native ad support)
 const isExpoGo = Constants.appOwnership === 'expo';
 
+// MASTER SWITCH — ads are disabled for the 1.0 release.
+//
+// The react-native-google-mobile-ads native module ships in the binary so ads can
+// be turned on later without a new build, but the SDK is never initialised while
+// this is false. That keeps the App Store privacy declaration limited to what the
+// game itself collects. Set to true once a real ad unit ID replaces the
+// placeholder below and showInterstitial() is wired into the round flow.
+const ADS_ENABLED = false;
+
 // Ad Unit IDs - Replace with your real ad unit IDs from AdMob console
 // For now using test IDs which are safe for development/testing
 const AD_UNIT_IDS = {
@@ -50,6 +59,11 @@ let onAdClosed: AdLoadCallback | null = null;
  * Call this once when the app starts
  */
 export const initializeAds = async (): Promise<void> => {
+  if (!ADS_ENABLED) {
+    console.log('[AdService] Ads disabled for this release');
+    return;
+  }
+
   if (isExpoGo) {
     console.log('[AdService] Running in Expo Go - ads disabled');
     return;
@@ -104,6 +118,7 @@ export const initializeAds = async (): Promise<void> => {
  * Call this to pre-load an ad before you need to show it
  */
 export const loadInterstitial = (): void => {
+  if (!ADS_ENABLED) return;
   if (isExpoGo) {
     console.log('[AdService] Expo Go - skipping ad load');
     return;
@@ -135,6 +150,11 @@ export const loadInterstitial = (): void => {
  */
 export const showInterstitial = (): Promise<boolean> => {
   return new Promise((resolve) => {
+    if (!ADS_ENABLED) {
+      resolve(false);
+      return;
+    }
+
     if (isExpoGo) {
       console.log('[AdService] Expo Go - skipping ad show');
       resolve(false);
@@ -169,6 +189,7 @@ export const showInterstitial = (): Promise<boolean> => {
  * Check if an ad is ready to show
  */
 export const isAdReady = (): boolean => {
+  if (!ADS_ENABLED) return false;
   if (isExpoGo) return false;
   return state.isLoaded;
 };
@@ -177,7 +198,7 @@ export const isAdReady = (): boolean => {
  * Check if ads are supported in this environment
  */
 export const isAdsSupported = (): boolean => {
-  return !isExpoGo;
+  return ADS_ENABLED && !isExpoGo;
 };
 
 /**

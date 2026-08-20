@@ -8,12 +8,13 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  Modal,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { setPlayerName } from '../../services/playerService';
+import { validateDisplayName } from '../../services/nameFilter';
 import { Sounds } from '../../services/soundManager';
 
 interface NamePromptModalProps {
@@ -24,24 +25,31 @@ interface NamePromptModalProps {
 export const NamePromptModal: React.FC<NamePromptModalProps> = ({ visible, onComplete }) => {
   const [name, setName] = useState('');
   const [error, setError] = useState('');
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
 
   const handleConfirm = async () => {
-    const trimmed = name.trim();
-    if (trimmed.length < 2) {
-      setError('Name must be at least 2 characters.');
-      return;
-    }
-    if (trimmed.length > 16) {
-      setError('Name must be 16 characters or fewer.');
+    const result = validateDisplayName(name);
+    if (!result.ok) {
+      setError(result.reason);
       return;
     }
     Sounds.buttonClick();
-    await setPlayerName(trimmed);
-    onComplete(trimmed);
+    await setPlayerName(result.name);
+    onComplete(result.name);
   };
 
+  // IMPORTANT: Do NOT use React Native's <Modal> here.
+  //
+  // Modal presents a separate UIViewController on iOS. With the app locked to
+  // landscape (`orientation: "landscape"` + `requireFullScreen: true` in app.json),
+  // UIKit finds no valid orientation for the presented controller and throws from
+  // __supportedInterfaceOrientations, aborting the process. Harmless on Android and
+  // web, fatal on iOS. Use an absolutely-positioned overlay instead, matching
+  // AIIslandMinimap / MultiplayerIslandMinimap.
+  if (!visible) return null;
+
   return (
-    <Modal visible={visible} transparent animationType="fade">
+    <View style={[styles.fullScreenOverlay, { width: screenWidth, height: screenHeight }]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.overlay}
@@ -50,6 +58,7 @@ export const NamePromptModal: React.FC<NamePromptModalProps> = ({ visible, onCom
           <Text style={styles.title}>Welcome to Eutopia</Text>
           <Text style={styles.subtitle}>
             Choose a name your opponent will see during multiplayer games.
+            Please don't use your real name.
           </Text>
 
           <TextInput
@@ -77,11 +86,17 @@ export const NamePromptModal: React.FC<NamePromptModalProps> = ({ visible, onCom
           <Text style={styles.hint}>You can change this later in Settings.</Text>
         </View>
       </KeyboardAvoidingView>
-    </Modal>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  fullScreenOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    zIndex: 10000,
+  },
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.85)',

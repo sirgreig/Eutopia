@@ -18,7 +18,8 @@
 | 6 | Animations & Polish | Complete |
 | 7 | AI Opponent | Complete (basic) |
 | SDK 55 | Migration + expo-audio | Complete — merged to main, tagged v0.7.0 |
-| 8 | Multiplayer (8A-8E) | In progress — 8A-8D complete, 8E active |
+| 8 | Multiplayer (8A-8E) | Complete — v0.8.0 tagged |
+| — | EAS preview build / iOS verification | Next — blocks release track |
 | 9 | Enhanced Mode Features | Planned |
 | 10 | Final Polish & Deployment | Planned |
 
@@ -32,9 +33,10 @@
 - Score change animation, gold flash, image preloading
 - Setup screen with mode/rounds/difficulty, How to Play tutorial
 - SDK 55 upgrade complete — on main branch, v0.7.0 tagged
-- Multiplayer 8A-8D complete: Firebase rooms, lobby with room codes, full state sync,
-  host-authoritative round timer, synchronised weather, fog-of-war opponent minimap
-- Remaining: 8E disconnect handling, enhanced mode features, deployment
+- Multiplayer complete (8A-8E): Firebase rooms, lobby with room codes, full state sync,
+  host-authoritative round timer, synchronised weather, fog-of-war opponent minimap,
+  disconnect handling with forfeit, host migration and auto-rejoin
+- Remaining: iOS verification, ads/IAP modules, icon and splash, enhanced mode, deployment
 
 ## Brand Integration
 
@@ -88,14 +90,20 @@
 - Mar 2026: SDK 55 migration complete — expo-audio, Android fixes, full test pass, v0.7.0 tagged
 - Aug 2026: Multiplayer 8A-8D complete — Firebase backend, lobby, state sync,
   round timer authority, spawn event parity, opponent minimap
+- Aug 2026: Phase 8 complete — disconnect handling, forfeit, host migration,
+  auto-rejoin. Tagged v0.8.0
 
 **Upcoming:**
-- Phase 8E: disconnect handling, forfeit timeout, reconnection, host migration
-- Phase 9 enhanced features
-- EAS preview build for iOS verification on a real device (after Phase 8)
-- TestFlight beta
-- App Store submission
-- Update Expo Go on iOS once all Tartan Studios apps on SDK 55
+- EAS preview build — iOS verification (SDK 55 and all multiplayer are unverified on iOS)
+- AdMob interstitial ad unit + wire ads into round flow
+- react-native-iap module (must be in the first binary)
+- App icon + splash screen (native, cannot ship OTA)
+- TestFlight beta → App Store submission
+- Phase 9 Enhanced Mode — ships OTA via EAS Update
+
+**Release strategy:** Ship the first binary with AdMob and IAP modules present even if
+the features are disabled. Enhanced Mode (the Premium tier) is pure JS and can be
+delivered OTA post-launch, so it does not need to block the first submission.
 
 **Deferred decision:** PvP boat combat (as in the 1981 original) is not implemented
 and would require a shared-grid rework — single map containing both islands, high-rate

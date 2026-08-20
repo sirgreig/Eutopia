@@ -246,6 +246,7 @@ export default function App() {
   const stormDamagedTilesRef = useRef<Set<string>>(new Set());
   const stormTotalPausedRef = useRef<number>(0);
   const stormPauseStartRef = useRef<number>(0);
+  const stormBuildingsDestroyedRef = useRef<number>(0);
   
   // Hurricane refs
   const hurricaneTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -712,6 +713,7 @@ export default function App() {
     stormDamagedTilesRef.current = new Set();
     stormTotalPausedRef.current = 0;
     stormPauseStartRef.current = 0;
+    stormBuildingsDestroyedRef.current = 0;
     setStormCloud({ startX: sX, startY: sY, endX: eX, endY: eY, duration: dur });
     showToast('⛈️ Tropical storm approaching!', 'rebel');
     Sounds.rebelAppear();
@@ -1040,11 +1042,13 @@ export default function App() {
         showToast(`+${wateredCrops}g from storm rain!`, 'rain');
       }
       
-      // Check building damage — only roll once per tile per storm
-      let tilesDestroyed = 0;
+      // Check building damage — only roll once per tile per storm, and never
+      // destroy more than BALANCE.stormMaxBuildingsDestroyed in a single storm.
+      // Storms are meant to sting; hurricanes are the ones that ruin a round.
       const buildingTiles = island.tiles.filter(t => t.building && t.building !== 'fort');
       
       for (const tile of buildingTiles) {
+        if (stormBuildingsDestroyedRef.current >= BALANCE.stormMaxBuildingsDestroyed) break;
         const tileKey = `${tile.position.x},${tile.position.y}`;
         if (stormDamagedTilesRef.current.has(tileKey)) continue; // Already rolled
         
@@ -1059,7 +1063,7 @@ export default function App() {
           if (isTileProtected(tile.position)) continue; // Fort protected
           
           if (Math.random() < stormDiff.buildingDestroy) {
-            tilesDestroyed++;
+            stormBuildingsDestroyedRef.current++;
             const buildingName = BUILDINGS.find(b => b.type === tile.building)?.name || tile.building;
             setIsland(prev => ({
               ...prev,
@@ -1203,12 +1207,12 @@ export default function App() {
         showToast(`+${wateredCrops}g from hurricane rain!`, 'rain');
       }
       
-      // Check building damage — hurricanes can destroy forts too (max 2 per pass)
-      if (hurricaneBuildingsDestroyedRef.current < 2) {
+      // Check building damage — hurricanes can destroy forts too
+      if (hurricaneBuildingsDestroyedRef.current < BALANCE.hurricaneMaxBuildingsDestroyed) {
         const buildingTiles = island.tiles.filter(t => t.building);
         
         for (const tile of buildingTiles) {
-          if (hurricaneBuildingsDestroyedRef.current >= 2) break;
+          if (hurricaneBuildingsDestroyedRef.current >= BALANCE.hurricaneMaxBuildingsDestroyed) break;
           const tileKey = `${tile.position.x},${tile.position.y}`;
           if (hurricaneDamagedTilesRef.current.has(tileKey)) continue;
           

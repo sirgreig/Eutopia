@@ -105,8 +105,8 @@ export function getAvailableBuildings(mode: GameMode): BuildingConfig[] {
 
 // Boat configurations
 export const BOAT_COSTS = {
-  fishing: 28,
-  pt: 40,
+  fishing: 15,
+  pt: 25,
 } as const;
 
 // Sabotage cost
@@ -183,6 +183,7 @@ export const BALANCE = {
   stormDamageInterval: 1500,     // ms between damage checks while storm is active
   stormCasualtiesMin: 0,         // Min population lost per boat sunk
   stormCasualtiesMax: 30,        // Max population lost per boat sunk
+  stormMaxBuildingsDestroyed: 1, // Hard cap per storm — storms are a nuisance, not a wipe
   // Difficulty-specific values set in STORM_DIFFICULTY below
   
   // Hurricanes
@@ -191,6 +192,7 @@ export const BALANCE = {
   hurricaneCasualtiesMin: 10,    // Min population lost per boat sunk
   hurricaneCasualtiesMax: 80,    // Max population lost per boat sunk
   hurricaneMinRound: 4,          // Earliest round a hurricane can appear
+  hurricaneMaxBuildingsDestroyed: 3, // Hard cap per hurricane — severe, and can take forts
   // Difficulty-specific values set in HURRICANE_DIFFICULTY below
 } as const;
 

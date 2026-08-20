@@ -1090,7 +1090,7 @@ export const SOUND_KEYS = {
 - [ ] Difficulty tuning parameters
 - [ ] Aggression scaling
 
-### Phase 8: Multiplayer ← IN PROGRESS (8A–8D complete)
+### Phase 8: Multiplayer ← ✅ COMPLETE (v0.8.0)
 
 **8A: Firebase Project + Data Model — ✅ COMPLETE**
 - [x] Dedicated Firebase project for Eutopia (`eutopia-2f19f`)
@@ -1117,40 +1117,55 @@ export const SOUND_KEYS = {
 - [x] Tap to expand, live updates, opponent name from room record
 - [x] Fog of war on building TYPES (generic marker per occupied tile)
 
-**8E: Disconnect Handling + Polish — 🔶 IN PROGRESS**
-- [ ] Heartbeat / `lastSeen` timestamps
-- [ ] Connection-lost banner + round pause
-- [ ] 3-minute forfeit timeout on disconnect
-- [ ] Reconnection support
-- [ ] Host migration if host drops
-- [ ] GitHub tag for Phase 8 complete
+**8E: Disconnect Handling + Polish — ✅ COMPLETE**
+- [x] Heartbeat via `PlayerState.updatedAt` (no extra Firebase writes)
+- [x] Connection-lost banner + minimap dimming (10s threshold)
+- [x] Host pauses/resumes the round, preserving remaining time
+- [x] 3-minute forfeit timeout → "Victory by Forfeit" summary
+- [x] Host migration guarded on `hostId` to prevent dual hosts
+- [x] Auto-rejoin via persisted AsyncStorage session (no room code needed)
+- [x] Room code surfaced in expanded minimap as manual fallback
+- [x] Tagged v0.8.0
 
 **Backend:** Dedicated Firebase Realtime DB project (not shared with IJBA or other apps)
 **Cost model:** Firebase usage offset by between-round advertising revenue
 **GitHub:** Commit after each sub-phase
 
-### Phase 9: Enhanced Mode Features
-- [ ] Fog of war rendering
-- [ ] PT boat scouting radius reveal
-- [ ] Watchtower reveal mechanics
-- [ ] Revealed tiles stay revealed
-- [ ] Enhanced building implementations:
-  - [ ] Apartment (3× housing, -1 welfare)
-  - [ ] Dock (+50% adjacent fishing income)
-  - [ ] Lighthouse (PT radius boost, storm resistance)
-  - [ ] Granary (food surplus storage)
-  - [ ] Marketplace (food→gold conversion)
-  - [ ] Watchtower (stationary scouting)
+### Phase 9: Enhanced Mode + Sabotage — PLANNED
+
+**Enhanced Mode buildings** (defined in constants, effects not implemented):
+- [ ] Apartment, Dock, Lighthouse, Granary, Marketplace, Watchtower effects
+- [ ] Fog of war on opponent island
+- [ ] PT boat scouting radius reveals fog
+- [ ] Multiplayer entitlement: **host's Premium covers the room** — if the host owns
+      Premium, both players get Enhanced Mode for that match. Requires an entitlement
+      flag in the room record. Chosen over prompting the guest mid-lobby, which would
+      paywall someone at the moment they just accepted a friend's invitation.
+
+**Sabotage — buy a rebel and inflict it on your opponent** (from the 1981 original):
+- [ ] Spend gold (`REBEL_SPAWN_COST`, already defined as 30) to spawn a rebel on the
+      opponent's island
+- [ ] Targeted Firebase action channel — the first true cross-player action in the game.
+      Weather is broadcast and resolved locally; sabotage directly modifies another
+      player's board.
+- [ ] Receiving client applies the rebel locally, respecting existing fort protection rules
+- [ ] Notification for the victim, UI affordance for the attacker
+- [ ] AI equivalent in solo play, in both directions
+
+**Explicitly declined:** PvP boat combat. Would require a shared grid containing both
+islands, high-rate boat position sync with interpolation, and host-authoritative
+collision adjudication. Not proceeding.
 
 ### Phase 10: Final Polish
 - [ ] Contextual tutorial hints
 - [ ] Haptic feedback (mobile)
 - [ ] Performance optimization
-- [ ] App icon design
-- [ ] Splash screen
-- [ ] App store assets
-- [ ] Privacy policy
-- [ ] TestFlight / Play Store beta
+- [x] App icon design
+- [x] Splash screen
+- [ ] App store assets (screenshots — iPhone + iPad landscape)
+- [x] Privacy policy + Terms (tartan-studios.com/eutopia/)
+- [x] TestFlight beta (live — build 4, internal testers)
+- [ ] App Store submission
 
 ---
 
@@ -1203,7 +1218,7 @@ BALANCE = {
 
 ---
 
-*Last Updated: August 11, 2026*
+*Last Updated: August 19, 2026*
 
 ---
 
@@ -1220,7 +1235,8 @@ BALANCE = {
 | 6 | Animations & Polish | ✅ Complete |
 | SDK 55 | Migration + expo-audio | ✅ Complete — v0.7.0 tagged |
 | 7 | AI Opponent | 🔶 Basic AI functional, enhancements planned |
-| 8 | Multiplayer | 🔶 In progress — 8A–8D complete, 8E active |
+| 8 | Multiplayer | ✅ Complete — v0.8.0 tagged |
+| — | EAS preview build / iOS verification | 🔶 Next — blocks release track |
 | 9 | Enhanced Mode Features | 🔜 Planned |
 | 10 | Final Polish | 🔜 Planned |
 
@@ -1232,19 +1248,17 @@ BALANCE = {
 - iOS testing resumes once all other Tartan Studios apps migrate to SDK 55
 
 **Known Issues:**
-- PvP boat combat not implemented — and not possible without a shared-grid rework
-  (see PROJECT_STATUS.md Known Issues). Each player's island occupies its own
-  coordinate space; there is no shared water. Deferred pending a decision.
 - Enhanced mode building effects not yet implemented (Dock, Lighthouse, etc.)
 - Tutorial spotlight positions are approximate/hardcoded
 - Icon first-render delay on Android dev builds (non-issue in production EAS builds)
 - Music occasionally silent on cold emulator boot (play() before native load completes)
+- PvP boat combat: considered and **explicitly declined** — see Phase 9 notes
 
 **Recent Highlights:**
-- Phase 8A–8D complete: Firebase multiplayer, lobby, full state sync, opponent minimap
-- Host-authoritative round timer eliminates clock drift between players
-- Host-broadcast spawn events keep weather frequency identical, positions independent
-- Fog of war on opponent minimap: where they build is visible, what they build is not
+- Phase 8 complete and tagged v0.8.0 — full multiplayer
+- First successful iOS build; running on TestFlight with internal testers
+- iOS-only crash found and fixed: React Native `<Modal>` aborts under landscape lock
+- Privacy policy and terms published; App Store listing in progress
+- Storm damage capped at 1 building, hurricane at 3 — storms were previously uncapped
+- Boat costs rebalanced: fishing 28→15, PT 40→25
 - Farm idle sway animation removed (crops no longer rock)
-- SDK 55 migration complete: expo-audio, Android overflow fix, preload decoupled
-- Phase 6 complete: smoke overlays, fort flag, score animation, image preloading

@@ -12,7 +12,7 @@
       "supportsTablet": true,
       "requireFullScreen": true,
       "bundleIdentifier": "com.tartanstudios.eutopia",
-      "buildNumber": "1",
+      "buildNumber": "4",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "SKAdNetworkItems": [
@@ -175,7 +175,10 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1a2530"
-      }
+      },
+      "permissions": [
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -200,7 +203,7 @@
     ],
     "extra": {
       "eas": {
-        "projectId": ""
+        "projectId": "55239390-acab-4dd0-ab7b-beb87d6176f4"
       }
     },
     "owner": "sirgreig",
@@ -210,7 +213,8 @@
     "updates": {
       "enabled": true,
       "checkAutomatically": "ON_LOAD",
-      "fallbackToCacheTimeout": 0
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/55239390-acab-4dd0-ab7b-beb87d6176f4"
     }
   }
 }
