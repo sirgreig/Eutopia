@@ -65,6 +65,14 @@ import {
 } from './src/types';
 import { BUILDINGS, BOAT_COSTS, BALANCE, PIRATE_DIFFICULTY, STORM_DIFFICULTY, HURRICANE_DIFFICULTY, GRID_WIDTH, GRID_HEIGHT, REBEL_SPAWN_COST, getAvailableBuildings } from './src/constants/game';
 import { inflictRebel } from './src/services/rebels';
+import {
+  getFortPositions,
+  isTileFortProtected,
+  isBoatFortProtected as isBoatNearFort,
+  effectiveBuildingDestroyChance,
+  rollBudget,
+} from './src/services/fortProtection';
+import { SinkingBoat, SinkableType, SINK_ANIMATION_MS } from './src/components/game/SinkingBoat';
 
 // Audio imports - simple system adapted from IJBA
 import { initializeSounds, Sounds } from './src/services/soundManager';
@@ -74,10 +82,11 @@ import { SetupScreen, GameConfig } from './src/components/setup/SetupScreen';
 import { TitleScreen } from './src/components/title/TitleScreen';
 import { WhatsNewPanel } from './src/components/common/WhatsNewPanel';
 import { getUnseenReleaseNotes, markReleaseNotesSeen } from './src/services/whatsNewService';
-import { ReleaseNote } from './src/constants/whatsNew';
+import { ReleaseNote, RELEASE_NOTES } from './src/constants/whatsNew';
 
 // AI Opponent imports
 import { useAIOpponent } from './src/hooks/useAIOpponent';
+import { useAds } from './src/hooks/useAds';
 import { AIIslandMinimap } from './src/components/game/AIIslandMinimap';
 import { MultiplayerIslandMinimap } from './src/components/game/MultiplayerIslandMinimap';
 import { ConnectionBanner } from './src/components/game/ConnectionBanner';
@@ -104,6 +113,11 @@ const MENU_ICON_SIZE = 28;
 // Phase 8E — connection thresholds (ms)
 const MP_STALE_MS = 10000;     // opponent considered disconnected
 const MP_FORFEIT_MS = 180000;  // 3 minutes → forfeit
+
+// Interstitial ads: show after every Nth round end. Every round across a 15-round
+// game would be punishing; this lands roughly four ads in a full game.
+// House rule: ads only at natural pause points, never mid-round.
+const AD_ROUND_INTERVAL = 4;
 
 const MenuBuildingIcon = ({ type }: { type: string }) => {
   switch (type) {
@@ -171,6 +185,8 @@ export default function App() {
   const [showTitle, setShowTitle] = useState(true);
   // What's New — release notes the player hasn't seen yet
   const [whatsNewNotes, setWhatsNewNotes] = useState<ReleaseNote[]>([]);
+  // True when the player opened release notes deliberately from Settings
+  const [browsingReleaseNotes, setBrowsingReleaseNotes] = useState(false);
   const [showQuitConfirm, setShowQuitConfirm] = useState(false);
   const [animationsEnabled, setAnimationsEnabled] = useState(true);
 
@@ -219,7 +235,48 @@ export default function App() {
   
   // Audio settings hook
   const { isAudioEnabled, toggleAllAudio } = useAudioSettings();
+
+  // Ads — no-ops entirely while ADS_ENABLED is false in adService.ts
+  const { showAd } = useAds();
   
+  // Vessels currently playing their sinking animation (visual only — already
+  // removed from play, so they no longer fish, move, hunt or count for scoring).
+  // Covers player boats AND pirate ships sunk by PT boats.
+  const [sinkingBoats, setSinkingBoats] = useState<
+    { id: string; type: SinkableType; position: WaterPosition }[]
+  >([]);
+
+  /** Queue a vessel's sinking animation. */
+  const addSinking = useCallback(
+    (entities: { id: string; type: SinkableType; position: WaterPosition }[]) => {
+      if (entities.length === 0) return;
+      setSinkingBoats((prev) => [...prev, ...entities]);
+    },
+    []
+  );
+
+  /**
+   * Remove player boats from play and start their sinking animation.
+   * Every sink path (storm, hurricane, pirate) goes through here so the animation
+   * can't be forgotten in one of them.
+   */
+  const sinkBoats = useCallback((boatIds: string[]) => {
+    if (boatIds.length === 0) return;
+    const doomed = freeRoamBoatsRef.current.filter((b) => boatIds.includes(b.id));
+    if (doomed.length === 0) return;
+
+    addSinking(doomed.map((b) => ({ id: b.id, type: b.type as SinkableType, position: b.position })));
+
+    freeRoamBoatsRef.current = freeRoamBoatsRef.current.filter(
+      (b) => !boatIds.includes(b.id)
+    );
+    setFreeRoamBoats((prev) => prev.filter((b) => !boatIds.includes(b.id)));
+  }, [addSinking]);
+
+  const removeSunkBoat = useCallback((id: string) => {
+    setSinkingBoats((prev) => prev.filter((b) => b.id !== id));
+  }, []);
+
   // Sabotage — one per round per player
   const [sabotageUsedRound, setSabotageUsedRound] = useState<number>(-1);
 
@@ -281,6 +338,7 @@ export default function App() {
   const stormTotalPausedRef = useRef<number>(0);
   const stormPauseStartRef = useRef<number>(0);
   const stormBuildingsDestroyedRef = useRef<number>(0);
+  const stormBoatsSunkRef = useRef<number>(0);
   
   // Hurricane refs
   const hurricaneTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -290,6 +348,10 @@ export default function App() {
   const hurricaneTotalPausedRef = useRef<number>(0);
   const hurricanePauseStartRef = useRef<number>(0);
   const hurricaneBuildingsDestroyedRef = useRef<number>(0);
+  const hurricaneBoatsSunkRef = useRef<number>(0);
+  // Budgets rolled per hurricane at spawn so severity varies between them
+  const hurricaneBuildingBudgetRef = useRef<number>(0);
+  const hurricaneBoatBudgetRef = useRef<number>(0);
 
   // Tutorial hook
   const {
@@ -815,6 +877,7 @@ export default function App() {
     stormTotalPausedRef.current = 0;
     stormPauseStartRef.current = 0;
     stormBuildingsDestroyedRef.current = 0;
+    stormBoatsSunkRef.current = 0;
     setStormCloud({ startX: sX, startY: sY, endX: eX, endY: eY, duration: dur });
     showToast('⛈️ Tropical storm approaching!', 'rebel');
     Sounds.rebelAppear();
@@ -835,6 +898,16 @@ export default function App() {
     hurricaneTotalPausedRef.current = 0;
     hurricanePauseStartRef.current = 0;
     hurricaneBuildingsDestroyedRef.current = 0;
+    hurricaneBoatsSunkRef.current = 0;
+    // Roll this hurricane's severity now, so some are far worse than others
+    hurricaneBuildingBudgetRef.current = rollBudget(
+      BALANCE.hurricaneMinBuildingsDestroyed,
+      BALANCE.hurricaneMaxBuildingsDestroyed
+    );
+    hurricaneBoatBudgetRef.current = rollBudget(
+      BALANCE.hurricaneMinBoatsSunk,
+      BALANCE.hurricaneMaxBoatsSunk
+    );
     setHurricaneCloud({ startX: sX, startY: sY, endX: eX, endY: eY, duration: dur });
     showToast('🌀 HURRICANE approaching!', 'rebel');
     Sounds.rebelAppear();
@@ -1104,20 +1177,7 @@ export default function App() {
     const gridOriginX = (screenWidth - gridW) / 2;
     const gridOriginY = 56 + ((screenHeight - 56) - gridH) / 2;
     
-    // Get fort positions for protection checks
-    const fortPositions = island.tiles
-      .filter(t => t.building === 'fort')
-      .map(t => t.position);
-    
-    const isTileProtected = (pos: { x: number; y: number }): boolean => {
-      for (const fort of fortPositions) {
-        if (Math.abs(pos.x - fort.x) <= BALANCE.fortRadius &&
-            Math.abs(pos.y - fort.y) <= BALANCE.fortRadius) {
-          return true;
-        }
-      }
-      return false;
-    };
+    const fortPositions = getFortPositions(island);
     
     stormDamageIntervalRef.current = setInterval(() => {
       if (!isRoundActiveRef.current) return; // No damage between rounds
@@ -1161,9 +1221,13 @@ export default function App() {
             cloudY < tileScreenY + tileSize && cloudY + cloudHeight > tileScreenY) {
           stormDamagedTilesRef.current.add(tileKey); // Mark as rolled
           
-          if (isTileProtected(tile.position)) continue; // Fort protected
+          // Forts give 50% protection, not immunity
+          const chance = effectiveBuildingDestroyChance(
+            stormDiff.buildingDestroy,
+            isTileFortProtected(tile.position, fortPositions)
+          );
           
-          if (Math.random() < stormDiff.buildingDestroy) {
+          if (Math.random() < chance) {
             stormBuildingsDestroyedRef.current++;
             const buildingName = BUILDINGS.find(b => b.type === tile.building)?.name || tile.building;
             setIsland(prev => ({
@@ -1178,29 +1242,20 @@ export default function App() {
         }
       }
       
-      // Check boat damage
+      // Check boat damage — boats within a fort's radius are fully immune
       const currentBoats = freeRoamBoatsRef.current;
       const boatsToSink: string[] = [];
       
       for (const boat of currentBoats) {
+        if (stormBoatsSunkRef.current + boatsToSink.length >= BALANCE.stormMaxBoatsSunk) break;
         const boatScreenX = gridOriginX + boat.position.x * tileSize;
         const boatScreenY = gridOriginY + boat.position.y * tileSize;
         
         if (cloudX < boatScreenX + tileSize && cloudX + cloudWidth > boatScreenX &&
             cloudY < boatScreenY + tileSize && cloudY + cloudHeight > boatScreenY) {
           
-          // Check fort protection for boats
-          const fortCenter = { x: boat.position.x, y: boat.position.y };
-          let boatProtected = false;
-          for (const fort of fortPositions) {
-            const dx = boat.position.x - (fort.x + 0.5);
-            const dy = boat.position.y - (fort.y + 0.5);
-            if (Math.sqrt(dx * dx + dy * dy) <= BALANCE.fortRadius + 0.5) {
-              boatProtected = true;
-              break;
-            }
-          }
-          if (boatProtected) continue;
+          // 100% fort protection for boats
+          if (isBoatNearFort(boat.position, fortPositions)) continue;
           
           if (Math.random() < stormDiff.boatSink) {
             boatsToSink.push(boat.id);
@@ -1209,8 +1264,8 @@ export default function App() {
       }
       
       if (boatsToSink.length > 0) {
-        setFreeRoamBoats(prev => prev.filter(b => !boatsToSink.includes(b.id)));
-        freeRoamBoatsRef.current = freeRoamBoatsRef.current.filter(b => !boatsToSink.includes(b.id));
+        stormBoatsSunkRef.current += boatsToSink.length;
+        sinkBoats(boatsToSink);
         
         for (const boatId of boatsToSink) {
           const sunkBoat = currentBoats.find(b => b.id === boatId);
@@ -1308,12 +1363,14 @@ export default function App() {
         showToast(`+${wateredCrops}g from hurricane rain!`, 'rain');
       }
       
-      // Check building damage — hurricanes can destroy forts too
-      if (hurricaneBuildingsDestroyedRef.current < BALANCE.hurricaneMaxBuildingsDestroyed) {
+      // Check building damage — hurricanes can destroy forts too, but respect this
+      // hurricane's rolled budget rather than a fixed cap
+      if (hurricaneBuildingsDestroyedRef.current < hurricaneBuildingBudgetRef.current) {
         const buildingTiles = island.tiles.filter(t => t.building);
+        const fortPositions = getFortPositions(island);
         
         for (const tile of buildingTiles) {
-          if (hurricaneBuildingsDestroyedRef.current >= BALANCE.hurricaneMaxBuildingsDestroyed) break;
+          if (hurricaneBuildingsDestroyedRef.current >= hurricaneBuildingBudgetRef.current) break;
           const tileKey = `${tile.position.x},${tile.position.y}`;
           if (hurricaneDamagedTilesRef.current.has(tileKey)) continue;
           
@@ -1324,10 +1381,16 @@ export default function App() {
               cloudY < tileScreenY + tileSize && cloudY + cloudSize > tileScreenY) {
             hurricaneDamagedTilesRef.current.add(tileKey);
             
-            // Forts have lower destroy chance, other buildings use standard rate
-            const destroyChance = tile.building === 'fort' ? hurDiff.fortDestroy : hurDiff.buildingDestroy;
+            // Forts have a lower destroy chance; other buildings use the standard
+            // rate, halved when they sit inside a fort's radius
+            const baseChance = tile.building === 'fort'
+              ? hurDiff.fortDestroy
+              : effectiveBuildingDestroyChance(
+                  hurDiff.buildingDestroy,
+                  isTileFortProtected(tile.position, fortPositions)
+                );
             
-            if (Math.random() < destroyChance) {
+            if (Math.random() < baseChance) {
               hurricaneBuildingsDestroyedRef.current++;
               const buildingName = BUILDINGS.find(b => b.type === tile.building)?.name || tile.building;
               setIsland(prev => ({
@@ -1343,17 +1406,21 @@ export default function App() {
         }
       }
       
-      // Check boat damage — very high sink rate
+      // Check boat damage — capped by this hurricane's rolled boat budget, and
+      // boats inside a fort's radius are fully immune (changed Aug 2026: hurricanes
+      // used to ignore forts entirely)
       const currentBoats = freeRoamBoatsRef.current;
       const boatsToSink: string[] = [];
+      const boatFortPositions = getFortPositions(island);
       
       for (const boat of currentBoats) {
+        if (hurricaneBoatsSunkRef.current + boatsToSink.length >= hurricaneBoatBudgetRef.current) break;
         const boatScreenX = gridOriginX + boat.position.x * tileSize;
         const boatScreenY = gridOriginY + boat.position.y * tileSize;
         
         if (cloudX < boatScreenX + tileSize && cloudX + cloudSize > boatScreenX &&
             cloudY < boatScreenY + tileSize && cloudY + cloudSize > boatScreenY) {
-          // No fort protection from hurricanes
+          if (isBoatNearFort(boat.position, boatFortPositions)) continue;
           if (Math.random() < hurDiff.boatSink) {
             boatsToSink.push(boat.id);
           }
@@ -1361,8 +1428,8 @@ export default function App() {
       }
       
       if (boatsToSink.length > 0) {
-        setFreeRoamBoats(prev => prev.filter(b => !boatsToSink.includes(b.id)));
-        freeRoamBoatsRef.current = freeRoamBoatsRef.current.filter(b => !boatsToSink.includes(b.id));
+        hurricaneBoatsSunkRef.current += boatsToSink.length;
+        sinkBoats(boatsToSink);
         
         for (const boatId of boatsToSink) {
           const sunkBoat = currentBoats.find(b => b.id === boatId);
@@ -1761,8 +1828,14 @@ export default function App() {
         };
       });
       
-      // Remove sunk pirates
+      // Remove sunk pirates — capture their positions first so the animation can
+      // play where they actually went down
       if (piratesSunk.length > 0) {
+        addSinking(
+          piratesRef.current
+            .filter(p => piratesSunk.includes(p.id))
+            .map(p => ({ id: p.id, type: 'pirate' as SinkableType, position: p.position }))
+        );
         piratesRef.current = piratesRef.current.filter(p => !piratesSunk.includes(p.id));
         Sounds.boatCrash();
         showToast('PT boat sank the pirates!', 'stability');
@@ -1770,11 +1843,7 @@ export default function App() {
       
       // Remove sunk fishing boats
       if (boatsSunk.length > 0) {
-        setFreeRoamBoats(prev => {
-          const updated = prev.filter(b => !boatsSunk.includes(b.id));
-          freeRoamBoatsRef.current = updated;
-          return updated;
-        });
+        sinkBoats(boatsSunk);
         Sounds.boatCrash();
         if (casualties > 0) {
           setPopulation(p => Math.max(1, p - casualties));
@@ -1958,6 +2027,18 @@ export default function App() {
       setTimeout(() => setShowGameOver(true), 1500);
     } else {
       showToast(`+${income}g income`, 'gold');
+
+      // Interstitial ad at a natural pause point.
+      //
+      // SOLO ONLY for now. In multiplayer the round timer is host-authoritative and
+      // shared: if the host sits in a fullscreen ad, the guest is stuck on "Waiting
+      // for host" with no explanation. Revisit once there's a way to show both
+      // players an ad simultaneously, or to run it during the guest's wait.
+      if (!isMultiplayer && round > 0 && round % AD_ROUND_INTERVAL === 0) {
+        // Fire and forget — showAd resolves false when no ad is ready, and the
+        // whole path is inert while ADS_ENABLED is false.
+        showAd().catch(() => { /* never block round flow on an ad */ });
+      }
     }
   };
 
@@ -2203,6 +2284,29 @@ export default function App() {
     return positions;
   }, [measuredTargets, tutorialTile, tileSize]);
 
+  // What's New panel — shown automatically after an update, or on demand from
+  // Settings. Rendered on every screen that can open Settings.
+  const releaseNotesPanel = (
+    <WhatsNewPanel
+      visible={(browsingReleaseNotes || whatsNewNotes.length > 0) && !showNamePrompt && !showSettings}
+      notes={browsingReleaseNotes ? RELEASE_NOTES : whatsNewNotes}
+      reduceMotion={!animationsEnabled}
+      onDismiss={() => {
+        if (browsingReleaseNotes) {
+          setBrowsingReleaseNotes(false);
+        } else {
+          markReleaseNotesSeen();
+          setWhatsNewNotes([]);
+        }
+      }}
+    />
+  );
+
+  const openReleaseNotes = () => {
+    setShowSettings(false);
+    setBrowsingReleaseNotes(true);
+  };
+
   // Show multiplayer lobby
   if (showMultiplayer) {
     return (
@@ -2250,6 +2354,7 @@ export default function App() {
           onClose={() => setShowSettings(false)}
           playerName={playerName || undefined}
           onPlayerNameChange={setPlayerName}
+          onShowReleaseNotes={openReleaseNotes}
         />
         <NamePromptModal
           visible={showNamePrompt}
@@ -2257,15 +2362,7 @@ export default function App() {
         />
         {/* What's New — shown over the title screen, but never on top of the
             name prompt, which a first-time player must answer first. */}
-        <WhatsNewPanel
-          visible={whatsNewNotes.length > 0 && !showNamePrompt && !showSettings}
-          notes={whatsNewNotes}
-          reduceMotion={!animationsEnabled}
-          onDismiss={() => {
-            markReleaseNotesSeen();
-            setWhatsNewNotes([]);
-          }}
-        />
+        {releaseNotesPanel}
       </View>
     );
   }
@@ -2285,11 +2382,13 @@ export default function App() {
           onClose={() => setShowSettings(false)} 
           playerName={playerName || undefined}
           onPlayerNameChange={setPlayerName}
+          onShowReleaseNotes={openReleaseNotes}
         />
         <NamePromptModal
           visible={showNamePrompt}
           onComplete={(name) => { setPlayerName(name); setShowNamePrompt(false); }}
         />
+        {releaseNotesPanel}
       </View>
     );
   }
@@ -2448,6 +2547,18 @@ export default function App() {
                   tileSize={tileSize}
                 />
               )}
+
+              {/* Boats going down — purely visual, already out of play */}
+              {sinkingBoats.map(boat => (
+                <SinkingBoat
+                  key={boat.id}
+                  id={boat.id}
+                  type={boat.type}
+                  position={boat.position}
+                  tileSize={tileSize}
+                  onComplete={removeSunkBoat}
+                />
+              ))}
             </Island>
           </View>
         )}
@@ -2599,7 +2710,10 @@ export default function App() {
         maxRounds={maxRounds}
         playerName={playerName || undefined}
         onPlayerNameChange={setPlayerName}
+        onShowReleaseNotes={openReleaseNotes}
       />
+
+      {releaseNotesPanel}
       
       {/* Tutorial Overlay */}
       {isTutorialActive && tutorialStep && (

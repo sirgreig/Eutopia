@@ -9,37 +9,35 @@
 
 import { Island, Tile } from '../types';
 import { BALANCE } from '../constants/game';
+import { getFortPositions, isTileFortProtected } from './fortProtection';
 
 /**
  * Choose a tile a rebel can appear on.
  *
- * Rules (matching the existing endRound behaviour):
+ * Rules:
  *  - never a tile that already has a rebel
  *  - never a fort itself
- *  - never a tile within BALANCE.fortRadius of a fort
+ *  - tiles within a fort's radius get 50% protection: each is only half as likely
+ *    to be eligible. Forts make an area resilient, not immune (changed Aug 2026 —
+ *    protection used to be absolute).
  *
  * Preference: tiles WITH a building are chosen first. An uprising on bare grass
  * costs the victim nothing, which makes paid sabotage feel like a waste of gold.
- * Falls back to empty tiles when every developed tile is protected.
+ * Falls back to empty tiles when no developed tile is available.
  *
  * Returns null when the island has no valid target at all.
  */
 export function pickRebelTarget(island: Island): Tile | null {
-  const fortPositions = island.tiles
-    .filter((t) => t.building === 'fort')
-    .map((t) => t.position);
-
-  const isProtected = (pos: { x: number; y: number }): boolean =>
-    fortPositions.some(
-      (fort) =>
-        Math.abs(pos.x - fort.x) <= BALANCE.fortRadius &&
-        Math.abs(pos.y - fort.y) <= BALANCE.fortRadius
-    );
+  const forts = getFortPositions(island);
 
   const eligible = island.tiles.filter((t) => {
     if (t.hasRebel) return false;
     if (t.building === 'fort') return false;
-    return !isProtected(t.position);
+    // 50% protection — protected tiles are half as likely to be considered
+    if (isTileFortProtected(t.position, forts)) {
+      return Math.random() < BALANCE.fortBuildingProtection;
+    }
+    return true;
   });
 
   if (eligible.length === 0) return null;

@@ -157,8 +157,11 @@ export const BALANCE = {
   stabilityScoreGain: 10,
   stabilityHighScore: 70,
   
-  // Fort protection radius
-  fortRadius: 1,
+  // Fort protection
+  fortRadius: 1,                 // 1 = the 8 tiles immediately surrounding the fort
+  fortBuildingProtection: 0.5,   // Halves the chance a protected building is destroyed
+                                 // (and roughly halves rebel targeting). NOT immunity.
+  // Boats within fortRadius are fully immune to weather — see fortProtection.ts
   
   // PT boat scouting radius (tiles)
   ptScoutRadius: 3,
@@ -184,6 +187,7 @@ export const BALANCE = {
   stormCasualtiesMin: 0,         // Min population lost per boat sunk
   stormCasualtiesMax: 30,        // Max population lost per boat sunk
   stormMaxBuildingsDestroyed: 1, // Hard cap per storm — storms are a nuisance, not a wipe
+  stormMaxBoatsSunk: 1,          // Hard cap per storm
   // Difficulty-specific values set in STORM_DIFFICULTY below
   
   // Hurricanes
@@ -192,7 +196,12 @@ export const BALANCE = {
   hurricaneCasualtiesMin: 10,    // Min population lost per boat sunk
   hurricaneCasualtiesMax: 80,    // Max population lost per boat sunk
   hurricaneMinRound: 4,          // Earliest round a hurricane can appear
-  hurricaneMaxBuildingsDestroyed: 3, // Hard cap per hurricane — severe, and can take forts
+  // Each hurricane rolls its own budget in this range at spawn, so severity varies
+  // between hurricanes instead of always reaching the cap.
+  hurricaneMinBuildingsDestroyed: 1,
+  hurricaneMaxBuildingsDestroyed: 3,
+  hurricaneMinBoatsSunk: 1,
+  hurricaneMaxBoatsSunk: 2,
   // Difficulty-specific values set in HURRICANE_DIFFICULTY below
 } as const;
 
@@ -204,10 +213,11 @@ export const PIRATE_DIFFICULTY = {
 } as const;
 
 // Tropical storm difficulty scaling
+// spawnChance reduced ~25% (Aug 2026) — storms were appearing too often
 export const STORM_DIFFICULTY = {
-  easy:   { spawnChance: 0.10, buildingDestroy: 0.20, boatSink: 0.20, speed: 20 },
-  normal: { spawnChance: 0.18, buildingDestroy: 0.30, boatSink: 0.25, speed: 22 },
-  hard:   { spawnChance: 0.28, buildingDestroy: 0.40, boatSink: 0.35, speed: 28 },
+  easy:   { spawnChance: 0.075, buildingDestroy: 0.20, boatSink: 0.20, speed: 20 },
+  normal: { spawnChance: 0.135, buildingDestroy: 0.30, boatSink: 0.25, speed: 22 },
+  hard:   { spawnChance: 0.21,  buildingDestroy: 0.40, boatSink: 0.35, speed: 28 },
 } as const;
 
 // Hurricane difficulty scaling — much more destructive, can destroy forts

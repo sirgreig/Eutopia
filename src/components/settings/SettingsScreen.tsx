@@ -100,6 +100,8 @@ interface SettingsScreenProps {
     playerName?: string;
     /** Called with the new name after it has been validated and persisted. */
     onPlayerNameChange?: (name: string) => void;
+    /** Opens the What's New panel with the full release history. */
+    onShowReleaseNotes?: () => void;
 }
 
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({
@@ -109,6 +111,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     maxRounds = 15,
     playerName,
     onPlayerNameChange,
+    onShowReleaseNotes,
 }) => {
     const { width: screenWidth, height: screenHeight } = useWindowDimensions();
     const isLandscape = screenWidth > screenHeight;
@@ -158,9 +161,19 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     const renderBuildFooter = () => {
         const info = getUpdateInfo();
         return (
-            <Text style={styles.buildFooter}>
-                Eutopia 1.0.0  ·  {updateLine(info)}  ·  notes {LATEST_RELEASE_ID}
-            </Text>
+            <>
+                {onShowReleaseNotes && (
+                    <TouchableOpacity
+                        style={styles.releaseNotesButton}
+                        onPress={() => { Sounds.buttonClick(); onShowReleaseNotes(); }}
+                    >
+                        <Text style={styles.releaseNotesText}>What's New</Text>
+                    </TouchableOpacity>
+                )}
+                <Text style={styles.buildFooter}>
+                    Eutopia 1.0.0  ·  {updateLine(info)}  ·  notes {LATEST_RELEASE_ID}
+                </Text>
+            </>
         );
     };
 
@@ -744,6 +757,20 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         marginTop: 10,
         marginBottom: 4,
+    },
+    releaseNotesButton: {
+        alignSelf: 'center',
+        paddingVertical: 6,
+        paddingHorizontal: 16,
+        marginTop: 10,
+        borderRadius: 6,
+        borderWidth: 1,
+        borderColor: '#2a4a5a',
+    },
+    releaseNotesText: {
+        fontSize: 12,
+        color: '#88a4b8',
+        fontWeight: '600',
     },
     currentName: {
         fontSize: 18,

@@ -14,6 +14,48 @@ interface PirateShipProps {
   mapOffsetY?: number;
 }
 
+/**
+ * The pirate ship artwork on its own, so it can be reused outside the moving
+ * ship component — notably by SinkingBoat when a PT boat takes one down.
+ */
+export const PirateShipIcon: React.FC<{ size: number }> = ({ size }) => (
+  <Svg width={size} height={size} viewBox="0 0 60 60">
+    {/* Hull - dark wood */}
+    <Path
+      d="M8,38 L14,48 L46,48 L52,38 Z"
+      fill="#2d1b0e"
+      stroke="#1a0f06"
+      strokeWidth="1"
+    />
+    {/* Hull stripe */}
+    <Path d="M11,42 L49,42" stroke="#8b0000" strokeWidth="2" />
+
+    {/* Mast */}
+    <Line x1="30" y1="14" x2="30" y2="42" stroke="#3e2723" strokeWidth="2.5" />
+
+    {/* Sail - tattered dark */}
+    <Path d="M32,16 L48,22 L46,34 L32,36 Z" fill="#1a1a1a" opacity={0.85} />
+
+    {/* Skull on sail */}
+    <Circle cx="39" cy="24" r="4" fill="#e0e0e0" />
+    <Circle cx="37.5" cy="23.5" r="1" fill="#1a1a1a" />
+    <Circle cx="40.5" cy="23.5" r="1" fill="#1a1a1a" />
+    <Line x1="35" y1="30" x2="43" y2="33" stroke="#e0e0e0" strokeWidth="1.2" />
+    <Line x1="43" y1="30" x2="35" y2="33" stroke="#e0e0e0" strokeWidth="1.2" />
+
+    {/* Flag at top - red/black */}
+    <Polygon points="30,14 30,10 38,12" fill="#8b0000" />
+
+    {/* Wake/water line */}
+    <Path
+      d="M6,46 Q15,44 30,46 Q45,48 54,46"
+      stroke="rgba(255,255,255,0.3)"
+      strokeWidth="1"
+      fill="none"
+    />
+  </Svg>
+);
+
 export const PirateShipComponent: React.FC<PirateShipProps> = ({
   pirate,
   tileSize,
@@ -77,47 +119,7 @@ export const PirateShipComponent: React.FC<PirateShipProps> = ({
       ]}
       pointerEvents="none"
     >
-      <Svg width={shipSize} height={shipSize} viewBox="0 0 60 60">
-        {/* Hull - dark wood */}
-        <Path
-          d="M8,38 L14,48 L46,48 L52,38 Z"
-          fill="#2d1b0e"
-          stroke="#1a0f06"
-          strokeWidth="1"
-        />
-        {/* Hull stripe */}
-        <Path d="M11,42 L49,42" stroke="#8b0000" strokeWidth="2" />
-        
-        {/* Mast */}
-        <Line x1="30" y1="14" x2="30" y2="42" stroke="#3e2723" strokeWidth="2.5" />
-        
-        {/* Sail - tattered dark */}
-        <Path
-          d="M32,16 L48,22 L46,34 L32,36 Z"
-          fill="#1a1a1a"
-          opacity={0.85}
-        />
-        
-        {/* Skull on sail */}
-        <Circle cx="39" cy="24" r="4" fill="#e0e0e0" />
-        {/* Eyes */}
-        <Circle cx="37.5" cy="23.5" r="1" fill="#1a1a1a" />
-        <Circle cx="40.5" cy="23.5" r="1" fill="#1a1a1a" />
-        {/* Crossbones below skull */}
-        <Line x1="35" y1="30" x2="43" y2="33" stroke="#e0e0e0" strokeWidth="1.2" />
-        <Line x1="43" y1="30" x2="35" y2="33" stroke="#e0e0e0" strokeWidth="1.2" />
-        
-        {/* Flag at top - red/black */}
-        <Polygon points="30,14 30,10 38,12" fill="#8b0000" />
-        
-        {/* Wake/water line */}
-        <Path
-          d="M6,46 Q15,44 30,46 Q45,48 54,46"
-          stroke="rgba(255,255,255,0.3)"
-          strokeWidth="1"
-          fill="none"
-        />
-      </Svg>
+      <PirateShipIcon size={shipSize} />
     </Animated.View>
   );
 };
