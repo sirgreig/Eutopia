@@ -34,6 +34,7 @@ import {
   ConstructionIcon,
 } from './Icons';
 import { Sounds } from '../../services/soundManager';
+import { measureAndRegister, clearTutorialTarget } from '../../services/tutorialTargets';
 
 const MenuBuildingIcon = ({ type, size }: { type: string; size: number }) => {
   switch (type) {
@@ -73,6 +74,15 @@ export const AnimatedBuildMenu: React.FC<AnimatedBuildMenuProps> = ({
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const slideAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  // Tutorial: the Crops item's position depends on wrapping, item width and screen
+  // size, so it is measured after layout rather than calculated. Cleared on unmount
+  // so the overlay never points at a menu that isn't on screen.
+  const cropsItemRef = useRef<View | null>(null);
+  useEffect(() => {
+    if (!visible) clearTutorialTarget('building_crops');
+    return () => clearTutorialTarget('building_crops');
+  }, [visible]);
   
   useEffect(() => {
     if (visible) {
@@ -88,7 +98,11 @@ export const AnimatedBuildMenu: React.FC<AnimatedBuildMenuProps> = ({
           easing: Easing.out(Easing.quad),
           useNativeDriver: true,
         }),
-      ]).start();
+      ]).start(() => {
+        // Re-measure once the slide-in has settled — measureInWindow reports the
+        // transformed position, so a measurement taken mid-animation is wrong.
+        measureAndRegister(cropsItemRef.current as any, 'building_crops');
+      });
     } else {
       Animated.parallel([
         Animated.timing(fadeAnim, {
@@ -185,12 +199,26 @@ export const AnimatedBuildMenu: React.FC<AnimatedBuildMenuProps> = ({
         <ScrollView 
           showsVerticalScrollIndicator={false}
           contentContainerStyle={[styles.gridContainer, { paddingHorizontal: gridPadding }]}
+          onScroll={() => measureAndRegister(cropsItemRef.current as any, 'building_crops')}
+          scrollEventThrottle={100}
         >
           {allItems.map((item) => {
             const disabled = gold < item.cost;
+            const isCrops = item.key === 'farm';
             return (
               <TouchableOpacity
                 key={item.key}
+                ref={isCrops ? (cropsItemRef as any) : undefined}
+                onLayout={isCrops
+                  ? () => {
+                      // Measure on the next frame: onLayout fires before the slide-in
+                      // transform has settled, and measureInWindow reports the
+                      // transformed position.
+                      requestAnimationFrame(() =>
+                        measureAndRegister(cropsItemRef.current as any, 'building_crops')
+                      );
+                    }
+                  : undefined}
                 style={[
                   styles.gridItem,
                   { width: itemWidth, margin: itemMargin, paddingVertical: 6, paddingHorizontal: 4 },

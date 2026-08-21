@@ -69,6 +69,10 @@ import { initializeSounds, Sounds } from './src/services/soundManager';
 import { loadAudioSettings, useAudioSettings } from './src/hooks/useAudioSettings';
 import { SettingsScreen } from './src/components/settings/SettingsScreen';
 import { SetupScreen, GameConfig } from './src/components/setup/SetupScreen';
+import { TitleScreen } from './src/components/title/TitleScreen';
+import { WhatsNewPanel } from './src/components/common/WhatsNewPanel';
+import { getUnseenReleaseNotes, markReleaseNotesSeen } from './src/services/whatsNewService';
+import { ReleaseNote } from './src/constants/whatsNew';
 
 // AI Opponent imports
 import { useAIOpponent } from './src/hooks/useAIOpponent';
@@ -79,6 +83,7 @@ import { ConnectionBanner } from './src/components/game/ConnectionBanner';
 // Tutorial imports
 import { useTutorial } from './src/hooks/useTutorial';
 import { TutorialOverlay } from './src/components/game/TutorialOverlay';
+import { useTutorialTargets, measureAndRegister } from './src/services/tutorialTargets';
 
 // Multiplayer imports
 import { NamePromptModal } from './src/components/multiplayer/NamePromptModal';
@@ -161,6 +166,9 @@ export default function App() {
   const [showRoundTransition, setShowRoundTransition] = useState<'start' | 'end' | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showSetup, setShowSetup] = useState(true);
+  const [showTitle, setShowTitle] = useState(true);
+  // What's New — release notes the player hasn't seen yet
+  const [whatsNewNotes, setWhatsNewNotes] = useState<ReleaseNote[]>([]);
   const [showQuitConfirm, setShowQuitConfirm] = useState(false);
   const [animationsEnabled, setAnimationsEnabled] = useState(true);
 
@@ -351,6 +359,7 @@ export default function App() {
   const returnToSetup = useCallback(() => {
     setShowSetup(true);
     setShowGameOver(false);
+    // Title screen is launch-only — quitting a game returns to setup, not the title
     // Deliberately leaving a game — drop the rejoin record
     clearActiveSession();
     // Clear multiplayer state on exit to setup
@@ -375,6 +384,12 @@ export default function App() {
       ]);
       // Start menu music (setup screen)
       Sounds.playMusic('menu');
+
+      // What's New — MUST run before getPlayer(), which creates a player id if
+      // none exists. That id is how we tell a genuine first install apart from a
+      // returning player, so checking afterwards would make every device look new.
+      const unseen = await getUnseenReleaseNotes();
+      if (unseen.length > 0) setWhatsNewNotes(unseen);
 
       // Load or create player identity
       const player = await getPlayer();
@@ -401,6 +416,7 @@ export default function App() {
           setDifficulty(result.room.settings.difficulty);
           setIsRejoining(true);
           setShowSetup(false);
+          setShowTitle(false); // Skip the title screen when resuming a live game
           // Island is restored from Firebase by the rejoin effect below
         } else {
           await clearActiveSession();
@@ -410,11 +426,14 @@ export default function App() {
       // Preload PNG icons — best-effort only (fails silently on Android dev builds
       // where Metro serves assets via HTTP and downloadAsync is rejected)
       try {
-        await Promise.all(
-          Object.values(ICON_IMAGES).map(
+        await Promise.all([
+          ...Object.values(ICON_IMAGES).map(
             (source) => Asset.fromModule(source as number).downloadAsync()
-          )
-        );
+          ),
+          // Title screen artwork — avoids a visible pop on first launch
+          Asset.fromModule(require('./assets/images/title-bg.jpg')).downloadAsync(),
+          Asset.fromModule(require('./assets/images/title-clouds.png')).downloadAsync(),
+        ]);
       } catch {
         // Non-fatal: icons will load on first render instead
       }
@@ -2056,33 +2075,51 @@ export default function App() {
 
   const buildings = getAvailableBuildings(mode);
 
-  // Tutorial element positions for spotlight effect
-  const tutorialElementPositions = island ? {
-    land_tile: {
-      x: (screenWidth - GRID_WIDTH * tileSize) / 2 + island.tiles[Math.floor(island.tiles.length / 2)].position.x * tileSize,
-      y: 60 + island.tiles[Math.floor(island.tiles.length / 2)].position.y * tileSize,
-      width: tileSize,
-      height: tileSize,
-    },
-    gold_display: {
-      x: 10,
-      y: 8,
-      width: 80,
-      height: 40,
-    },
-    timer: {
-      x: screenWidth / 2 - 50,
-      y: 8,
-      width: 100,
-      height: 44,
-    },
-    building_crops: {
-      x: 16,
-      y: screenHeight - 68,
-      width: 70,
-      height: 58,
-    },
-  } : {};
+  // Tutorial spotlight targets — measured at runtime rather than calculated.
+  // See src/services/tutorialTargets.ts for why.
+  const measuredTargets = useTutorialTargets();
+  const mapContainerRef = useRef<View | null>(null);
+  const goldDisplayRef = useRef<View | null>(null);
+  const timerRef2 = useRef<View | null>(null);
+
+  // Pick the tile to highlight: an empty, rebel-free tile nearest the island's
+  // centre. Island shapes are irregular, so the middle of the tiles array is not
+  // necessarily anywhere near the visual centre.
+  const tutorialTile = React.useMemo(() => {
+    if (!island || island.tiles.length === 0) return null;
+    const candidates = island.tiles.filter(t => !t.building && !t.hasRebel);
+    const pool = candidates.length > 0 ? candidates : island.tiles;
+    const cx = pool.reduce((s, t) => s + t.position.x, 0) / pool.length;
+    const cy = pool.reduce((s, t) => s + t.position.y, 0) / pool.length;
+    let best = pool[0];
+    let bestDist = Infinity;
+    for (const t of pool) {
+      const d = Math.hypot(t.position.x - cx, t.position.y - cy);
+      if (d < bestDist) { bestDist = d; best = t; }
+    }
+    return best;
+  }, [island]);
+
+  // Compose the rects the overlay needs. The island grid rect comes from a real
+  // measurement of the map container, so the tile offset is exact on any device.
+  const tutorialElementPositions = React.useMemo(() => {
+    const positions: Record<string, { x: number; y: number; width: number; height: number }> = {};
+
+    const grid = measuredTargets.island_container;
+    if (grid && tutorialTile) {
+      positions.land_tile = {
+        x: grid.x + tutorialTile.position.x * tileSize,
+        y: grid.y + tutorialTile.position.y * tileSize,
+        width: tileSize,
+        height: tileSize,
+      };
+    }
+    if (measuredTargets.gold_display) positions.gold_display = measuredTargets.gold_display;
+    if (measuredTargets.timer) positions.timer = measuredTargets.timer;
+    if (measuredTargets.building_crops) positions.building_crops = measuredTargets.building_crops;
+
+    return positions;
+  }, [measuredTargets, tutorialTile, tileSize]);
 
   // Show multiplayer lobby
   if (showMultiplayer) {
@@ -2113,6 +2150,44 @@ export default function App() {
     );
   }
 
+  // Title screen on launch, ahead of setup
+  if (showTitle && showSetup) {
+    return (
+      <View style={styles.container}>
+        <StatusBar style="light" hidden />
+        <TitleScreen
+          onPlay={() => setShowTitle(false)}
+          onSettings={() => setShowSettings(true)}
+          reduceMotion={!animationsEnabled}
+          versionLabel="v1.0.0"
+          backgroundSource={require('./assets/images/title-bg.jpg')}
+          cloudSource={require('./assets/images/title-clouds.png')}
+        />
+        <SettingsScreen
+          visible={showSettings}
+          onClose={() => setShowSettings(false)}
+          playerName={playerName || undefined}
+          onPlayerNameChange={setPlayerName}
+        />
+        <NamePromptModal
+          visible={showNamePrompt}
+          onComplete={(name) => { setPlayerName(name); setShowNamePrompt(false); }}
+        />
+        {/* What's New — shown over the title screen, but never on top of the
+            name prompt, which a first-time player must answer first. */}
+        <WhatsNewPanel
+          visible={whatsNewNotes.length > 0 && !showNamePrompt && !showSettings}
+          notes={whatsNewNotes}
+          reduceMotion={!animationsEnabled}
+          onDismiss={() => {
+            markReleaseNotesSeen();
+            setWhatsNewNotes([]);
+          }}
+        />
+      </View>
+    );
+  }
+
   // Show setup screen before game starts
   if (showSetup) {
     return (
@@ -2126,6 +2201,8 @@ export default function App() {
         <SettingsScreen 
           visible={showSettings} 
           onClose={() => setShowSettings(false)} 
+          playerName={playerName || undefined}
+          onPlayerNameChange={setPlayerName}
         />
         <NamePromptModal
           visible={showNamePrompt}
@@ -2142,12 +2219,21 @@ export default function App() {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.resourcesRow}>
-          <AnimatedResourceBar icon="💰" value={gold} color="#ffc107" />
+          <View
+            ref={goldDisplayRef}
+            onLayout={() => measureAndRegister(goldDisplayRef.current as any, 'gold_display')}
+          >
+            <AnimatedResourceBar icon="💰" value={gold} color="#ffc107" />
+          </View>
           <AnimatedResourceBar icon="👥" value={population} color="#64b5f6" />
           <AnimatedResourceBar icon="⭐" value={score} maxValue={100} color="#4caf50" showBar />
         </View>
         
-        <View style={styles.headerCenter}>
+        <View
+          style={styles.headerCenter}
+          ref={timerRef2}
+          onLayout={() => measureAndRegister(timerRef2.current as any, 'timer')}
+        >
           {isRoundActive ? (
             <View style={styles.timerContainer}>
               <Text style={[styles.timer, { color: timerColor }]}>{formatTime(timeRemaining)}</Text>
@@ -2218,7 +2304,11 @@ export default function App() {
       {/* Map */}
       <View style={styles.mapArea}>
         {island && (
-          <View style={styles.mapContainer}>
+          <View
+            style={styles.mapContainer}
+            ref={mapContainerRef}
+            onLayout={() => measureAndRegister(mapContainerRef.current as any, 'island_container')}
+          >
             <Island
               island={island}
               tileSize={tileSize}
@@ -2412,6 +2502,8 @@ export default function App() {
         onClose={() => setShowSettings(false)}
         onResetTutorial={handleReplayTutorial}
         maxRounds={maxRounds}
+        playerName={playerName || undefined}
+        onPlayerNameChange={setPlayerName}
       />
       
       {/* Tutorial Overlay */}

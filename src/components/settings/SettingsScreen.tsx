@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import {
     View,
     Text,
+    TextInput,
     StyleSheet,
     TouchableOpacity,
     Pressable,
@@ -14,6 +15,10 @@ import {
     useWindowDimensions,
 } from 'react-native';
 import { useAudioSettings } from '../../hooks/useAudioSettings';
+import { setPlayerName as persistPlayerName } from '../../services/playerService';
+import { validateDisplayName } from '../../services/nameFilter';
+import { getUpdateInfo, updateLine } from '../../services/updateInfo';
+import { LATEST_RELEASE_ID } from '../../constants/whatsNew';
 import { Sounds } from '../../services/soundManager';
 
 // Custom slider component (avoiding @react-native-community/slider crash)
@@ -91,6 +96,10 @@ interface SettingsScreenProps {
     onClose: () => void;
     onResetTutorial?: () => void;
     maxRounds?: number;
+    /** Current display name. When provided, the Player Name section is shown. */
+    playerName?: string;
+    /** Called with the new name after it has been validated and persisted. */
+    onPlayerNameChange?: (name: string) => void;
 }
 
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({
@@ -98,6 +107,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     onClose,
     onResetTutorial,
     maxRounds = 15,
+    playerName,
+    onPlayerNameChange,
 }) => {
     const { width: screenWidth, height: screenHeight } = useWindowDimensions();
     const isLandscape = screenWidth > screenHeight;
@@ -111,7 +122,96 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     
     const [showHowToPlay, setShowHowToPlay] = useState(false);
 
+    // Player name editing
+    const [editingName, setEditingName] = useState(false);
+    const [nameDraft, setNameDraft] = useState('');
+    const [nameError, setNameError] = useState('');
+
     if (!visible) return null;
+
+    const beginEditName = () => {
+        Sounds.buttonClick();
+        setNameDraft(playerName ?? '');
+        setNameError('');
+        setEditingName(true);
+    };
+
+    const cancelEditName = () => {
+        Sounds.buttonClick();
+        setEditingName(false);
+        setNameError('');
+    };
+
+    const saveName = async () => {
+        const result = validateDisplayName(nameDraft);
+        if (!result.ok) {
+            setNameError(result.reason);
+            return;
+        }
+        Sounds.buttonClick();
+        await persistPlayerName(result.name);
+        onPlayerNameChange?.(result.name);
+        setEditingName(false);
+        setNameError('');
+    };
+
+    const renderBuildFooter = () => {
+        const info = getUpdateInfo();
+        return (
+            <Text style={styles.buildFooter}>
+                Eutopia 1.0.0  ·  {updateLine(info)}  ·  notes {LATEST_RELEASE_ID}
+            </Text>
+        );
+    };
+
+    const renderPlayerNameSection = (compact: boolean) => {
+        if (!playerName || !onPlayerNameChange) return null;
+
+        return (
+            <View style={[styles.section, compact && styles.sectionCompact]}>
+                <View style={styles.sectionHeader}>
+                    <Text style={[styles.sectionTitle, compact && styles.sectionTitleCompact]}>
+                        👤 Player Name
+                    </Text>
+                    {!editingName && (
+                        <TouchableOpacity style={styles.resetTutorialButtonInline} onPress={beginEditName}>
+                            <Text style={styles.resetTutorialTextCompact}>Change</Text>
+                        </TouchableOpacity>
+                    )}
+                </View>
+
+                {editingName ? (
+                    <>
+                        <TextInput
+                            style={styles.nameInput}
+                            value={nameDraft}
+                            onChangeText={(t) => { setNameDraft(t); setNameError(''); }}
+                            maxLength={16}
+                            autoFocus
+                            returnKeyType="done"
+                            onSubmitEditing={saveName}
+                            placeholder="Your name"
+                            placeholderTextColor="#445566"
+                        />
+                        {nameError ? <Text style={styles.nameError}>{nameError}</Text> : null}
+                        <View style={styles.nameButtonRow}>
+                            <TouchableOpacity style={styles.nameCancelBtn} onPress={cancelEditName}>
+                                <Text style={styles.nameCancelText}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.nameSaveBtn} onPress={saveName}>
+                                <Text style={styles.nameSaveText}>Save</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </>
+                ) : (
+                    <>
+                        <Text style={styles.currentName}>{playerName}</Text>
+                        <Text style={styles.helpHint}>Your opponent sees this in multiplayer games.</Text>
+                    </>
+                )}
+            </View>
+        );
+    };
 
     const handleMusicToggle = async () => {
         Sounds.buttonClick();
@@ -221,6 +321,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                                 </View>
                             </View>
 
+                            {/* Player Name - full width below columns */}
+                            {renderPlayerNameSection(true)}
+                            {renderBuildFooter()}
+
                             {/* Help Section - full width below columns */}
                             {onResetTutorial && (
                                 <View style={[styles.section, styles.sectionCompact]}>
@@ -296,6 +400,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                                     disabled={!settings.sfxEnabled}
                                 />
                             </View>
+
+                            {/* Player Name Section */}
+                            {renderPlayerNameSection(false)}
+                            {renderBuildFooter()}
 
                             {/* Help Section */}
                             {onResetTutorial && (
@@ -629,6 +737,66 @@ const styles = StyleSheet.create({
         color: '#6a8a9a',
         textAlign: 'center',
         marginTop: 8,
+    },
+    buildFooter: {
+        fontSize: 10,
+        color: '#4a5f6d',
+        textAlign: 'center',
+        marginTop: 10,
+        marginBottom: 4,
+    },
+    currentName: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#4ade80',
+        textAlign: 'center',
+        marginTop: 2,
+    },
+    nameInput: {
+        backgroundColor: '#1a2a3a',
+        borderWidth: 2,
+        borderColor: '#2a4a5a',
+        borderRadius: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        fontSize: 16,
+        color: '#fff',
+        textAlign: 'center',
+    },
+    nameError: {
+        fontSize: 12,
+        color: '#e53935',
+        textAlign: 'center',
+        marginTop: 6,
+    },
+    nameButtonRow: {
+        flexDirection: 'row',
+        gap: 8,
+        marginTop: 10,
+    },
+    nameCancelBtn: {
+        flex: 1,
+        backgroundColor: '#2a4a5a',
+        paddingVertical: 9,
+        borderRadius: 8,
+        alignItems: 'center',
+    },
+    nameCancelText: {
+        color: '#88a4b8',
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    nameSaveBtn: {
+        flex: 1,
+        backgroundColor: '#4ade80',
+        paddingVertical: 9,
+        borderRadius: 8,
+        alignItems: 'center',
+    },
+    nameSaveText: {
+        color: '#0a1a0a',
+        fontSize: 14,
+        fontWeight: 'bold',
     },
     closeButton: {
         backgroundColor: '#4A90D9',
