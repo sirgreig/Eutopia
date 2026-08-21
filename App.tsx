@@ -35,6 +35,7 @@ import { RainCloud } from './src/components/game/RainCloud';
 import { StormCloud } from './src/components/game/StormCloud';
 import { HurricaneCloud } from './src/components/game/HurricaneCloud';
 import { ScoreDisplay } from './src/components/game/ScoreDisplay';
+import { RebelIcon } from './src/components/game/RebelIcon';
 import { EndGameSummary } from './src/components/game/EndGameSummary';
 import { Toast } from './src/components/game/Toast';
 import { RoundTransition } from './src/components/game/RoundTransition';
@@ -62,7 +63,8 @@ import {
   Coastline,
   waterDistance,
 } from './src/types';
-import { BUILDINGS, BOAT_COSTS, BALANCE, PIRATE_DIFFICULTY, STORM_DIFFICULTY, HURRICANE_DIFFICULTY, GRID_WIDTH, GRID_HEIGHT, getAvailableBuildings } from './src/constants/game';
+import { BUILDINGS, BOAT_COSTS, BALANCE, PIRATE_DIFFICULTY, STORM_DIFFICULTY, HURRICANE_DIFFICULTY, GRID_WIDTH, GRID_HEIGHT, REBEL_SPAWN_COST, getAvailableBuildings } from './src/constants/game';
+import { inflictRebel } from './src/services/rebels';
 
 // Audio imports - simple system adapted from IJBA
 import { initializeSounds, Sounds } from './src/services/soundManager';
@@ -90,7 +92,7 @@ import { NamePromptModal } from './src/components/multiplayer/NamePromptModal';
 import { MultiplayerLobby } from './src/components/multiplayer/MultiplayerLobby';
 import { getPlayer } from './src/services/playerService';
 import { hasPlayerName, saveActiveSession, getActiveSession, clearActiveSession } from './src/services/playerService';
-import { setIsland as fbSetIsland, listenToIsland as fbListenToIsland, setPlayerState as fbSetPlayerState, listenToPlayerState as fbListenToPlayerState, PlayerState as FbPlayerState, setRoundState as fbSetRoundState, listenToRoundState as fbListenToRoundState, RoundState as FbRoundState, pushSpawnEvent as fbPushSpawnEvent, listenToSpawnEvents as fbListenToSpawnEvents, SpawnEvent as FbSpawnEvent, promoteToHost as fbPromoteToHost, rejoinRoom as fbRejoinRoom } from './src/services/multiplayerService';
+import { setIsland as fbSetIsland, listenToIsland as fbListenToIsland, setPlayerState as fbSetPlayerState, listenToPlayerState as fbListenToPlayerState, PlayerState as FbPlayerState, setRoundState as fbSetRoundState, listenToRoundState as fbListenToRoundState, RoundState as FbRoundState, pushSpawnEvent as fbPushSpawnEvent, listenToSpawnEvents as fbListenToSpawnEvents, SpawnEvent as FbSpawnEvent, promoteToHost as fbPromoteToHost, rejoinRoom as fbRejoinRoom, pushSabotageAction as fbPushSabotage, listenToSabotageActions as fbListenToSabotage, clearSabotageActions as fbClearSabotage } from './src/services/multiplayerService';
 
 // Fish schools
 import { FishSchoolComponent } from './src/components/game/FishSchool';
@@ -218,6 +220,28 @@ export default function App() {
   // Audio settings hook
   const { isAudioEnabled, toggleAllAudio } = useAudioSettings();
   
+  // Sabotage — one per round per player
+  const [sabotageUsedRound, setSabotageUsedRound] = useState<number>(-1);
+
+  /** Apply an incoming rebel to the player's own island. */
+  const receiveSabotage = useCallback((attackerName?: string) => {
+    setIsland((prev) => {
+      if (!prev) return prev;
+      const result = inflictRebel(prev);
+      if (!result) return prev;
+      const what = result.destroyedBuilding
+        ? BUILDINGS.find((b) => b.type === result.destroyedBuilding)?.name || result.destroyedBuilding
+        : null;
+      const who = attackerName || 'Your opponent';
+      showToast(
+        what ? `${who} sent rebels — ${what} destroyed!` : `${who} sent rebels!`,
+        'rebel'
+      );
+      Sounds.rebelAppear();
+      return result.island;
+    });
+  }, []);
+
   // AI Opponent hook
   const {
     aiIsland,
@@ -228,6 +252,7 @@ export default function App() {
     initializeAI,
     processAIRoundEnd,
     lastAIAction,
+    sabotageAI,
   } = useAIOpponent({
     difficulty,
     mode,
@@ -236,6 +261,7 @@ export default function App() {
     maxRounds,
     playerIsland: island,
     enabled: !isMultiplayer, // AI disabled in multiplayer (real opponent)
+    onAISabotage: () => receiveSabotage('The AI'),
   });
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -314,6 +340,7 @@ export default function App() {
     setShowGameOver(false);
     setShowRoundTransition(null);
     setToast(null);
+    setSabotageUsedRound(-1);
   }, [roundDuration]);
 
   // Start game with config from setup screen
@@ -350,6 +377,7 @@ export default function App() {
     setShowGameOver(false);
     setShowRoundTransition(null);
     setToast(null);
+    setSabotageUsedRound(-1);
     
     // Initialize AI opponent
     setTimeout(() => initializeAI(), 100);
@@ -672,6 +700,60 @@ export default function App() {
   useEffect(() => {
     if (showGameOver) clearActiveSession();
   }, [showGameOver]);
+
+  // Listen for sabotages aimed at this player (multiplayer only)
+  useEffect(() => {
+    if (!isMultiplayer || !mpRoomCode || !playerId) return;
+    const unsubscribe = fbListenToSabotage(mpRoomCode, playerId, (action) => {
+      receiveSabotage(action.fromName);
+    });
+    return unsubscribe;
+  }, [isMultiplayer, mpRoomCode, playerId, receiveSabotage]);
+
+  /** Send a sabotage at the opponent. Costs gold, once per round. */
+  const handleSabotage = useCallback(() => {
+    if (!isRoundActive) {
+      Sounds.buildError();
+      showToast('Only during a round', 'error');
+      return;
+    }
+    if (sabotageUsedRound === round) {
+      Sounds.buildError();
+      showToast('Already sent rebels this round', 'error');
+      return;
+    }
+    if (gold < REBEL_SPAWN_COST) {
+      Sounds.buildError();
+      showToast(`Need ${REBEL_SPAWN_COST} gold`, 'error');
+      return;
+    }
+
+    if (isMultiplayer) {
+      if (!mpRoomCode || !mpOpponentId) return;
+      setGold((g) => g - REBEL_SPAWN_COST);
+      setSabotageUsedRound(round);
+      fbPushSabotage(mpRoomCode, mpOpponentId, {
+        fromPlayerId: playerId,
+        fromName: playerName || 'Opponent',
+        sentAt: Date.now(),
+      }).catch(() => { /* non-fatal — gold already spent, same as any lost action */ });
+      Sounds.rebelAppear();
+      showToast(`Rebels sent to ${mpOpponentName}!`, 'rebel');
+      return;
+    }
+
+    // Solo — apply directly to the AI island
+    const ok = sabotageAI();
+    if (!ok) {
+      Sounds.buildError();
+      showToast('No unprotected tiles — gold refunded', 'error');
+      return;
+    }
+    setGold((g) => g - REBEL_SPAWN_COST);
+    setSabotageUsedRound(round);
+    Sounds.rebelAppear();
+    showToast('Rebels sent to the AI!', 'rebel');
+  }, [isRoundActive, sabotageUsedRound, round, gold, isMultiplayer, mpRoomCode, mpOpponentId, playerId, playerName, mpOpponentName, sabotageAI]);
 
   // ============================================
   // SPAWN-LOCALLY FUNCTIONS (Phase 8C.4)
@@ -2263,6 +2345,19 @@ export default function App() {
         </View>
         
         <View style={styles.headerRight}>
+          {round > 0 && !showGameOver && (
+            <TouchableOpacity
+              onPress={handleSabotage}
+              style={[
+                styles.sabotageButton,
+                (!isRoundActive || sabotageUsedRound === round || gold < REBEL_SPAWN_COST) &&
+                  styles.sabotageButtonDisabled,
+              ]}
+            >
+              <RebelIcon size={16} />
+              <Text style={styles.sabotageCost}>{REBEL_SPAWN_COST}g</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity 
             onPress={toggleAllAudio} 
             style={styles.resetButton}
@@ -2638,6 +2733,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
+  },
+  sabotageButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(229, 57, 53, 0.22)',
+    borderWidth: 1,
+    borderColor: '#e53935',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  sabotageButtonDisabled: {
+    opacity: 0.35,
+  },
+  sabotageCost: {
+    color: '#ff8a80',
+    fontSize: 11,
+    fontWeight: 'bold',
   },
   newBtn: {
     color: '#aaa',

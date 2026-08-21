@@ -3,8 +3,9 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Island, Position, BuildingType, BoatType, GameMode } from '../types';
-import { BUILDINGS, BOAT_COSTS, BALANCE } from '../constants/game';
+import { BUILDINGS, BOAT_COSTS, BALANCE, REBEL_SPAWN_COST } from '../constants/game';
 import { generateIsland } from '../services/islandGenerator';
+import { inflictRebel } from '../services/rebels';
 import {
   AIState,
   AIDifficulty,
@@ -23,6 +24,11 @@ interface UseAIOpponentProps {
   maxRounds: number;
   playerIsland: Island | null;
   enabled: boolean;
+  /**
+   * Called when the AI decides to sabotage the player. App applies the rebel to
+   * the player's island — the hook has no business mutating it directly.
+   */
+  onAISabotage?: () => void;
 }
 
 interface UseAIOpponentReturn {
@@ -35,6 +41,11 @@ interface UseAIOpponentReturn {
   initializeAI: () => void;
   processAIRoundEnd: () => void;
   lastAIAction: string | null;
+  /**
+   * Inflict a rebel on the AI's island (the player sabotaging the AI).
+   * Returns false when the AI has no unprotected tile — caller should refund.
+   */
+  sabotageAI: () => boolean;
 }
 
 export function useAIOpponent({
@@ -45,6 +56,7 @@ export function useAIOpponent({
   maxRounds,
   playerIsland,
   enabled,
+  onAISabotage,
 }: UseAIOpponentProps): UseAIOpponentReturn {
   const [aiState, setAIState] = useState<AIState | null>(null);
   const [lastAIAction, setLastAIAction] = useState<string | null>(null);
@@ -156,6 +168,53 @@ export function useAIOpponent({
     const newState = calculateAIRoundEnd(aiState, difficultySettings);
     setAIState(newState);
   }, [aiState, difficultySettings, enabled]);
+
+  // ============================================
+  // SABOTAGE (Phase 9)
+  // ============================================
+
+  /** Player sabotages the AI. Returns false when the AI has no valid target. */
+  const sabotageAI = useCallback((): boolean => {
+    if (!aiState || !enabled) return false;
+    const result = inflictRebel(aiState.island);
+    if (!result) return false;
+    setAIState((prev) => (prev ? { ...prev, island: result.island } : prev));
+    setLastAIAction('Rebels uprising!');
+    return true;
+  }, [aiState, enabled]);
+
+  // AI decides whether to sabotage the player. Deliberately handled here rather
+  // than in makeAIDecision(): sabotage is a cross-player action, and the decision
+  // service only reasons about the AI's own board.
+  //
+  // Once per round at most, gated on difficulty and on the AI actually being able
+  // to afford it. Harder AI sabotages more readily and starts earlier.
+  const aiSabotageRoundRef = useRef<number>(-1);
+  useEffect(() => {
+    if (!enabled || !isRoundActive || !aiState || !onAISabotage) return;
+    if (aiSabotageRoundRef.current === round) return; // already tried this round
+
+    const minRound = difficulty === 'hard' ? 2 : difficulty === 'normal' ? 4 : 6;
+    if (round < minRound) return;
+
+    const chance = difficulty === 'hard' ? 0.5 : difficulty === 'normal' ? 0.3 : 0.12;
+
+    // Decide part-way through the round so it doesn't always land at the same moment
+    const delay = 4000 + Math.random() * 8000;
+    const timer = setTimeout(() => {
+      aiSabotageRoundRef.current = round;
+      if (Math.random() > chance) return;
+      if ((aiState.gold ?? 0) < REBEL_SPAWN_COST) return;
+
+      setAIState((prev) =>
+        prev ? { ...prev, gold: prev.gold - REBEL_SPAWN_COST } : prev
+      );
+      setLastAIAction('Sent rebels!');
+      onAISabotage();
+    }, delay);
+
+    return () => clearTimeout(timer);
+  }, [enabled, isRoundActive, round, difficulty, aiState, onAISabotage]);
   
   // Run AI decision loop during active rounds
   useEffect(() => {
@@ -190,6 +249,7 @@ export function useAIOpponent({
     initializeAI,
     processAIRoundEnd,
     lastAIAction,
+    sabotageAI,
   };
 }
 

@@ -524,9 +524,14 @@ C:\Dev\Eutopia\
 │   │   │   ├── FishSchool.tsx / PirateShip.tsx / FreeRoamBoat.tsx
 │   │   │   ├── AIIslandMinimap.tsx              # Solo: AI opponent minimap
 │   │   │   ├── MultiplayerIslandMinimap.tsx     # MP: human opponent, fog of war
+│   │   │   ├── ConnectionBanner.tsx             # 8E disconnect banner
 │   │   │   ├── ScoreDisplay.tsx / EndGameSummary.tsx / Toast.tsx
 │   │   │   ├── RoundTransition.tsx / RebelIcon.tsx
 │   │   │   └── TutorialOverlay.tsx
+│   │   ├── title/
+│   │   │   └── TitleScreen.tsx                  # Animated launch screen
+│   │   ├── common/
+│   │   │   └── WhatsNewPanel.tsx                # Release notes after an update
 │   │   ├── multiplayer/
 │   │   │   ├── MultiplayerLobby.tsx             # Host/join/waiting room
 │   │   │   └── NamePromptModal.tsx              # First-run player name
@@ -534,16 +539,22 @@ C:\Dev\Eutopia\
 │   │   └── settings/SettingsScreen.tsx
 │   ├── config/
 │   │   └── firebaseConfig.ts                # eutopia-2f19f Realtime DB
-│   ├── constants/game.ts                    # Balance values, building costs
+│   ├── constants/
+│   │   ├── game.ts                          # Balance values, building costs
+│   │   └── whatsNew.ts                      # Release notes (id NOT the app version)
 │   ├── hooks/
 │   │   ├── useAIOpponent.ts                 # Disabled when isMultiplayer
 │   │   ├── useAudioSettings.ts / useTutorial.ts / useAds.ts
 │   ├── services/
 │   │   ├── islandGenerator.ts / coastlineDetection.ts / boatMovement.ts
 │   │   ├── soundManager.ts                  # expo-audio
-│   │   ├── adService.ts
-│   │   ├── playerService.ts                 # AsyncStorage player id + name
-│   │   └── multiplayerService.ts            # Rooms, islands, state, round, events
+│   │   ├── adService.ts                     # ADS_ENABLED master switch
+│   │   ├── playerService.ts                 # Player id + name + active MP session
+│   │   ├── multiplayerService.ts            # Rooms, islands, state, round, events
+│   │   ├── nameFilter.ts                    # Display name validation (UGC)
+│   │   ├── tutorialTargets.ts               # Measured spotlight rects
+│   │   ├── whatsNewService.ts               # Which release notes are unseen
+│   │   └── updateInfo.ts                    # Running OTA identity
 │   └── types/index.ts                       # TypeScript definitions
 └── assets/
     ├── images/*.png                         # 14 building/boat icons
@@ -551,6 +562,29 @@ C:\Dev\Eutopia\
 ```
 
 **Legacy / safe to delete:** `src/components/game/BuildMenu_DELETE.tsx`
+
+## Critical Implementation Rules
+
+### Never use React Native `<Modal>`
+The app is locked to landscape with `requireFullScreen: true`. `<Modal>` presents a
+separate UIViewController, UIKit finds no valid orientation for it, and the process
+aborts. This crashed TestFlight build 2 on launch. Use absolutely-positioned Views
+with a high `zIndex` instead. iOS-only — invisible on Android and web.
+
+### Never hardcode UI coordinates for the tutorial
+Spotlight positions are measured at runtime via `measureInWindow` and registered in
+`src/services/tutorialTargets.ts`. Island shapes change every game, the build menu
+is a wrapped flex grid, and phone/tablet dimensions differ — predicted coordinates
+will always drift. Components report where they actually are.
+
+### Release notes have their own id, not the app version
+`runtimeVersion` uses the `appVersion` policy, so OTA updates keep `1.0.0`. Keying
+the What's New panel off the app version would mean it never fires for OTA releases.
+Bump `RELEASE_NOTES[0].id` in `src/constants/whatsNew.ts` per release.
+
+### OTA updates apply on the next launch
+Quit and reopen twice after `eas update`. The Settings build footer shows the running
+update id — check it before assuming a change is broken.
 
 ---
 
@@ -1236,7 +1270,8 @@ BALANCE = {
 | SDK 55 | Migration + expo-audio | ✅ Complete — v0.7.0 tagged |
 | 7 | AI Opponent | 🔶 Basic AI functional, enhancements planned |
 | 8 | Multiplayer | ✅ Complete — v0.8.0 tagged |
-| — | EAS preview build / iOS verification | 🔶 Next — blocks release track |
+| — | EAS preview build / iOS verification | ✅ Complete — iOS verified, audio stable |
+| — | App Store submission | 🔶 Submitted Aug 19, 2026 — in review |
 | 9 | Enhanced Mode Features | 🔜 Planned |
 | 10 | Final Polish | 🔜 Planned |
 

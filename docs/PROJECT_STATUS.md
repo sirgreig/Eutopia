@@ -1,36 +1,51 @@
 # Project Status: Eutopia
 
-*Last Updated: August 11, 2026*
+*Last Updated: August 19, 2026*
 
 ## Current Version
 - **App Version:** 1.0.0 (pre-release)
 - **SDK:** Expo 55 (on main branch as of this session)
 - **Running on:** Android emulator (Pixel 4a) via Expo Go SDK 55; iOS paused (see below)
 - **Dev System:** Windows PC
-- **Local Path:** C:\Dev\Eutopiay
+- **Local Path:** C:\Dev\Eutopia
 
-## Active Work: EAS Preview Build — iOS Verification
+## Active Work: App Store Review
 
-Phase 8 (multiplayer) is COMPLETE and tagged v0.8.0.
+**Submitted for review August 19, 2026.** App Store Connect name is
+**"Eutopia: Island Builder"** (the plain name was unavailable). Home-screen name
+remains "Eutopia" via `expo.name`.
 
-### Why this is the next step
-Everything since the SDK 55 migration — the expo-audio rewrite and the whole of
-Phase 8 multiplayer — has only ever run on Android emulator and web. iOS Expo Go
-is still pinned to SDK 54 while the other Tartan Studios apps migrate, so the
-current code has never executed on the primary release platform.
+### Release scope (Option A — free tier only)
+Decision: ship free and clean rather than delaying for monetization.
+- Ads DISABLED via `ADS_ENABLED = false` master switch in `adService.ts`. The
+  `react-native-google-mobile-ads` native module ships in the binary so ads can be
+  turned on later via OTA, but the SDK never initialises.
+- `react-native-iap` NOT installed. Adding it later costs one build, no review
+  penalty. IAP also requires the Paid Applications Agreement (banking + tax
+  details, several days to process) — not yet started.
+- Enhanced Mode (the Premium tier) is Phase 9 and does not exist yet.
 
-An EAS **preview** build (internal distribution) installs like a normal app and
-does not turn the device into a registered developer phone.
+### App Store Connect status
+- Icon, splash, encryption flag, bundle ID, SKAdNetwork: all configured
+- App Privacy published: Name + User ID, both App Functionality, Linked yes,
+  Tracking NO (which keeps the app out of App Tracking Transparency entirely)
+- Privacy policy: https://tartan-studios.com/eutopia/privacy.html
+- Terms of use: https://tartan-studios.com/eutopia/terms.html
+- Support URL: https://tartan-studios.com
+- Price tier: Free. Content Rights: no third-party content. Age rating: 4+
+- Screenshots uploaded for iPhone and iPad (iPad support retained)
 
-### Next Steps (Priority Order)
-1. EAS preview build for iOS; install and verify on real iPhone
-2. Verify audio behaviour specifically (playsInSilentMode is iOS-specific)
-3. Verify multiplayer end-to-end iPhone ↔ Android
-4. Create AdMob interstitial ad unit; wire ads into round flow
-5. Add react-native-iap (module must be in the binary before OTA can enable IAP)
-6. App icon + splash screen (native — cannot be added OTA)
-7. Production build → TestFlight → App Store
-8. Phase 9 Enhanced Mode ships OTA via EAS Update
+### TestFlight
+- Internal testers: Greig, Aidan, Bryce, Ross
+- Build 2 crashed on launch (see Key Learnings). Build 3+ stable.
+- Builds expire after 90 days — OTA updates do NOT extend expiry
+
+### Next Steps
+1. Await review outcome
+2. Start the Paid Applications Agreement (blocks all future IAP, slow to process)
+3. Native splash screen is still a placeholder (`assets/splash.png`, ~17KB).
+   Native asset — requires a new binary, so bundle it with the next build.
+4. Phase 9: Enhanced Mode + sabotage (both ship OTA)
 
 ### Phase 8 Progress — COMPLETE
 - **8A — Firebase + Data Model:** COMPLETE
@@ -111,6 +126,59 @@ rooms/{roomCode}/
 - **Room code** is shown in the expanded opponent minimap as a manual fallback.
 - **Known limitation:** boats return at last-synced positions with no destination;
   in-flight weather does not survive a rejoin. All scored state is fully restored.
+
+## Key Learnings — iOS / Release
+
+### CRITICAL: never use React Native `<Modal>` in this app
+`<Modal>` presents a separate UIViewController on iOS. With the app locked to
+landscape (`orientation: "landscape"` + `requireFullScreen: true` in app.json),
+UIKit finds no valid orientation for the presented controller, throws from
+`__supportedInterfaceOrientations`, and aborts the process with SIGABRT.
+
+**This crashed TestFlight build 2 on launch.** `NamePromptModal` used `<Modal>`, and
+a fresh install has no stored player name, so the prompt rendered immediately and
+killed the app before anything else ran.
+
+Harmless on Android and web — this failure mode is iOS-only and cannot be found by
+emulator or browser testing. It also predated the multiplayer work: any iOS build
+since Phase 8B would have died the same way.
+
+**Rule:** all overlays use absolutely-positioned Views with a high `zIndex`.
+See `NamePromptModal`, `WhatsNewPanel`, `AIIslandMinimap`, `MultiplayerIslandMinimap`,
+`SettingsScreen`. This applies to every Tartan Studios app that locks orientation.
+
+### react-native-reanimated was unused and broke the iOS build
+Pod install failed: Reanimated 4.2.1 requires react-native-worklets 0.7.x, but npm
+resolved 0.8.3. Eutopia never used Reanimated — the built-in `Animated` API is used
+throughout — so it was removed entirely along with the Babel plugin. Note
+`babel-preset-expo` adds the Reanimated plugin automatically when the package is
+present, so the explicit plugin entry was redundant anyway.
+
+### expo-updates had to be installed before OTA could work
+`app.json` had an `updates` block configured, but the package itself was missing.
+EAS installs it and then requires the build command to be re-run. This is a
+bootstrap dependency: it cannot be added over the air, because it IS the mechanism
+that delivers over-the-air updates.
+
+### OTA updates apply on the NEXT launch, not the current one
+With `checkAutomatically: ON_LOAD` and `fallbackToCacheTimeout: 0`, a new bundle
+downloads in the background and applies on the following launch. The app must be
+fully quit and reopened TWICE after `eas update` to run new code. This wasted
+significant debugging time on the What's New panel — the panel was correct, the
+bundle simply hadn't been applied.
+
+**Mitigation:** Settings now shows a build footer with app version, running OTA
+update id, its publish time, and the release-notes id (`src/services/updateInfo.ts`).
+Check it before debugging "my change didn't work".
+
+### OTA vs new binary
+- **Ships OTA:** all JS, assets, styling. Phase 9 Enhanced Mode, balance, UI, and
+  all multiplayer changes (Firebase JS SDK is pure JS).
+- **Needs a new binary:** native modules added/removed, SDK bumps, `app.json`
+  native config, app icon, splash screen.
+- `runtimeVersion` policy is `appVersion`, so OTA updates only reach builds with a
+  matching version string. Bumping `1.0.0` → `1.1.0` orphans existing testers until
+  they install a new binary. Build number increments do NOT affect this.
 
 ## Key Multiplayer Learnings
 - Stale Firebase round data from a reused room causes premature NEXT buttons and
@@ -198,6 +266,47 @@ islands, ~10Hz boat position sync with interpolation, and host-authoritative col
 adjudication. Not proceeding.
 
 ## Completed Sessions
+
+### August 19, 2026 - Release Track + UX
+**Added:**
+- src/components/title/TitleScreen.tsx (animated title with background artwork,
+  drifting cloud parallax, tap-to-skip; falls back to an SVG gradient if artwork missing)
+- src/services/nameFilter.ts (display name validation — profanity, slurs, impersonation)
+- src/services/tutorialTargets.ts (runtime spotlight measurement registry)
+- src/constants/whatsNew.ts + src/services/whatsNewService.ts +
+  src/components/common/WhatsNewPanel.tsx (What's New panel)
+- src/services/updateInfo.ts (running OTA identity, adapted from the Kemby app)
+- assets/images/title-bg.jpg, title-clouds.png
+
+**Modified:**
+- App.tsx (title screen, What's New, measured tutorial targets, preload artwork)
+- src/components/multiplayer/NamePromptModal.tsx (Modal → overlay; name validation)
+- src/components/settings/SettingsScreen.tsx (player name control, build footer)
+- src/components/game/AnimatedBuildMenu.tsx (measures its Crops item for the tutorial)
+- src/services/adService.ts (ADS_ENABLED master switch, off for 1.0)
+- app.json (removed RECORD_AUDIO + duplicate permissions; deduped SKAdNetwork 100→50)
+- eas.json (autoIncrement on the production profile)
+- package.json / babel.config.js (removed react-native-reanimated; added expo-updates)
+
+**Website (C:\dev\tartan-studios-website):**
+- public/eutopia/privacy.html and terms.html — Eutopia-specific, site-styled
+- public/privacy.html — corrected the Eutopia row (it wrongly claimed email collection)
+- Firebase Hosting: `firebase deploy --only hosting`
+
+**Fixed:**
+- iOS launch crash — `<Modal>` under landscape lock (TestFlight build 2)
+- iOS build failure — reanimated/worklets version mismatch
+- Tutorial spotlights pointing at empty space (now measured, not calculated)
+- What's New never appearing for existing players (first-install detection)
+- MP end-game summary comparing against the disabled AI hook
+
+**Balance:**
+- Fishing boat 28 → 15 gold; PT boat 40 → 25 gold
+- Storm damage capped at 1 building; hurricane at 3 (was an uncapped storm vs a
+  hardcoded 2 for hurricanes, which made them feel identical)
+- Farm idle sway animation removed
+
+**Milestone:** first successful iOS build; submitted to the App Store for review.
 
 ### August 11, 2026 (later) - Phase 8E — Disconnect Handling
 **Added:**
@@ -287,10 +396,10 @@ adjudication. Not proceeding.
 - Setup screen, tutorial modal, dual toast notification system
 
 ## Blockers
-None. Phase 8 complete and tagged v0.8.0.
+Awaiting App Store review (submitted August 19, 2026).
 
-**Next gate:** iOS has never run SDK 55 code or any multiplayer. An EAS preview build
-is required before any further phase work is considered verified.
+**Not blocking, but slow to obtain:** the Paid Applications Agreement takes several
+days and gates every in-app purchase. Worth starting before Phase 9 finishes.
 
 ## Phase 8 - Multiplayer Sub-Phases — ALL COMPLETE
 - **8A:** Firebase Project + Data Model — COMPLETE

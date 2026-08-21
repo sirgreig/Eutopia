@@ -561,3 +561,58 @@ export function listenToSpawnEvents(
 export async function clearSpawnEvents(roomCode: string): Promise<void> {
   await remove(ref(db, `rooms/${roomCode}/events`));
 }
+
+// ============================================================
+// SABOTAGE ACTIONS (Phase 9)
+// ============================================================
+//
+// The first TARGETED cross-player action in the game. Spawn events are broadcast
+// and each client resolves them against its own island; a sabotage is one player
+// deliberately modifying another player's board.
+//
+// Written to rooms/{code}/actions/{targetPlayerId}/. The target listens on its own
+// branch only, applies the rebel locally, and the existing island sync propagates
+// the result back to the attacker's minimap.
+
+export type SabotageAction = {
+  fromPlayerId: string;
+  fromName: string;
+  sentAt: number; // epoch ms; filters out replays from earlier sessions
+};
+
+/** Send a sabotage at a specific opponent. */
+export async function pushSabotageAction(
+  roomCode: string,
+  targetPlayerId: string,
+  action: SabotageAction
+): Promise<void> {
+  await push(ref(db, `rooms/${roomCode}/actions/${targetPlayerId}`), action);
+}
+
+/**
+ * Listen for sabotages aimed at this player.
+ * Ignores anything written before the subscription, so rejoining mid-game doesn't
+ * replay every attack received earlier.
+ */
+export function listenToSabotageActions(
+  roomCode: string,
+  myPlayerId: string,
+  callback: (action: SabotageAction) => void
+): () => void {
+  const actionsRef = ref(db, `rooms/${roomCode}/actions/${myPlayerId}`);
+  const subscribedAt = Date.now();
+
+  onChildAdded(actionsRef, (snapshot) => {
+    const action = snapshot.val();
+    if (action && typeof action === 'object' && action.sentAt >= subscribedAt) {
+      callback(action as SabotageAction);
+    }
+  });
+
+  return () => off(actionsRef);
+}
+
+/** Wipe stale actions when a new game starts. */
+export async function clearSabotageActions(roomCode: string): Promise<void> {
+  await remove(ref(db, `rooms/${roomCode}/actions`));
+}

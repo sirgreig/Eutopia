@@ -1,6 +1,6 @@
 # Portfolio Overview: Eutopia
 
-*Last Updated: August 11, 2026*
+*Last Updated: August 19, 2026*
 
 ## App Identity
 - **Name:** Eutopia (Greek: good place - etymological root of "Utopia")
@@ -19,7 +19,8 @@
 | 7 | AI Opponent | Complete (basic) |
 | SDK 55 | Migration + expo-audio | Complete — merged to main, tagged v0.7.0 |
 | 8 | Multiplayer (8A-8E) | Complete — v0.8.0 tagged |
-| — | EAS preview build / iOS verification | Next — blocks release track |
+| — | EAS preview build / iOS verification | Complete — iOS verified |
+| — | App Store submission | Submitted Aug 19, 2026 — in review |
 | 9 | Enhanced Mode Features | Planned |
 | 10 | Final Polish & Deployment | Planned |
 
@@ -92,27 +93,37 @@
   round timer authority, spawn event parity, opponent minimap
 - Aug 2026: Phase 8 complete — disconnect handling, forfeit, host migration,
   auto-rejoin. Tagged v0.8.0
+- Aug 2026: First successful iOS build; TestFlight beta live with internal testers
+- Aug 2026: **Submitted to the App Store** as "Eutopia: Island Builder"
+
+**Live URLs:**
+- Privacy: https://tartan-studios.com/eutopia/privacy.html
+- Terms: https://tartan-studios.com/eutopia/terms.html
+- Support: support@tartan-studios.com (Cloudflare Email Routing → Gmail)
 
 **Upcoming:**
-- EAS preview build — iOS verification (SDK 55 and all multiplayer are unverified on iOS)
-- AdMob interstitial ad unit + wire ads into round flow
-- react-native-iap module (must be in the first binary)
-- App icon + splash screen (native, cannot ship OTA)
-- TestFlight beta → App Store submission
-- Phase 9 Enhanced Mode — ships OTA via EAS Update
+- Paid Applications Agreement (banking + tax; several days; gates ALL in-app purchases)
+- Phase 9 Enhanced Mode + sabotage — ships OTA via EAS Update
+- react-native-iap (native — needs a build) once Enhanced Mode exists
+- AdMob interstitial ad unit + wire ads into round flow (JS, ships OTA)
+- Native splash screen replacement (native — bundle with the next build)
 
-**Release strategy:** Ship the first binary with AdMob and IAP modules present even if
-the features are disabled. Enhanced Mode (the Premium tier) is pure JS and can be
-delivered OTA post-launch, so it does not need to block the first submission.
+**Release strategy:** 1.0 ships free with no ads and no IAP. The AdMob native module
+is already in the binary so ads can be enabled over the air. Enhanced Mode (Premium)
+is pure JS and can be delivered OTA once built, but selling it requires the IAP
+module and the Paid Applications Agreement.
 
 **Deferred decision:** PvP boat combat (as in the 1981 original) is not implemented
 and would require a shared-grid rework — single map containing both islands, high-rate
 boat position sync, host-authoritative collision. Parked for Phase 9/10.
 
 ## Action Items for Portfolio Coordination
-- AdMob interstitial ad unit creation in console (still outstanding — blocks TestFlight)
-- App Store / Play Store listings preparation
-- GitHub commits after each Phase 8 sub-phase
-- Coordinate SDK 55 Expo Go update with other Tartan Studios app migrations (Eutopia done; others pending)
-- Monitor Firebase Realtime DB usage now that multiplayer is live — costs are intended
-  to be offset by between-round ad revenue, which is not yet implemented
+- **Paid Applications Agreement** — not started; gates all IAP across the portfolio
+- AdMob interstitial ad unit creation (Eutopia's is still a placeholder ID)
+- Apple distribution certificate **expires 18 December 2026** — shared across ALL
+  Tartan Studios apps. Renewal is portfolio-wide, not Eutopia-specific.
+- Coordinate SDK 55 Expo Go update with other Tartan Studios app migrations
+- Monitor Firebase Realtime DB usage now that multiplayer is live — costs are
+  intended to be offset by ad revenue, which is not yet implemented
+- **Reusable learning for all landscape-locked apps:** React Native `<Modal>` aborts
+  the process on iOS under `requireFullScreen`. Use absolute overlays.

@@ -28,6 +28,7 @@ import {
   updateRoomStatus,
   setRoundState,
   clearSpawnEvents,
+  clearSabotageActions,
   Room,
   RoomSettings,
 } from '../../services/multiplayerService';
@@ -200,6 +201,8 @@ export const MultiplayerLobby: React.FC<MultiplayerLobbyProps> = ({
     }).catch(() => { /* non-fatal */ });
     // Clear leftover spawn events from any prior session
     await clearSpawnEvents(roomCode).catch(() => { /* non-fatal */ });
+    // Clear leftover sabotage actions from any prior session
+    await clearSabotageActions(roomCode).catch(() => { /* non-fatal */ });
     await updateRoomStatus(roomCode, 'playing');
     // The room listener will fire with status 'playing' → triggers onStartGame for both players
   };
