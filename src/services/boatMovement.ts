@@ -54,6 +54,38 @@ export function createFreeRoamBoat(
 }
 
 /**
+ * Create a boat directly at a water position.
+ *
+ * Used when the player taps open water to build — the boat appears exactly where
+ * they tapped, rather than adjacent to a land tile. This is what lets boats be
+ * built after every land tile is developed (see createFreeRoamBoat, which needs a
+ * free coastal tile and therefore becomes unusable on a fully built island).
+ */
+export function createFreeRoamBoatAt(
+  id: string,
+  type: BoatType,
+  spawnPos: WaterPosition,
+  island: Island
+): FreeRoamBoat | null {
+  if (!isPointInWater(spawnPos, island)) {
+    return null;
+  }
+
+  return {
+    id,
+    type,
+    position: spawnPos,
+    heading: 0,
+    velocity: { vx: 0, vy: 0 },
+    destination: null,
+    waypoints: [],
+    currentWaypointIndex: 0,
+    isMoving: false,
+    spawnTile: { x: Math.floor(spawnPos.x), y: Math.floor(spawnPos.y) },
+  };
+}
+
+/**
  * Set a new destination for a boat with pathfinding
  */
 export function setBoatDestination(
@@ -349,6 +381,7 @@ export function isScreenPositionOnWater(
 
 export default {
   createFreeRoamBoat,
+  createFreeRoamBoatAt,
   setBoatDestination,
   stopBoat,
   updateBoat,

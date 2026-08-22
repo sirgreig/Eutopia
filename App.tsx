@@ -46,6 +46,7 @@ import { generateIsland } from './src/services/islandGenerator';
 import { generateCoastline } from './src/services/coastlineDetection';
 import { 
   createFreeRoamBoat, 
+  createFreeRoamBoatAt,
   setBoatDestination, 
   updateBoat,
 } from './src/services/boatMovement';
@@ -162,6 +163,10 @@ export default function App() {
   const [selectedTile, setSelectedTile] = useState<Position | null>(null);
   const [selectedBoat, setSelectedBoat] = useState<string | null>(null);
   const [showBuildMenu, setShowBuildMenu] = useState(false);
+  // Which menu the build sheet shows: buildings (land tap) or boats (water tap)
+  const [buildMenuContext, setBuildMenuContext] = useState<'land' | 'water'>('land');
+  // Water position tapped when opening the boat menu
+  const [selectedWater, setSelectedWater] = useState<WaterPosition | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'gold' | 'population' | 'rebel' | 'rain' | 'round' | 'build' | 'error' | 'stability' } | null>(null);
   const [rainCloud, setRainCloud] = useState<{
     startX: number; startY: number;
@@ -2068,8 +2073,7 @@ export default function App() {
   const handleTilePress = (position: Position, tile: Tile) => {
     if (selectedBoat) { 
       Sounds.tileClick();
-      setSelectedBoat(null); 
-      showToast('Boats move on water', 'error');
+      showToast('Tap water to move, or tap the boat to deselect', 'error');
       return; 
     }
     if (tile.building) { 
@@ -2088,6 +2092,7 @@ export default function App() {
     // During tutorial "tap_tile" step, allow building even before round starts
     if (isTutorialActive && tutorialStep?.id === 'tap_tile') {
       setSelectedTile(position);
+      setBuildMenuContext('land');
       setShowBuildMenu(true);
       Sounds.menuOpen();
       // Advance tutorial AFTER opening build menu
@@ -2111,11 +2116,18 @@ export default function App() {
       return;
     }
     setSelectedTile(position);
+    setBuildMenuContext('land');
     setShowBuildMenu(true);
     Sounds.menuOpen();
   };
 
-  // Handle tap on water for free-roam boat movement
+  // Handle tap on water.
+  //
+  // Rules (deliberate, see How to Play):
+  //   boat selected  → ALWAYS sets that boat's destination
+  //   nothing selected → opens the boat build menu at that spot
+  //
+  // Deselecting is done by tapping the boat itself, never by tapping water.
   const handleWaterTap = (waterPosition: WaterPosition, screenX: number, screenY: number) => {
     if (!island || !coastline) return;
     
@@ -2145,7 +2157,19 @@ export default function App() {
       ));
       setDestinationMarker(waterPosition);
       setSelectedBoat(null);
+      return;
     }
+
+    // No boat selected — offer to build one here
+    if (!isPointInWater(waterPosition, island)) {
+      return; // Tapped outside the playable water area
+    }
+
+    setSelectedWater(waterPosition);
+    setSelectedTile(null);
+    setBuildMenuContext('water');
+    setShowBuildMenu(true);
+    Sounds.menuOpen();
   };
 
   // Handle tapping on a free-roam boat
@@ -2200,22 +2224,21 @@ export default function App() {
   };
 
   const handleSelectBoat = (type: BoatType) => {
-    if (!island || !selectedTile) return;
+    if (!island || !selectedWater) return;
     const cost = BOAT_COSTS[type];
     if (gold < cost) { Sounds.buildError(); showToast('Need more gold', 'error'); closeBuildMenu(); return; }
-    if (!isCoastalTile(selectedTile)) { Sounds.buildError(); showToast('Coast tiles only', 'error'); closeBuildMenu(); return; }
     
-    // Create free-roam boat
-    const newBoat = createFreeRoamBoat(
-      `boat-${Date.now()}`,
+    // Spawn the boat exactly where the player tapped
+    const newBoat = createFreeRoamBoatAt(
+      `boat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       type,
-      selectedTile,
+      selectedWater,
       island
     );
     
     if (!newBoat) { 
       Sounds.buildError(); 
-      showToast('No water nearby', 'error'); 
+      showToast('Cannot launch here', 'error'); 
       closeBuildMenu(); 
       return; 
     }
@@ -2231,6 +2254,7 @@ export default function App() {
     Sounds.buttonClick();
     setShowBuildMenu(false);
     setSelectedTile(null);
+    setSelectedWater(null);
   };
 
   const formatTime = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
@@ -2569,6 +2593,7 @@ export default function App() {
         visible={showBuildMenu}
         gold={gold}
         mode={mode}
+        context={buildMenuContext}
         onSelectBuilding={handleSelectBuilding}
         onSelectBoat={handleSelectBoat}
         onClose={closeBuildMenu}

@@ -58,6 +58,15 @@ interface AnimatedBuildMenuProps {
   visible: boolean;
   gold: number;
   mode: GameMode;
+  /**
+   * Which set of items to offer.
+   *  'land'  — buildings only (opened by tapping a land tile)
+   *  'water' — boats only (opened by tapping open water)
+   *
+   * Boats used to live in the same menu as buildings, which meant a player who
+   * developed every land tile could no longer reach the boat options at all.
+   */
+  context: 'land' | 'water';
   onSelectBuilding: (type: BuildingType) => void;
   onSelectBoat: (type: BoatType) => void;
   onClose: () => void;
@@ -67,6 +76,7 @@ export const AnimatedBuildMenu: React.FC<AnimatedBuildMenuProps> = ({
   visible,
   gold,
   mode,
+  context,
   onSelectBuilding,
   onSelectBoat,
   onClose,
@@ -153,19 +163,22 @@ export const AnimatedBuildMenu: React.FC<AnimatedBuildMenuProps> = ({
     onClose();
   };
 
-  // All items unified
-  const allItems = [
-    ...buildings.map(b => ({ key: b.type, kind: 'building' as const, type: b.type, name: b.name, cost: b.cost })),
-    { key: 'fishing', kind: 'boat' as const, type: 'fishing', name: 'Fishing', cost: BOAT_COSTS.fishing },
-    { key: 'pt', kind: 'boat' as const, type: 'pt', name: 'PT Boat', cost: BOAT_COSTS.pt },
-  ];
+  // Items depend on what was tapped: buildings on land, boats on water.
+  const allItems = context === 'water'
+    ? [
+        { key: 'fishing', kind: 'boat' as const, type: 'fishing', name: 'Fishing', cost: BOAT_COSTS.fishing },
+        { key: 'pt', kind: 'boat' as const, type: 'pt', name: 'PT Boat', cost: BOAT_COSTS.pt },
+      ]
+    : buildings.map(b => ({ key: b.type, kind: 'building' as const, type: b.type, name: b.name, cost: b.cost }));
 
-  // Responsive sizing: fit 7 items per row with padding
+  // Boats: only two items, so give them more room than the 7-per-row building grid
   const gridPadding = 8;
   const itemMargin = 3;
-  const itemsPerRow = 7;
+  const itemsPerRow = context === 'water' ? 2 : 7;
   const availableWidth = screenWidth - (gridPadding * 2);
-  const itemWidth = Math.floor(availableWidth / itemsPerRow) - (itemMargin * 2);
+  const rawItemWidth = Math.floor(availableWidth / itemsPerRow) - (itemMargin * 2);
+  // Cap boat tiles so they don't stretch absurdly wide on a tablet
+  const itemWidth = context === 'water' ? Math.min(rawItemWidth, 180) : rawItemWidth;
   
   // Scale icon and text to item width (icon ~30% larger than before)
   const iconSize = Math.min(Math.floor(itemWidth * 0.72), 56);
@@ -185,7 +198,7 @@ export const AnimatedBuildMenu: React.FC<AnimatedBuildMenuProps> = ({
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>BUILD</Text>
+          <Text style={styles.title}>{context === 'water' ? 'BUILD BOAT' : 'BUILD'}</Text>
           <View style={styles.goldBadge}>
             <Text style={styles.goldIcon}>💰</Text>
             <Text style={styles.gold}>{gold}</Text>

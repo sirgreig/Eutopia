@@ -474,7 +474,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                         >
                             <Text style={styles.htpHeading}>🎯 Objective</Text>
                             <Text style={styles.htpBody}>
-                                Build a thriving island nation across {maxRounds} rounds. Earn the highest score by growing your population, producing food, building infrastructure, and managing your economy. You compete against an AI opponent — highest score wins!
+                                Build a thriving island nation across {maxRounds} rounds. Earn the highest score by growing your population, producing food, building infrastructure, and managing your economy. Play solo against an AI opponent, or head-to-head against a friend — highest score at the end wins.
                             </Text>
                             
                             <Text style={styles.htpHeading}>💰 Gold & Income</Text>
@@ -484,27 +484,42 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                             
                             <Text style={styles.htpHeading}>🏗️ Buildings</Text>
                             <Text style={styles.htpBody}>
-                                Tap any land tile to open the build menu. Housing increases population. Farms grow food (needs rain to earn gold). Factories generate income each round. Hospitals improve welfare. Schools boost productivity. Forts protect nearby boats from pirates.
+                                Tap any empty land tile to open the build menu. Housing increases population. Farms grow food (needs rain to earn gold). Factories generate income each round. Hospitals improve welfare. Schools boost productivity.
+                            </Text>
+                            
+                            <Text style={styles.htpHeading}>🏰 Forts</Text>
+                            <Text style={styles.htpBody}>
+                                A fort shields the eight tiles immediately around it. Buildings in that ring are half as likely to be destroyed by storms, hurricanes or rebels — protection, not immunity.{'\n\n'}Boats are different: any boat sitting inside a fort's radius is completely safe from storms, hurricanes and pirates. Sheltering your fleet under a fort when bad weather rolls in is one of the strongest plays in the game.{'\n\n'}Forts themselves can still be destroyed by a hurricane.
                             </Text>
                             
                             <Text style={styles.htpHeading}>⛵ Boats</Text>
                             <Text style={styles.htpBody}>
-                                Build boats from coastal tiles. Fishing boats earn gold when positioned over fish schools — tap a boat to select it, then tap water to set a destination. PT boats are military vessels that automatically destroy pirate ships on contact.
+                                Tap open water to build a boat there. Land is for buildings, water is for boats — so you can always add to your fleet, even once every land tile is developed.{'\n\n'}To move a boat, tap it to select it, then tap anywhere on the water to send it there. Tapping the boat a second time deselects it.{'\n\n'}Fishing boats earn gold whenever they are sitting over a fish school. PT boats are military vessels that sink pirate ships on contact.
                             </Text>
                             
                             <Text style={styles.htpHeading}>🐟 Fish & Pirates</Text>
                             <Text style={styles.htpBody}>
-                                Fish schools drift around the ocean. Move fishing boats to them for income. Pirates spawn at map edges and hunt your fishing boats — deploy PT boats nearby to protect your fleet. Forts also shield boats in their radius.
+                                Fish schools drift around the ocean. Move fishing boats to them for income. Pirates spawn at the map edges and hunt your fishing boats — deploy PT boats nearby to protect your fleet, or keep your boats within a fort's radius where pirates cannot reach them.
                             </Text>
                             
                             <Text style={styles.htpHeading}>🌧️ Weather</Text>
                             <Text style={styles.htpBody}>
-                                Rain clouds appear randomly and drift across the map. When a cloud passes over your crop tiles, you earn bonus gold. Plan your farm placement to maximize rain coverage.
+                                <Text style={styles.htpEmphasis}>Rain</Text> drifts across the map and waters any crops it passes over, earning you bonus gold. Plan your farm placement to catch it.{'\n\n'}<Text style={styles.htpEmphasis}>Tropical storms</Text> arrive from round 2. A storm will destroy at most one building and sink at most one boat, so it stings without ruining a round.{'\n\n'}<Text style={styles.htpEmphasis}>Hurricanes</Text> appear in the later rounds and are far more dangerous. Each one can take up to three buildings and two boats, and unlike storms it can destroy a fort. Some hurricanes are worse than others — you never know which kind you are getting until it passes.
                             </Text>
                             
                             <Text style={styles.htpHeading}>⚠️ Rebels</Text>
                             <Text style={styles.htpBody}>
-                                If your population is unhappy (low food, welfare, or housing), rebels may appear and destroy buildings. Keep your people fed and housed to maintain stability.
+                                If your population is unhappy — short of food, welfare or housing — rebels appear and destroy whatever was built on that tile. Keep your people fed and housed to maintain stability. Tiles near a fort are half as likely to be targeted.
+                            </Text>
+                            
+                            <Text style={styles.htpHeading}>💥 Sabotage</Text>
+                            <Text style={styles.htpBody}>
+                                Use the rebel button in the top bar to send rebels to your opponent's island. It costs 30 gold and you can do it once per round.{'\n\n'}Your opponent can do the same to you — and so can the AI. The rebels will strike a developed tile if they can find one, though forts halve the odds of any tile in their ring being hit.
+                            </Text>
+                            
+                            <Text style={styles.htpHeading}>👥 Multiplayer</Text>
+                            <Text style={styles.htpBody}>
+                                Choose Multiplayer from the main menu to host a game or join one. The host shares a six-character room code; there is no public matchmaking, so you only play with people you invite.{'\n\n'}The host controls when each round starts. Both islands run on the same clock, and weather strikes both players at the same time — though it takes a different path across each island.{'\n\n'}The panel on the right shows your opponent's island as it fills up, along with their score, gold, population and boats. You can see <Text style={styles.htpEmphasis}>where</Text> they are building, but not <Text style={styles.htpEmphasis}>what</Text> they are building.{'\n\n'}If a player disconnects, the round pauses and they have three minutes to return before forfeiting.
                             </Text>
                             
                             <Text style={styles.htpHeading}>⭐ Scoring</Text>
@@ -897,6 +912,10 @@ const styles = StyleSheet.create({
         fontSize: 14,
         lineHeight: 20,
         color: '#c0d0e0',
+    },
+    htpEmphasis: {
+        color: '#ffffff',
+        fontWeight: '700',
     },
     howToPlayDone: {
         backgroundColor: '#4A90D9',

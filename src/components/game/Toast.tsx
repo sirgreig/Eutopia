@@ -164,6 +164,11 @@ export function Toast({ message, type = 'round', duration = 2000, onHide }: Toas
 
   return (
     <Animated.View
+      // Toasts are purely informational and must NEVER intercept taps. They used to
+      // sit over the play field and swallow presses aimed at boats underneath —
+      // which bit hardest during an active round, exactly when reaching a boat
+      // matters most.
+      pointerEvents="none"
       style={[
         small ? styles.containerSmall : styles.containerBar,
         {
@@ -173,7 +178,7 @@ export function Toast({ message, type = 'round', duration = 2000, onHide }: Toas
         },
       ]}
     >
-      <ToastIcon type={type} size={small ? 22 : 28} />
+      <ToastIcon type={type} size={small ? 18 : 20} />
       <Text style={[
         small ? styles.messageSmall : styles.messageBar,
         { color: getTextColor(type) },
@@ -195,34 +200,38 @@ const baseContainer = {
 };
 
 const styles = StyleSheet.create({
-  // Small upper-left toast for gold/rain
+  // Small upper-left toast for gold/rain — tucked into the header strip
   containerSmall: {
     ...baseContainer,
-    top: 60,
+    top: 8,
     left: 12,
-    paddingVertical: 8,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    gap: 6,
+  },
+  // Centered bar for build/info/status.
+  //
+  // Sits OVER the header rather than over the map, so the play field is never
+  // obscured. Slimmer than it used to be, and non-interactive, so any header
+  // control it briefly covers is still tappable straight through it.
+  containerBar: {
+    ...baseContainer,
+    top: 6,
+    left: '22%',
+    right: '22%',
+    justifyContent: 'center',
+    paddingVertical: 7,
     paddingHorizontal: 12,
     borderRadius: 10,
     gap: 8,
   },
-  // Centered bar for build/info/status
-  containerBar: {
-    ...baseContainer,
-    top: 60,
-    left: '15%',
-    right: '15%',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    gap: 12,
-  },
   messageSmall: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
   },
   messageBar: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     textAlign: 'center',
   },
