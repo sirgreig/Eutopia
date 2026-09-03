@@ -18,6 +18,7 @@ import { useAudioSettings } from '../../hooks/useAudioSettings';
 import { setPlayerName as persistPlayerName } from '../../services/playerService';
 import { validateDisplayName } from '../../services/nameFilter';
 import { getUpdateInfo, updateLine } from '../../services/updateInfo';
+import { AdService } from '../../services/adService';
 import { LATEST_RELEASE_ID } from '../../constants/whatsNew';
 import { Sounds } from '../../services/soundManager';
 
@@ -172,6 +173,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 )}
                 <Text style={styles.buildFooter}>
                     Eutopia 1.0.0  ·  {updateLine(info)}  ·  notes {LATEST_RELEASE_ID}
+                    {'\n'}ads: {AdService.getAdStatus()}
                 </Text>
             </>
         );

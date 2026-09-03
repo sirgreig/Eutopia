@@ -5,8 +5,11 @@
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 
-// Check if we're running in Expo Go (no native ad support)
-const isExpoGo = Constants.appOwnership === 'expo';
+// Check if we're running in Expo Go (no native ad support).
+// appOwnership is deprecated in newer SDKs, so check executionEnvironment too.
+const isExpoGo =
+  (Constants as any).appOwnership === 'expo' ||
+  (Constants as any).executionEnvironment === 'storeClient';
 
 // MASTER SWITCH — set to true to serve ads.
 //
@@ -14,6 +17,20 @@ const isExpoGo = Constants.appOwnership === 'expo';
 // be enabled or disabled over the air without a new build. When false the SDK is
 // never initialised at all.
 const ADS_ENABLED = true;
+
+/**
+ * Human-readable status, surfaced in the Settings build footer.
+ * Ads fail silently by design, which makes "why is nothing showing?" impossible to
+ * answer on a production device without this.
+ */
+let adStatus = 'not started';
+let lastAdError: string | null = null;
+
+export const getAdStatus = (): string => {
+  if (!ADS_ENABLED) return 'off';
+  if (isExpoGo) return 'expo-go';
+  return lastAdError ? `${adStatus} (${lastAdError})` : adStatus;
+};
 
 // Ad Unit IDs.
 //
@@ -75,8 +92,17 @@ export const initializeAds = async (): Promise<void> => {
 
   try {
     // Dynamically import to avoid crashes in Expo Go
-    const { InterstitialAd, AdEventType, TestIds } = await import('react-native-google-mobile-ads');
-    
+    const mobileAdsModule = await import('react-native-google-mobile-ads');
+    const { InterstitialAd, AdEventType } = mobileAdsModule;
+    const mobileAds = mobileAdsModule.default;
+
+    // REQUIRED. The Google Mobile Ads SDK must be initialised before any ad
+    // request will succeed. Without this, createForAdRequest().load() fails
+    // silently and no ad ever arrives — which is exactly how this presented.
+    adStatus = 'initialising sdk';
+    await mobileAds().initialize();
+    adStatus = 'sdk ready';
+
     const adUnitId = Platform.OS === 'ios' 
       ? AD_UNIT_IDS.ios.interstitial 
       : AD_UNIT_IDS.android.interstitial;
@@ -90,6 +116,8 @@ export const initializeAds = async (): Promise<void> => {
       console.log('[AdService] Interstitial ad loaded');
       state.isLoaded = true;
       state.isLoading = false;
+      adStatus = 'ad ready';
+      lastAdError = null;
       onAdLoaded?.();
     });
 
@@ -97,12 +125,15 @@ export const initializeAds = async (): Promise<void> => {
       console.log('[AdService] Interstitial ad error:', error);
       state.isLoaded = false;
       state.isLoading = false;
+      adStatus = 'load failed';
+      lastAdError = (error as any)?.code || error?.message || 'unknown';
       onAdError?.(error);
     });
 
     state.interstitial.addAdEventListener(AdEventType.CLOSED, () => {
       console.log('[AdService] Interstitial ad closed');
       state.isLoaded = false;
+      adStatus = 'reloading';
       onAdClosed?.();
       // Pre-load the next ad
       loadInterstitial();
@@ -112,7 +143,9 @@ export const initializeAds = async (): Promise<void> => {
     loadInterstitial();
     
     console.log('[AdService] Initialized successfully');
-  } catch (error) {
+  } catch (error: any) {
+    adStatus = 'init failed';
+    lastAdError = error?.message || 'unknown';
     console.log('[AdService] Failed to initialize:', error);
   }
 };
@@ -140,10 +173,13 @@ export const loadInterstitial = (): void => {
 
   try {
     state.isLoading = true;
+    adStatus = 'loading ad';
     state.interstitial.load();
     console.log('[AdService] Loading interstitial ad...');
-  } catch (error) {
+  } catch (error: any) {
     console.log('[AdService] Error loading ad:', error);
+    adStatus = 'load threw';
+    lastAdError = error?.message || 'unknown';
     state.isLoading = false;
   }
 };
@@ -228,6 +264,7 @@ export const AdService = {
   isAdsSupported,
   setOnAdLoaded,
   setOnAdError,
+  getAdStatus,
 };
 
 export default AdService;

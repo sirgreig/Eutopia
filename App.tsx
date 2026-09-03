@@ -1822,15 +1822,23 @@ export default function App() {
       
       let piratesSunk: string[] = [];
       let boatsSunk: string[] = [];
+      let ptBoatsLost: string[] = [];
       let casualties = 0;
       
       // Update each pirate
       piratesRef.current = piratesRef.current.map(pirate => {
-        // Check collision with PT boats — pirate gets sunk
+        // Contact with a PT boat — resolve the fight. The PT boat usually wins, but
+        // BALANCE.ptBoatLossChance of the time the pirate does, so hunting pirates
+        // is a real gamble rather than a guaranteed kill.
         for (const boat of currentBoats) {
           if (boat.type !== 'pt') continue;
+          if (ptBoatsLost.includes(boat.id)) continue; // Already lost this tick
           const dist = waterDistance(pirate.position, boat.position);
           if (dist < sinkRadius) {
+            if (Math.random() < BALANCE.ptBoatLossChance) {
+              ptBoatsLost.push(boat.id);
+              return pirate; // Pirate survives and sails on
+            }
             piratesSunk.push(pirate.id);
             return pirate; // Will be filtered out below
           }
@@ -1870,12 +1878,17 @@ export default function App() {
           }
         }
         
-        // If no safe fish target, wander randomly
+        // No safe fish target — wander. The target PERSISTS until reached, otherwise
+        // a fresh random point every 100ms makes the pirate jitter on the spot and
+        // grind itself into the coastline.
+        let wanderTarget = pirate.wanderTarget ?? null;
         if (!targetPos) {
-          targetPos = {
-            x: GRID_WIDTH / 2 + (Math.random() - 0.5) * GRID_WIDTH * 0.6,
-            y: GRID_HEIGHT / 2 + (Math.random() - 0.5) * GRID_HEIGHT * 0.6,
-          };
+          if (!wanderTarget || waterDistance(pirate.position, wanderTarget) < 0.6) {
+            wanderTarget = pickWanderTarget(island);
+          }
+          targetPos = wanderTarget;
+        } else {
+          wanderTarget = null; // Chasing fish again — drop the wander target
         }
         
         // Move toward target
@@ -1886,28 +1899,48 @@ export default function App() {
         const dirY = dy / dist;
         
         const moveDistance = pirate.speed * dt;
-        let newX = pirate.position.x + dirX * moveDistance;
-        let newY = pirate.position.y + dirY * moveDistance;
+        const desiredX = pirate.position.x + dirX * moveDistance;
+        const desiredY = pirate.position.y + dirY * moveDistance;
         
-        // Clamp to grid
-        newX = Math.max(0.1, Math.min(GRID_WIDTH - 0.1, newX));
-        newY = Math.max(0.1, Math.min(GRID_HEIGHT - 0.1, newY));
+        const clamp = (v: number, max: number) => Math.max(0.1, Math.min(max - 0.1, v));
         
-        const newPos: WaterPosition = { x: newX, y: newY };
+        // Try the full move, then slide along each axis independently. Sliding is
+        // what lets a pirate follow a coastline instead of pressing into it — the
+        // previous code only reversed `velocity`, which this loop never reads, so a
+        // blocked pirate recomputed the same blocked move forever and never escaped.
+        const candidates: WaterPosition[] = [
+          { x: clamp(desiredX, GRID_WIDTH), y: clamp(desiredY, GRID_HEIGHT) },
+          { x: clamp(desiredX, GRID_WIDTH), y: pirate.position.y },
+          { x: pirate.position.x, y: clamp(desiredY, GRID_HEIGHT) },
+        ];
         
-        // If on land, reverse and randomize
-        if (!isPointInWater(newPos, island)) {
-          const angle = Math.atan2(-dirY, -dirX) + (Math.random() - 0.5) * Math.PI * 0.5;
+        let moved: WaterPosition | null = null;
+        for (const candidate of candidates) {
+          if (isPointInWater(candidate, island)) {
+            moved = candidate;
+            break;
+          }
+        }
+        
+        if (moved) {
+          const actuallyMoved = waterDistance(pirate.position, moved) > 0.01;
           return {
             ...pirate,
-            velocity: { vx: Math.cos(angle) * pirate.speed, vy: Math.sin(angle) * pirate.speed },
+            position: moved,
+            velocity: { vx: dirX * pirate.speed, vy: dirY * pirate.speed },
+            wanderTarget,
+            stuckTicks: actuallyMoved ? 0 : (pirate.stuckTicks ?? 0) + 1,
           };
         }
         
+        // Fully boxed in. Count it, and after a short grace period pick a brand new
+        // wander target somewhere else entirely so the pirate commits to a different
+        // direction rather than retrying the same blocked path.
+        const stuck = (pirate.stuckTicks ?? 0) + 1;
         return {
           ...pirate,
-          position: newPos,
-          velocity: { vx: dirX * pirate.speed, vy: dirY * pirate.speed },
+          stuckTicks: stuck,
+          wanderTarget: stuck > 8 ? pickWanderTarget(island) : wanderTarget,
         };
       });
       
@@ -1934,9 +1967,16 @@ export default function App() {
         showToast(`Pirates sank your fishing boat!${casualties > 0 ? ` -${casualties} people` : ''}`, 'rebel');
       }
       
+      // PT boats that lost their fight
+      if (ptBoatsLost.length > 0) {
+        sinkBoats(ptBoatsLost);
+        Sounds.boatCrash();
+        showToast('Pirates sank your PT boat!', 'rebel');
+      }
+      
       // Sync to React state periodically
       pirateRenderSyncRef.current++;
-      if (pirateRenderSyncRef.current >= 5 || piratesSunk.length > 0 || boatsSunk.length > 0) {
+      if (pirateRenderSyncRef.current >= 5 || piratesSunk.length > 0 || boatsSunk.length > 0 || ptBoatsLost.length > 0) {
         pirateRenderSyncRef.current = 0;
         setPirates([...piratesRef.current]);
       }
@@ -1950,6 +1990,22 @@ export default function App() {
     };
   }, [isRoundActive, island, difficulty]);
   
+  /**
+   * Pick a random open-water point for a pirate to head toward.
+   * Falls back to the map centre if no water is found in a reasonable number of
+   * attempts (shouldn't happen, but the loop must always terminate).
+   */
+  const pickWanderTarget = useCallback((isl: IslandType): WaterPosition => {
+    for (let i = 0; i < 20; i++) {
+      const candidate: WaterPosition = {
+        x: 0.5 + Math.random() * (GRID_WIDTH - 1),
+        y: 0.5 + Math.random() * (GRID_HEIGHT - 1),
+      };
+      if (isPointInWater(candidate, isl)) return candidate;
+    }
+    return { x: GRID_WIDTH / 2, y: GRID_HEIGHT / 2 };
+  }, []);
+
   // Helper: check if a boat is near a fort (protected from pirates)
   const isBoatFortProtected = useCallback((boat: FreeRoamBoatType, island: IslandType) => {
     const fortTiles = island.tiles.filter(t => t.building === 'fort');

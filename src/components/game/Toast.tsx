@@ -200,10 +200,11 @@ const baseContainer = {
 };
 
 const styles = StyleSheet.create({
-  // Small upper-left toast for gold/rain — tucked into the header strip
+  // Small upper-left toast for gold/rain — sits just BELOW the header so it never
+  // covers the gold, population or score readouts.
   containerSmall: {
     ...baseContainer,
-    top: 8,
+    top: 62,
     left: 12,
     paddingVertical: 5,
     paddingHorizontal: 10,
@@ -212,12 +213,12 @@ const styles = StyleSheet.create({
   },
   // Centered bar for build/info/status.
   //
-  // Sits OVER the header rather than over the map, so the play field is never
-  // obscured. Slimmer than it used to be, and non-interactive, so any header
-  // control it briefly covers is still tappable straight through it.
+  // Also below the header. It overlaps the map, which is acceptable because the
+  // whole component is pointerEvents="none" — taps pass straight through to boats
+  // and tiles underneath.
   containerBar: {
     ...baseContainer,
-    top: 6,
+    top: 62,
     left: '22%',
     right: '22%',
     justifyContent: 'center',

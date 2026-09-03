@@ -117,6 +117,18 @@ export interface PirateShip {
   velocity: Velocity;          // Current movement direction
   speed: number;               // Movement speed (world units/sec)
   targetFishId: string | null; // ID of fish school being pursued
+
+  /**
+   * Persistent wander destination, used when no fish school is safe to approach.
+   * Without this the pirate picks a NEW random point every tick and jitters in
+   * place instead of travelling — which is how they end up pinned against a coast.
+   */
+  wanderTarget?: WaterPosition | null;
+  /**
+   * Consecutive ticks during which the pirate failed to move. Used to detect and
+   * break out of a stuck state against land.
+   */
+  stuckTicks?: number;
 }
 
 /**

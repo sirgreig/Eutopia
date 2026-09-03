@@ -179,6 +179,9 @@ export const BALANCE = {
   pirateSinkRadius: 0.6,         // Overlap radius to sink/be sunk (world units)
   pirateCasualtiesMin: 0,        // Min population lost when boat sunk
   pirateCasualtiesMax: 50,       // Max population lost when boat sunk
+  // Chance a PT boat LOSES its fight with a pirate rather than winning it.
+  // Hunting pirates is meant to carry real risk, not be a free kill.
+  ptBoatLossChance: 0.30,
   // Difficulty-specific values set in PIRATE_DIFFICULTY below
   
   // Tropical storms

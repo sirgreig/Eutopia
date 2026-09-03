@@ -603,6 +603,26 @@ will always drift. Components report where they actually are.
 the What's New panel off the app version would mean it never fires for OTA releases.
 Bump `RELEASE_NOTES[0].id` in `src/constants/whatsNew.ts` per release.
 
+### When a What's New entry is required
+Add one whenever a change alters **what a player experiences**:
+- New mechanics or features (sabotage, boat building moving to water)
+- Balance changes they will feel (boat costs, storm damage, PT boats now losing 30%
+  of fights with pirates)
+- UI they interact with (round summary panel, changing their name in Settings)
+- Bug fixes they would have noticed (tutorial highlights landing in the wrong place)
+
+Skip it for work a player cannot see:
+- SDK migrations, dependency changes, build configuration
+- Ad integration repairs, analytics, service plumbing
+- Refactors, internal architecture, documentation
+
+**The test:** would someone who only plays the game notice or care? If the honest
+answer is no, leave it out — a changelog full of invisible entries trains players to
+dismiss the panel without reading it.
+
+Write entries in player language. "Boats sheltering near a fort are completely safe
+from weather and pirates", not "fort protection refactored to 100% boat immunity".
+
 ### OTA updates apply on the next launch
 Quit and reopen twice after `eas update`. The Settings build footer shows the running
 update id — check it before assuming a change is broken.

@@ -33,6 +33,8 @@ export const isAdReady = (): boolean => false;
 
 export const isAdsSupported = (): boolean => false;
 
+export const getAdStatus = (): string => 'web';
+
 export const setOnAdLoaded = (_callback: AdLoadCallback | null): void => {
   // No-op.
 };
@@ -49,6 +51,7 @@ export const AdService = {
   isAdsSupported,
   setOnAdLoaded,
   setOnAdError,
+  getAdStatus,
 };
 
 export default AdService;

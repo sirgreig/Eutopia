@@ -12,6 +12,15 @@
 // Convention: newest entry FIRST. Players who skip several updates see every entry
 // they haven't seen yet, so no release goes unannounced.
 //
+// WHEN TO ADD AN ENTRY
+// Only when a change alters what a PLAYER experiences: new mechanics, balance they
+// will feel, UI they interact with, or bugs they would have noticed.
+//
+// Do NOT add entries for invisible work — SDK migrations, ad integration repairs,
+// refactors, build config. The test is simple: would someone who only plays the game
+// notice or care? A changelog padded with plumbing teaches players to dismiss the
+// panel unread, which costs you the one channel you have for announcing real changes.
+//
 // Keep entries short — this is read on a phone in landscape, where vertical space
 // is tight. Three to five bullets is the sweet spot. Write for players, not for
 // developers: "storms are less punishing" rather than "capped stormMaxBuildings".
@@ -38,8 +47,10 @@ export const RELEASE_NOTES: ReleaseNote[] = [
       'New: send rebels to your opponent for 30 gold, once per round. The AI can do it to you too.',
       'A summary now appears at the end of each round showing exactly where your gold came from.',
       'Build boats by tapping open water — you can now add to your fleet even with a fully built island.',
+      'PT boats no longer win every fight. There is a real chance the pirates come out on top, so escorting your fleet is a gamble.',
       'Forts are far more useful: buildings around them take half damage, and boats sheltering nearby are completely safe from weather and pirates.',
       'Storms are less frequent, and no two hurricanes do the same amount of damage.',
+      'Pirates no longer get stuck against the shoreline where you cannot reach them.',
       'Boats and pirate ships now go down with a proper sinking animation.',
     ],
   },
