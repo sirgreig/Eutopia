@@ -1,6 +1,6 @@
 # Portfolio Overview: Eutopia
 
-*Last Updated: August 19, 2026*
+*Last Updated: August 31, 2026*
 
 ## App Identity
 - **Name:** Eutopia (Greek: good place - etymological root of "Utopia")
@@ -20,8 +20,8 @@
 | SDK 55 | Migration + expo-audio | Complete — merged to main, tagged v0.7.0 |
 | 8 | Multiplayer (8A-8E) | Complete — v0.8.0 tagged |
 | — | EAS preview build / iOS verification | Complete — iOS verified |
-| — | App Store submission | Submitted Aug 19, 2026 — in review |
-| 9 | Enhanced Mode Features | Planned |
+| — | App Store submission | Build 5 rejected (2.5.4, fixed); build 6 in review |
+| 9 | Enhanced Mode + Sabotage | Sabotage complete; Enhanced Mode planned |
 | 10 | Final Polish & Deployment | Planned |
 
 ### Completion Summary
@@ -48,8 +48,8 @@
 | Brand Position | Direct child (no sub-brand) |
 | Website | Listed at tartan-studios.com |
 | Support Email | support@tartan-studios.com |
-| Privacy Policy | https://tartan-studios.com/privacy.html |
-| Terms of Service | https://tartan-studios.com/terms.html |
+| Privacy Policy | https://tartan-studios.com/eutopia/privacy.html |
+| Terms of Service | https://tartan-studios.com/eutopia/terms.html |
 
 ## Cross-App Dependencies
 - Dedicated Firebase project for multiplayer (not shared with IJBA or other apps)
@@ -72,7 +72,8 @@
 ## Tech Stack
 - React Native + Expo SDK 55 (on main branch)
 - TypeScript, Zustand, AsyncStorage
-- expo-audio@55.0.0 (migrated from expo-av; pinned to 55.0.0 for Expo Go compatibility)
+- expo-audio (migrated from expo-av). **Plugin options must be passed explicitly** —
+  its defaults declare background audio and caused an App Store rejection.
 - Custom sound manager with music crossfading and tension variants
 - Google AdMob + react-native-iap (planned)
 - Firebase Realtime DB for multiplayer (LIVE — dedicated project `eutopia-2f19f`,
@@ -95,6 +96,11 @@
   auto-rejoin. Tagged v0.8.0
 - Aug 2026: First successful iOS build; TestFlight beta live with internal testers
 - Aug 2026: **Submitted to the App Store** as "Eutopia: Island Builder"
+- Aug 2026: Build 5 rejected (Guideline 2.5.4 — expo-audio's config plugin silently
+  declared background audio the app never uses). Fixed; build 6 resubmitted.
+- Aug 2026: Sabotage shipped — send rebels to your opponent, the game's first true
+  cross-player action. Boat building moved from land tiles to open water, fixing a
+  dead-end where a fully developed island could never build another boat.
 
 **Live URLs:**
 - Privacy: https://tartan-studios.com/eutopia/privacy.html
@@ -103,19 +109,20 @@
 
 **Upcoming:**
 - Paid Applications Agreement (banking + tax; several days; gates ALL in-app purchases)
-- Phase 9 Enhanced Mode + sabotage — ships OTA via EAS Update
+- Phase 9 Enhanced Mode — ships OTA via EAS Update
 - react-native-iap (native — needs a build) once Enhanced Mode exists
-- AdMob interstitial ad unit + wire ads into round flow (JS, ships OTA)
-- Native splash screen replacement (native — bundle with the next build)
+- AdMob interstitial ad unit + enable ads (JS, ships OTA; currently wired but
+  disabled via a master switch, and solo-only pending a multiplayer design answer)
 
 **Release strategy:** 1.0 ships free with no ads and no IAP. The AdMob native module
 is already in the binary so ads can be enabled over the air. Enhanced Mode (Premium)
 is pure JS and can be delivered OTA once built, but selling it requires the IAP
 module and the Paid Applications Agreement.
 
-**Deferred decision:** PvP boat combat (as in the 1981 original) is not implemented
-and would require a shared-grid rework — single map containing both islands, high-rate
-boat position sync, host-authoritative collision. Parked for Phase 9/10.
+**Deferred decision:** PvP boat combat (as in the 1981 original) is **explicitly
+declined**, not merely deferred. It would require a shared-grid rework — a single map
+containing both islands, high-rate boat position sync, host-authoritative collision.
+Sabotage (sending rebels) delivers cross-player interaction at a fraction of the cost.
 
 ## Action Items for Portfolio Coordination
 - **Paid Applications Agreement** — not started; gates all IAP across the portfolio
@@ -125,5 +132,14 @@ boat position sync, host-authoritative collision. Parked for Phase 9/10.
 - Coordinate SDK 55 Expo Go update with other Tartan Studios app migrations
 - Monitor Firebase Realtime DB usage now that multiplayer is live — costs are
   intended to be offset by ad revenue, which is not yet implemented
-- **Reusable learning for all landscape-locked apps:** React Native `<Modal>` aborts
-  the process on iOS under `requireFullScreen`. Use absolute overlays.
+- **Reusable learnings for the whole portfolio:**
+  - **Config plugin defaults can get you rejected.** `expo-audio` defaults
+    `enableBackgroundPlayback: true`, declaring background audio in Info.plist.
+    That is an automatic Guideline 2.5.4 rejection for any app not actually playing
+    audio in the background — it cost Eutopia a full review cycle. Pass plugin
+    options explicitly and audit the GENERATED Info.plist and AndroidManifest.
+  - **An unaccepted Developer Program License Agreement blocks every app.**
+    Submissions sit in "Waiting for Review" and never enter the queue. No error, just
+    a banner on the Apps list. Cost roughly ten days.
+  - **React Native `<Modal>` aborts on iOS under `requireFullScreen`** in any
+    landscape-locked app. Use absolute overlays.

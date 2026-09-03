@@ -1,51 +1,95 @@
 # Project Status: Eutopia
 
-*Last Updated: August 19, 2026*
+*Last Updated: August 31, 2026*
 
 ## Current Version
-- **App Version:** 1.0.0 (pre-release)
-- **SDK:** Expo 55 (on main branch as of this session)
-- **Running on:** Android emulator (Pixel 4a) via Expo Go SDK 55; iOS paused (see below)
+- **App Version:** 1.0.0, build 6 (build number auto-increments per EAS build)
+- **SDK:** Expo 55
+- **Release status:** In App Store review. Live on TestFlight with internal testers.
 - **Dev System:** Windows PC
-- **Local Path:** C:\Dev\Eutopia
+- **Local Path:** C:\dev\Eutopia
 
-## Active Work: App Store Review
-
-**Submitted for review August 19, 2026.** App Store Connect name is
-**"Eutopia: Island Builder"** (the plain name was unavailable). Home-screen name
-remains "Eutopia" via `expo.name`.
+## App Store Connect — Reference
+- Listing name: **"Eutopia: Island Builder"** (plain "Eutopia" was unavailable).
+  Home-screen name remains "Eutopia" via `expo.name`.
+- Bundle ID: `com.tartanstudios.eutopia`
+- App Privacy published: Name + User ID, both App Functionality, Linked yes,
+  Tracking NO (which keeps the app out of App Tracking Transparency entirely)
+- Privacy policy: https://tartan-studios.com/eutopia/privacy.html
+- Terms of use: https://tartan-studios.com/eutopia/terms.html
+- Support URL: https://tartan-studios.com — support@tartan-studios.com
+- Price tier: Free. Content Rights: no third-party content. Age rating: 4+
+- Screenshots uploaded for iPhone and iPad (iPad support retained)
+- Apple distribution certificate expires **18 December 2026** (shared portfolio-wide)
 
 ### Release scope (Option A — free tier only)
 Decision: ship free and clean rather than delaying for monetization.
 - Ads DISABLED via `ADS_ENABLED = false` master switch in `adService.ts`. The
   `react-native-google-mobile-ads` native module ships in the binary so ads can be
-  turned on later via OTA, but the SDK never initialises.
+  turned on later via OTA, but the SDK never initialises. `showInterstitial()` is
+  wired to fire after every 4th round end (solo only) once enabled.
 - `react-native-iap` NOT installed. Adding it later costs one build, no review
   penalty. IAP also requires the Paid Applications Agreement (banking + tax
-  details, several days to process) — not yet started.
+  details, several days to process) — **not yet started**.
 - Enhanced Mode (the Premium tier) is Phase 9 and does not exist yet.
-
-### App Store Connect status
-- Icon, splash, encryption flag, bundle ID, SKAdNetwork: all configured
-- App Privacy published: Name + User ID, both App Functionality, Linked yes,
-  Tracking NO (which keeps the app out of App Tracking Transparency entirely)
-- Privacy policy: https://tartan-studios.com/eutopia/privacy.html
-- Terms of use: https://tartan-studios.com/eutopia/terms.html
-- Support URL: https://tartan-studios.com
-- Price tier: Free. Content Rights: no third-party content. Age rating: 4+
-- Screenshots uploaded for iPhone and iPad (iPad support retained)
 
 ### TestFlight
 - Internal testers: Greig, Aidan, Bryce, Ross
 - Build 2 crashed on launch (see Key Learnings). Build 3+ stable.
 - Builds expire after 90 days — OTA updates do NOT extend expiry
 
+## Active Work: App Store Review — Build 6 Resubmitted
+
+**Timeline:**
+- Aug 19, 2026 — build 5 submitted for review
+- Stalled ~10 days in "Waiting for Review". Cause: the Apple Developer Program
+  License Agreement had been updated and required Account Holder acceptance. This
+  blocks submissions at the ACCOUNT level and is only surfaced by a banner on the
+  Apps list — the submission simply never enters the queue. Accepted, then filed a
+  status inquiry with Apple Developer Support.
+- Aug 31, 2026 — build 5 **REJECTED**, Guideline 2.5.4 Performance / Software
+  Requirements. Reviewed on iPad Air 11-inch (M4) and iPhone 17 Pro Max.
+- Aug 31, 2026 — build 6 submitted with the fix.
+
+### The rejection, and the fix
+Apple: the app declares `audio` in `UIBackgroundModes` but plays nothing while
+backgrounded.
+
+They were right. Eutopia deliberately PAUSES all audio on background
+(`AppState` listener in App.tsx). The entry was never added intentionally — the
+**expo-audio config plugin defaults `enableBackgroundPlayback` to `true`**, and
+pushes `'audio'` into `UIBackgroundModes` on every build.
+
+Fix, in `app.json`, converting the bare `"expo-audio"` plugin entry to the array form:
+```json
+["expo-audio", {
+  "enableBackgroundPlayback": false,
+  "enableBackgroundRecording": false,
+  "recordAudioAndroid": false
+}]
+```
+This also stops the plugin re-adding `RECORD_AUDIO`, `FOREGROUND_SERVICE` and
+`FOREGROUND_SERVICE_MEDIA_PLAYBACK` on Android — the same permissions that were
+manually stripped from `app.json` earlier and kept reappearing. The plugin was the
+source all along.
+
+### Build 6 contents
+Build 6 carries everything built since build 5, so the reviewed binary matches what
+ships: title screen, sabotage, water-tap boat building, name filter, Settings name
+control, What's New panel, measured tutorial targets, toast fix, balance changes,
+and the new native splash screen.
+
 ### Next Steps
 1. Await review outcome
-2. Start the Paid Applications Agreement (blocks all future IAP, slow to process)
-3. Native splash screen is still a placeholder (`assets/splash.png`, ~17KB).
-   Native asset — requires a new binary, so bundle it with the next build.
-4. Phase 9: Enhanced Mode + sabotage (both ship OTA)
+2. On approval: publish the held OTA backlog (see below)
+3. Start the Paid Applications Agreement — long lead time, gates ALL in-app purchases
+4. Phase 9: Enhanced Mode + entitlement model
+
+### OTA updates being held
+Nothing has been published to the `production` channel since submission. This is
+deliberate: `expo-updates` would serve the latest bundle to a reviewer's device,
+meaning they could run code Apple never received a binary for. Publish only after
+approval.
 
 ### Phase 8 Progress — COMPLETE
 - **8A — Firebase + Data Model:** COMPLETE
@@ -128,6 +172,36 @@ rooms/{roomCode}/
   in-flight weather does not survive a rejoin. All scored state is fully restored.
 
 ## Key Learnings — iOS / Release
+
+### CRITICAL: config plugin defaults can get you rejected
+**expo-audio's plugin defaults `enableBackgroundPlayback` to `true`**, which injects
+`'audio'` into `UIBackgroundModes`. Any app that declares that but doesn't actually
+play audio while backgrounded is an automatic **Guideline 2.5.4 rejection**. Eutopia
+deliberately pauses audio on background, so it was declaring a capability it not only
+lacked but actively refused to use.
+
+It also silently re-adds `RECORD_AUDIO`, `FOREGROUND_SERVICE` and
+`FOREGROUND_SERVICE_MEDIA_PLAYBACK` on Android — which is why those permissions kept
+reappearing in `app.json` after being manually removed.
+
+**Applies to every Tartan Studios app using expo-audio.** Always pass the options
+explicitly rather than trusting defaults:
+```json
+["expo-audio", {
+  "enableBackgroundPlayback": false,
+  "enableBackgroundRecording": false,
+  "recordAudioAndroid": false
+}]
+```
+More generally: **audit the generated Info.plist and AndroidManifest, not just
+app.json.** Plugins add things you never asked for, and Apple reviews the output.
+
+### An unaccepted License Agreement blocks submissions silently
+The updated Apple Developer Program License Agreement requires Account Holder
+acceptance before any app can be submitted or updated. Until accepted, a submission
+sits in "Waiting for Review" and **never enters the queue** — there is no error, only
+a banner on the Apps list. This cost roughly ten days. Check the Apps list banner
+first whenever a submission seems stalled. It blocks the whole portfolio, not one app.
 
 ### CRITICAL: never use React Native `<Modal>` in this app
 `<Modal>` presents a separate UIViewController on iOS. With the app locked to
@@ -266,6 +340,49 @@ islands, ~10Hz boat position sync with interpolation, and host-authoritative col
 adjudication. Not proceeding.
 
 ## Completed Sessions
+
+### August 31, 2026 - Gameplay, UX, and App Store Rejection Fix
+**Added:**
+- src/services/rebels.ts (shared rebel placement — used by endRound, sabotage, AI)
+- src/services/fortProtection.ts (single source of truth for fort rules)
+- src/components/game/SinkingBoat.tsx (3-stage sink animation, no new artwork)
+- src/services/adService.web.ts (web stub — see Key Learnings)
+
+**Sabotage (Phase 9, first piece — from the 1981 original):**
+- Header button: 30 gold, once per round, sends rebels to the opponent's island
+- Multiplayer: targeted Firebase channel at `rooms/{code}/actions/{targetPlayerId}`.
+  The first TRUE cross-player action — weather is broadcast and resolved locally,
+  sabotage directly modifies another player's board.
+- Solo works both directions: the player can hit the AI, and the AI retaliates
+  (gated by difficulty, once per round, at a random moment mid-round)
+
+**Boat building reworked — tap water, not land:**
+- Players who developed every land tile could no longer build boats AT ALL, losing
+  access to fishing income and pirate defence permanently. An unwinnable trap that
+  punished exactly the behaviour scoring rewards.
+- Land tap → buildings menu. Water tap → boats menu, boat spawns where tapped.
+- Selected boat ALWAYS treats a water tap as its destination; deselect by tapping
+  the boat itself. Added `createFreeRoamBoatAt()` to spawn at a water position.
+
+**Balance:**
+- Hurricanes roll a per-storm budget at spawn (1-3 buildings, 1-2 boats) instead of
+  grinding to a fixed cap. They always destroyed exactly 3 because `buildingDestroy`
+  is 0.60 — the cap was deterministic, not the damage.
+- Storms spawn ~25% less often; capped at 1 building and 1 boat
+- Forts reworked: buildings get 50% protection (halved destroy chance, NOT immunity),
+  boats get 100% protection including from hurricanes, rebels ~half as likely to
+  target a protected tile. Hurricanes previously ignored forts entirely.
+
+**UX:**
+- Toasts no longer intercept taps (`pointerEvents="none"`) and moved over the header.
+  They were swallowing presses aimed at boats underneath, worst during active rounds.
+- How to Play rewritten: forts, sabotage, storms vs hurricanes, multiplayer, and the
+  new boat-building model. Three sections were factually wrong, not just incomplete.
+- Pirates now play the sinking animation too
+
+**App Store:**
+- Build 5 rejected (2.5.4) and fixed — see Active Work
+- Native splash screen replaced with the title artwork (`resizeMode: cover`)
 
 ### August 19, 2026 - Release Track + UX
 **Added:**

@@ -565,11 +565,32 @@ C:\Dev\Eutopia\
 
 ## Critical Implementation Rules
 
+### Pass config plugin options explicitly — defaults can get you rejected
+`expo-audio` defaults `enableBackgroundPlayback: true`, which injects `'audio'` into
+`UIBackgroundModes` and caused a **Guideline 2.5.4 App Store rejection** (build 5).
+It also re-adds `RECORD_AUDIO` and foreground-service permissions on Android after
+they are manually removed from app.json. Always specify:
+```json
+["expo-audio", { "enableBackgroundPlayback": false, "enableBackgroundRecording": false, "recordAudioAndroid": false }]
+```
+Audit the GENERATED Info.plist and AndroidManifest, not just app.json.
+
 ### Never use React Native `<Modal>`
 The app is locked to landscape with `requireFullScreen: true`. `<Modal>` presents a
 separate UIViewController, UIKit finds no valid orientation for it, and the process
 aborts. This crashed TestFlight build 2 on launch. Use absolutely-positioned Views
 with a high `zIndex` instead. iOS-only — invisible on Android and web.
+
+### Boats are built on water, buildings on land
+Tapping a land tile opens the buildings menu; tapping open water opens the boats
+menu and spawns the boat where tapped. This is not cosmetic — boats used to be built
+from free coastal LAND tiles, so a player who developed their whole island could
+never build another boat, permanently losing fishing income and pirate defence.
+
+Water tap rules, in order:
+- A selected boat ALWAYS treats a water tap as its destination
+- Deselect by tapping the boat itself, never by tapping water or land
+- With nothing selected, a water tap opens the boat build menu
 
 ### Never hardcode UI coordinates for the tutorial
 Spotlight positions are measured at runtime via `measureInWindow` and registered in
@@ -1176,15 +1197,14 @@ export const SOUND_KEYS = {
       flag in the room record. Chosen over prompting the guest mid-lobby, which would
       paywall someone at the moment they just accepted a friend's invitation.
 
-**Sabotage — buy a rebel and inflict it on your opponent** (from the 1981 original):
-- [ ] Spend gold (`REBEL_SPAWN_COST`, already defined as 30) to spawn a rebel on the
-      opponent's island
-- [ ] Targeted Firebase action channel — the first true cross-player action in the game.
-      Weather is broadcast and resolved locally; sabotage directly modifies another
-      player's board.
-- [ ] Receiving client applies the rebel locally, respecting existing fort protection rules
-- [ ] Notification for the victim, UI affordance for the attacker
-- [ ] AI equivalent in solo play, in both directions
+**Sabotage — buy a rebel and inflict it on your opponent** — ✅ COMPLETE (Aug 2026):
+- [x] Spend `REBEL_SPAWN_COST` (30 gold) to send rebels to the opponent's island
+- [x] Header button, once per round
+- [x] Targeted Firebase channel `rooms/{code}/actions/{targetPlayerId}` — the first
+      true cross-player action in the game
+- [x] Receiving client applies the rebel locally, respecting fort protection
+- [x] AI equivalent in solo play, in both directions
+- [x] Shared logic in `src/services/rebels.ts`
 
 **Explicitly declined:** PvP boat combat. Would require a shared grid containing both
 islands, high-rate boat position sync with interpolation, and host-authoritative
@@ -1252,7 +1272,7 @@ BALANCE = {
 
 ---
 
-*Last Updated: August 19, 2026*
+*Last Updated: August 31, 2026*
 
 ---
 
@@ -1271,7 +1291,7 @@ BALANCE = {
 | 7 | AI Opponent | 🔶 Basic AI functional, enhancements planned |
 | 8 | Multiplayer | ✅ Complete — v0.8.0 tagged |
 | — | EAS preview build / iOS verification | ✅ Complete — iOS verified, audio stable |
-| — | App Store submission | 🔶 Submitted Aug 19, 2026 — in review |
+| — | App Store submission | 🔶 Build 5 rejected (2.5.4, fixed); build 6 in review |
 | 9 | Enhanced Mode Features | 🔜 Planned |
 | 10 | Final Polish | 🔜 Planned |
 

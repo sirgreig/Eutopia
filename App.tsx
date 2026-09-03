@@ -74,6 +74,7 @@ import {
   rollBudget,
 } from './src/services/fortProtection';
 import { SinkingBoat, SinkableType, SINK_ANIMATION_MS } from './src/components/game/SinkingBoat';
+import { RoundSummaryPanel, RoundSummaryData } from './src/components/game/RoundSummaryPanel';
 
 // Audio imports - simple system adapted from IJBA
 import { initializeSounds, Sounds } from './src/services/soundManager';
@@ -119,6 +120,15 @@ const MP_FORFEIT_MS = 180000;  // 3 minutes → forfeit
 // game would be punishing; this lands roughly four ads in a full game.
 // House rule: ads only at natural pause points, never mid-round.
 const AD_ROUND_INTERVAL = 4;
+
+// Multiplayer only: how long the host's NEXT button stays dimmed after a round
+// ends, so the opponent gets time to read their round summary.
+//
+// This is NOT a ready-up handshake — no signal passes between clients. Both end the
+// round at the same instant from the same shared endTime, so both summaries appear
+// together. Holding the host for the same duration the summary is on screen gives
+// the guest that window without anything to negotiate, stall on, or time out.
+const MP_NEXT_LOCKOUT_MS = 5000;
 
 const MenuBuildingIcon = ({ type }: { type: string }) => {
   switch (type) {
@@ -285,6 +295,66 @@ export default function App() {
   // Sabotage — one per round per player
   const [sabotageUsedRound, setSabotageUsedRound] = useState<number>(-1);
 
+  // Round summary — gold earned DURING the round is added to the total as it
+  // happens, so it has to be accumulated separately to be reportable.
+  const roundFishingGoldRef = useRef(0);
+  const roundRainGoldRef = useRef(0);
+  const [roundSummary, setRoundSummary] = useState<RoundSummaryData | null>(null);
+  // Whether an interstitial is owed once the summary is dismissed
+  const pendingAdRef = useRef(false);
+
+  // Reset the per-round accumulators whenever a round begins.
+  // Also clears any lingering summary — in multiplayer the host can press NEXT
+  // before the guest's summary has auto-dismissed, and it must not sit over a
+  // round that has already started.
+  useEffect(() => {
+    if (isRoundActive) {
+      roundFishingGoldRef.current = 0;
+      roundRainGoldRef.current = 0;
+      setRoundSummary(null);
+    }
+  }, [isRoundActive]);
+
+  const dismissRoundSummary = useCallback(() => {
+    setRoundSummary(null);
+    // Ad runs AFTER the summary, never over it
+    if (pendingAdRef.current) {
+      pendingAdRef.current = false;
+      showAd().catch(() => { /* never block round flow on an ad */ });
+    }
+  }, [showAd]);
+
+  /**
+   * Solo only: the summary carries the Next Round button, so the player reads their
+   * result and continues in one place instead of dismissing and then hunting for
+   * NEXT in the header.
+   *
+   * Order matters: dismiss, then run any owed ad to completion, THEN start the
+   * round — otherwise the ad would appear over a round that is already running.
+   */
+  const advanceFromSummary = useCallback(async () => {
+    setRoundSummary(null);
+    if (pendingAdRef.current) {
+      pendingAdRef.current = false;
+      try {
+        await showAd();
+      } catch {
+        // Never block the round on an ad
+      }
+    }
+    startRoundRef.current?.();
+  }, [showAd]);
+
+  // startRound is defined further down; hold it in a ref so the callback above can
+  // reach it without reordering the component.
+  const startRoundRef = useRef<(() => void) | null>(null);
+
+  // Multiplayer: hold the host's NEXT button briefly after a round ends.
+  // Timestamp of when NEXT becomes available again; 0 means unrestricted.
+  const [mpNextUnlockAt, setMpNextUnlockAt] = useState(0);
+  const isNextLocked = isMultiplayer && mpNextUnlockAt > 0 && mpNowTick < mpNextUnlockAt;
+
+
   /** Apply an incoming rebel to the player's own island. */
   const receiveSabotage = useCallback((attackerName?: string) => {
     setIsland((prev) => {
@@ -408,6 +478,8 @@ export default function App() {
     setShowRoundTransition(null);
     setToast(null);
     setSabotageUsedRound(-1);
+    setRoundSummary(null);
+    pendingAdRef.current = false;
   }, [roundDuration]);
 
   // Start game with config from setup screen
@@ -445,6 +517,8 @@ export default function App() {
     setShowRoundTransition(null);
     setToast(null);
     setSabotageUsedRound(-1);
+    setRoundSummary(null);
+    pendingAdRef.current = false;
     
     // Initialize AI opponent
     setTimeout(() => initializeAI(), 100);
@@ -1119,6 +1193,7 @@ export default function App() {
         Sounds.rainStorm();
         setGold(g => g + wateredCrops);
         rainGoldAccumRef.current += wateredCrops;
+        roundRainGoldRef.current += wateredCrops;
         showToast(`+${wateredCrops}g from rain!`, 'rain');
       }
     }, 1000);
@@ -1205,6 +1280,7 @@ export default function App() {
       }
       if (wateredCrops > 0) {
         setGold(g => g + wateredCrops);
+        roundRainGoldRef.current += wateredCrops;
         showToast(`+${wateredCrops}g from storm rain!`, 'rain');
       }
       
@@ -1365,6 +1441,7 @@ export default function App() {
       }
       if (wateredCrops > 0) {
         setGold(g => g + wateredCrops);
+        roundRainGoldRef.current += wateredCrops;
         showToast(`+${wateredCrops}g from hurricane rain!`, 'rain');
       }
       
@@ -1666,6 +1743,7 @@ export default function App() {
       
       if (totalGold > 0) {
         setGold(g => g + totalGold);
+        roundFishingGoldRef.current += totalGold;
         showToast(`+${totalGold}g fishing!`, 'gold');
         Sounds.boatFishing();
       }
@@ -1909,6 +1987,7 @@ export default function App() {
     // Multiplayer: only host writes; both clients react via the round listener
     if (isMultiplayer) {
       if (!mpIsHost || !mpRoomCode) return;
+      if (isNextLocked) return; // Opponent is still reading their round summary
       const newRound = round + 1;
       fbSetRoundState(mpRoomCode, {
         number: newRound,
@@ -1926,6 +2005,9 @@ export default function App() {
     setRound(newRound);
     setShowRoundTransition('start');
   };
+
+  // Expose startRound to advanceFromSummary, which is declared earlier
+  startRoundRef.current = startRound;
 
   const onRoundTransitionComplete = () => {
     if (showRoundTransition === 'start') {
@@ -1954,7 +2036,8 @@ export default function App() {
     
     // Income calculation
     const productivity = Math.min(BALANCE.maxProductivityBonus, (schools + hospitals) * factories + hospitals);
-    const income = BALANCE.baseRoundIncome + factories * BALANCE.factoryIncome + productivity;
+    const factoryIncome = factories * BALANCE.factoryIncome;
+    const income = BALANCE.baseRoundIncome + factoryIncome + productivity;
     setGold(g => g + income);
     Sounds.goldReceive();
     
@@ -2031,19 +2114,31 @@ export default function App() {
     if (round >= maxRounds) {
       setTimeout(() => setShowGameOver(true), 1500);
     } else {
-      showToast(`+${income}g income`, 'gold');
-
-      // Interstitial ad at a natural pause point.
+      // Round summary replaces the old "+Ng income" toast, which nobody noticed.
+      // Suppressed on the final round — the end game screen covers it.
       //
-      // SOLO ONLY for now. In multiplayer the round timer is host-authoritative and
-      // shared: if the host sits in a fullscreen ad, the guest is stuck on "Waiting
-      // for host" with no explanation. Revisit once there's a way to show both
-      // players an ad simultaneously, or to run it during the guest's wait.
-      if (!isMultiplayer && round > 0 && round % AD_ROUND_INTERVAL === 0) {
-        // Fire and forget — showAd resolves false when no ad is ready, and the
-        // whole path is inert while ADS_ENABLED is false.
-        showAd().catch(() => { /* never block round flow on an ad */ });
+      // If this is an ad round, the ad is deferred until the summary is dismissed
+      // so the player always sees their result before an ad takes the screen.
+      pendingAdRef.current =
+        !isMultiplayer && round > 0 && round % AD_ROUND_INTERVAL === 0;
+
+      // Hold the host's NEXT button so the opponent can read their own summary
+      if (isMultiplayer) {
+        setMpNextUnlockAt(Date.now() + MP_NEXT_LOCKOUT_MS);
       }
+
+      setRoundSummary({
+        round,
+        baseIncome: BALANCE.baseRoundIncome,
+        factoryIncome,
+        productivityBonus: productivity,
+        fishingGold: roundFishingGoldRef.current,
+        rainGold: roundRainGoldRef.current,
+        populationBefore: population,
+        populationAfter: newPopulation,
+        scoreBefore: score,
+        scoreAfter: totalScore,
+      });
     }
   };
 
@@ -2457,7 +2552,11 @@ export default function App() {
                 </Text>
               </View>
             ) : (
-              <TouchableOpacity style={styles.startBtn} onPress={startRound}>
+              <TouchableOpacity
+                style={[styles.startBtn, isNextLocked && styles.startBtnLocked]}
+                onPress={startRound}
+                disabled={isNextLocked}
+              >
                 <Text style={styles.startBtnText}>
                   {round === 0 ? '▶ START' : round >= maxRounds ? 'DONE' : '▶ NEXT'}
                 </Text>
@@ -2717,6 +2816,20 @@ export default function App() {
         />
       )}
       
+      {/* Round summary.
+          Never auto-dismisses. In solo it carries the Next Round button; in
+          multiplayer it persists until tapped, and clears on its own when a new
+          round starts. It blocks nothing — the host can still reach NEXT above it,
+          and the NEXT lockout guarantees the opponent a few seconds regardless. */}
+      <RoundSummaryPanel
+        summary={roundSummary}
+        onDismiss={dismissRoundSummary}
+        reduceMotion={!animationsEnabled}
+        autoDismissMs={null}
+        primaryLabel={!isMultiplayer && round < maxRounds ? '▶ NEXT ROUND' : undefined}
+        onPrimaryAction={!isMultiplayer && round < maxRounds ? advanceFromSummary : undefined}
+      />
+
       {/* Round Transition Animation */}
       {showRoundTransition && (
         <RoundTransition
@@ -2837,6 +2950,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 8,
     borderRadius: 8,
+  },
+  startBtnLocked: {
+    opacity: 0.35,
   },
   startBtnText: {
     color: 'white',

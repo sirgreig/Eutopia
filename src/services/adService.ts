@@ -8,27 +8,31 @@ import Constants from 'expo-constants';
 // Check if we're running in Expo Go (no native ad support)
 const isExpoGo = Constants.appOwnership === 'expo';
 
-// MASTER SWITCH — ads are disabled for the 1.0 release.
+// MASTER SWITCH — set to true to serve ads.
 //
-// The react-native-google-mobile-ads native module ships in the binary so ads can
-// be turned on later without a new build, but the SDK is never initialised while
-// this is false. That keeps the App Store privacy declaration limited to what the
-// game itself collects. Set to true once a real ad unit ID replaces the
-// placeholder below and showInterstitial() is wired into the round flow.
-const ADS_ENABLED = false;
+// The react-native-google-mobile-ads native module ships in the binary, so ads can
+// be enabled or disabled over the air without a new build. When false the SDK is
+// never initialised at all.
+const ADS_ENABLED = true;
 
-// Ad Unit IDs - Replace with your real ad unit IDs from AdMob console
-// For now using test IDs which are safe for development/testing
+// Ad Unit IDs.
+//
+// __DEV__ builds use Google's official test units, which always fill — useful for
+// verifying the integration works before a real unit has warmed up. Production uses
+// the live units from the AdMob console.
+//
+// NOTE: only the iOS interstitial unit exists so far. Android falls back to the test
+// unit rather than a placeholder, so an Android build cannot accidentally request an
+// invalid unit id (which produces confusing "no fill" errors). Create the Android
+// unit in AdMob before releasing on Play.
 const AD_UNIT_IDS = {
   ios: {
-    interstitial: __DEV__ 
+    interstitial: __DEV__
       ? 'ca-app-pub-3940256099942544/4411468910'  // Google test ad unit
-      : 'ca-app-pub-7909587764339962/XXXXXXXXXX', // TODO: Replace with real ad unit ID
+      : 'ca-app-pub-7909587764339962/5762878359', // Eutopia Round Interstitial (iOS)
   },
   android: {
-    interstitial: __DEV__
-      ? 'ca-app-pub-3940256099942544/1033173712'  // Google test ad unit  
-      : 'ca-app-pub-7909587764339962/XXXXXXXXXX', // TODO: Replace with real ad unit ID
+    interstitial: 'ca-app-pub-3940256099942544/1033173712', // Google test unit — no live Android unit yet
   },
 };
 

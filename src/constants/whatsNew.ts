@@ -31,6 +31,19 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    id: '2026.09.03',
+    date: 'September 2026',
+    headline: 'Sabotage, summaries and smarter storms',
+    items: [
+      'New: send rebels to your opponent for 30 gold, once per round. The AI can do it to you too.',
+      'A summary now appears at the end of each round showing exactly where your gold came from.',
+      'Build boats by tapping open water — you can now add to your fleet even with a fully built island.',
+      'Forts are far more useful: buildings around them take half damage, and boats sheltering nearby are completely safe from weather and pirates.',
+      'Storms are less frequent, and no two hurricanes do the same amount of damage.',
+      'Boats and pirate ships now go down with a proper sinking animation.',
+    ],
+  },
+  {
     id: '2026.08.19.2',
     date: 'August 2026',
     headline: 'Balance and polish',
@@ -40,14 +53,6 @@ export const RELEASE_NOTES: ReleaseNote[] = [
       'Tropical storms can no longer flatten your whole island. Hurricanes still can.',
       'You can change your display name in Settings.',
       'Tutorial highlights now land on the right buttons.',
-    ],
-  },
-  {
-    id: '2026.08.19',
-    date: 'August 2026',
-    headline: 'Earlier build',
-    items: [
-      'Superseded by the entry above.',
     ],
   },
 ];
