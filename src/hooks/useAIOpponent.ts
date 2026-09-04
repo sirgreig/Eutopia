@@ -4,7 +4,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Island, Position, BuildingType, BoatType, GameMode } from '../types';
 import { BUILDINGS, BOAT_COSTS, BALANCE, REBEL_SPAWN_COST } from '../constants/game';
-import { generateIsland } from '../services/islandGenerator';
+import { generateIsland, tileCountForMode } from '../services/islandGenerator';
 import { inflictRebel } from '../services/rebels';
 import {
   AIState,
@@ -68,11 +68,13 @@ export function useAIOpponent({
   const initializeAI = useCallback(() => {
     if (!enabled) return;
     
-    const aiIsland = generateIsland();
+    // Match the player's island size — Enhanced Mode islands are larger, and the AI
+    // playing a smaller one would be a quiet handicap
+    const aiIsland = generateIsland({ tileCount: tileCountForMode(mode) });
     const initialState = initializeAIState(aiIsland);
     setAIState(initialState);
     setLastAIAction(null);
-  }, [enabled]);
+  }, [enabled, mode]);
   
   // Process AI decision
   const processAIDecision = useCallback(() => {

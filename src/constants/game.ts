@@ -154,6 +154,11 @@ export const BALANCE = {
   
   // Island
   tilesPerIsland: 18,
+  // Enhanced Mode gets a larger island — twelve buildings need somewhere to go.
+  // Buildable region is 10x5 = 50 tiles (a one-tile water ring is always reserved),
+  // so 28 uses 56% of it. Above roughly 32 the generator struggles to find shapes
+  // that leave all water connected.
+  tilesPerIslandEnhanced: 28,
   
   // Round timing (seconds)
   defaultRoundDuration: 90,
@@ -172,6 +177,10 @@ export const BALANCE = {
   fertilityPerHospital: 0.3,
   fertilityPerHouse: 0.1,
   fertilityPerSchool: -0.3,
+  // Apartments house three families' worth of score but contribute less growth than
+  // three houses would — density without community. Still better than one house, so
+  // they are not a dead end for population.
+  fertilityPerApartment: 0.2,
   minFertility: 4.0,
   
   // Mortality (percentage points)
@@ -258,10 +267,10 @@ export const BALANCE = {
   lighthouseScoutBonus: 2,       // Extra tiles of fog reveal for PT boats
 
   // Granary — banks surplus food and spends it on bad rounds
-  granaryCapacityEach: 5,        // Food score points each granary can hold
+  granaryCapacityEach: 15,       // Food score points each granary can hold
 
   // Marketplace — sells food the island cannot use
-  marketplacePointsEach: 10,     // Overflow food points each marketplace can convert
+  marketplacePointsEach: 25,     // Overflow food points each marketplace can convert
   marketplaceGoldPerPoint: 2,    // Gold per converted point
 
   // Watchtower — permanent fog reveal around a fixed point

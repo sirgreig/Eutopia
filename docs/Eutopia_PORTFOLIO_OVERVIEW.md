@@ -125,8 +125,11 @@ containing both islands, high-rate boat position sync, host-authoritative collis
 Sabotage (sending rebels) delivers cross-player interaction at a fraction of the cost.
 
 ## Action Items for Portfolio Coordination
-- **Paid Applications Agreement** — not started; gates all IAP across the portfolio
-- AdMob interstitial ad unit creation (Eutopia's is still a placeholder ID)
+- **Paid Applications Agreement: ACTIVE** (verified Sept 2026) — bank account, W-9 and
+  DSA compliance all in place. IAP is unblocked at the account level for every
+  Tartan Studios app; only the `react-native-iap` module is still missing.
+- AdMob interstitial ad unit created; app status is "Requires review" in the AdMob
+  console, which is why ads report no-fill
 - Apple distribution certificate **expires 18 December 2026** — shared across ALL
   Tartan Studios apps. Renewal is portfolio-wide, not Eutopia-specific.
 - Coordinate SDK 55 Expo Go update with other Tartan Studios app migrations

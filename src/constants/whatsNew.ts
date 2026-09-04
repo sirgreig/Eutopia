@@ -45,6 +45,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
     headline: 'Enhanced Mode is here',
     items: [
       'Enhanced Mode now works. Six new buildings, each with a real effect.',
+      'Enhanced islands are larger — ten extra tiles to build on.',
       'Apartment houses three times as many people as a house, at the cost of welfare.',
       'Dock pays nearby fishing boats half as much again. Lighthouse shelters boats from storms.',
       'Granary banks surplus food for a bad round; Marketplace sells what it cannot store.',

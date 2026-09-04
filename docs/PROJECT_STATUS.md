@@ -515,8 +515,11 @@ adjudication. Not proceeding.
 ## Blockers
 Awaiting App Store review (submitted August 19, 2026).
 
-**Not blocking, but slow to obtain:** the Paid Applications Agreement takes several
-days and gates every in-app purchase. Worth starting before Phase 9 finishes.
+**Paid Applications Agreement: ACTIVE.** Verified in App Store Connect → Business
+(Sept 2026). Paid Apps Agreement, Wells Fargo USD bank account, W-9, and Digital
+Services Act compliance are all Active. IAP products can be created whenever wanted
+— the only remaining blocker for selling anything is the `react-native-iap` module,
+which is native and needs a new binary.
 
 ## Phase 8 - Multiplayer Sub-Phases — ALL COMPLETE
 - **8A:** Firebase Project + Data Model — COMPLETE

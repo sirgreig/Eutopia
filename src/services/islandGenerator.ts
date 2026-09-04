@@ -4,8 +4,68 @@ import { BALANCE, GRID_WIDTH, GRID_HEIGHT } from '../constants/game';
 const DEFAULT_CONFIG: IslandGeneratorConfig = {
   tileCount: BALANCE.tilesPerIsland,
   minCompactness: 0.25, // Lower to allow peninsulas and odd shapes
-  maxAttempts: 100,
+  maxAttempts: 200,     // Raised: the water-connectivity check rejects more shapes
 };
+
+/** Tile count for a given game mode. */
+export function tileCountForMode(mode: 'original' | 'enhanced'): number {
+  return mode === 'enhanced' ? BALANCE.tilesPerIslandEnhanced : BALANCE.tilesPerIsland;
+}
+
+/**
+ * Verify that every water cell on the grid is reachable from the outer ring.
+ *
+ * The growth algorithm deliberately favours peninsulas and irregular shapes, which
+ * on a larger island readily produces landlocked ponds. A pond is a real trap: a
+ * player can tap it and build a boat that can never reach a fish school, fish can
+ * spawn inside it unreachable, and pirates can wander in and sit there.
+ *
+ * Flood-fills water from the grid border. Any water cell not reached means the
+ * island encloses a pond and the shape must be rejected.
+ */
+function hasConnectedWater(tiles: Tile[]): boolean {
+  const land = new Set(tiles.map((t) => `${t.position.x},${t.position.y}`));
+  const isLand = (x: number, y: number) => land.has(`${x},${y}`);
+
+  const seen = new Set<string>();
+  const queue: Position[] = [];
+
+  // Seed from every border cell that is water. The generator reserves a one-tile
+  // ring, so in practice the entire border is water.
+  for (let x = 0; x < GRID_WIDTH; x++) {
+    for (const y of [0, GRID_HEIGHT - 1]) {
+      if (!isLand(x, y)) { queue.push({ x, y }); seen.add(`${x},${y}`); }
+    }
+  }
+  for (let y = 0; y < GRID_HEIGHT; y++) {
+    for (const x of [0, GRID_WIDTH - 1]) {
+      if (!isLand(x, y) && !seen.has(`${x},${y}`)) {
+        queue.push({ x, y });
+        seen.add(`${x},${y}`);
+      }
+    }
+  }
+
+  const dirs = [
+    { x: 0, y: -1 }, { x: 0, y: 1 }, { x: -1, y: 0 }, { x: 1, y: 0 },
+  ];
+
+  while (queue.length > 0) {
+    const cur = queue.shift()!;
+    for (const d of dirs) {
+      const nx = cur.x + d.x;
+      const ny = cur.y + d.y;
+      if (nx < 0 || nx >= GRID_WIDTH || ny < 0 || ny >= GRID_HEIGHT) continue;
+      const key = `${nx},${ny}`;
+      if (seen.has(key) || isLand(nx, ny)) continue;
+      seen.add(key);
+      queue.push({ x: nx, y: ny });
+    }
+  }
+
+  const totalWater = GRID_WIDTH * GRID_HEIGHT - tiles.length;
+  return seen.size === totalWater;
+}
 
 /**
  * Generate a random island with fairness constraints
@@ -15,9 +75,14 @@ export function generateIsland(config: Partial<IslandGeneratorConfig> = {}): Isl
   
   let bestIsland: Tile[] | null = null;
   let bestMetrics: IslandMetrics | null = null;
+  let connectedFallback: Tile[] | null = null;
   
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const tiles = generateIslandShape(tileCount);
+
+    // Reject any shape that encloses water, whatever its other merits
+    if (!hasConnectedWater(tiles)) continue;
+
     const metrics = calculateMetrics(tiles);
     
     // Accept islands that meet minimum compactness (ensures playability)
@@ -31,21 +96,20 @@ export function generateIsland(config: Partial<IslandGeneratorConfig> = {}): Isl
       };
     }
     
-    // Track best attempt as fallback
+    // Track best attempt as fallback — only shapes with connected water qualify
     if (!bestMetrics || metrics.compactness > bestMetrics.compactness) {
       bestIsland = tiles;
       bestMetrics = metrics;
     }
+    connectedFallback = tiles;
   }
   
-  // Fallback to last attempt if none met criteria
-  if (!bestIsland) {
-    bestIsland = generateIslandShape(tileCount);
-  }
+  // Fallback: prefer any shape that at least had connected water
+  const finalTiles = bestIsland ?? connectedFallback ?? generateIslandShape(tileCount);
   
   return {
     id: `island-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    tiles: bestIsland,
+    tiles: finalTiles,
     boats: [],
   };
 }

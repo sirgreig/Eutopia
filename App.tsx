@@ -42,7 +42,7 @@ import { RoundTransition } from './src/components/game/RoundTransition';
 import { AnimatedResourceBar } from './src/components/game/AnimatedResourceBar';
 import { AnimatedBuildMenu } from './src/components/game/AnimatedBuildMenu';
 import { FreeRoamBoat, DestinationMarker } from './src/components/game/FreeRoamBoat';
-import { generateIsland } from './src/services/islandGenerator';
+import { generateIsland, tileCountForMode } from './src/services/islandGenerator';
 import { generateCoastline } from './src/services/coastlineDetection';
 import { 
   createFreeRoamBoat, 
@@ -512,7 +512,7 @@ export default function App() {
   };
 
   const initGame = useCallback(() => {
-    const newIsland = generateIsland();
+    const newIsland = generateIsland({ tileCount: tileCountForMode(mode) });
     setIsland(newIsland);
     setCoastline(generateCoastline(newIsland));
     setFreeRoamBoats([]);
@@ -544,7 +544,7 @@ export default function App() {
     setBattlePlan(null);
     granaryBankRef.current = 0;
     setRevealedTiles(new Set());
-  }, [roundDuration]);
+  }, [roundDuration, mode]);
 
   // Start game with config from setup screen
   const startGameWithConfig = useCallback((config: GameConfig) => {
@@ -555,7 +555,7 @@ export default function App() {
     setShowSetup(false);
     
     // Initialize game with new config
-    const newIsland = generateIsland();
+    const newIsland = generateIsland({ tileCount: tileCountForMode(config.mode) });
     setIsland(newIsland);
     setCoastline(generateCoastline(newIsland));
     setFreeRoamBoats([]);
@@ -2190,7 +2190,7 @@ export default function App() {
     Sounds.goldReceive();
     
     // Population calculation
-    const fertility = Math.max(BALANCE.minFertility, BALANCE.baseFertility + crops * BALANCE.fertilityPerCrop + hospitals * BALANCE.fertilityPerHospital + houses * BALANCE.fertilityPerHouse + schools * BALANCE.fertilityPerSchool) / 100;
+    const fertility = Math.max(BALANCE.minFertility, BALANCE.baseFertility + crops * BALANCE.fertilityPerCrop + hospitals * BALANCE.fertilityPerHospital + houses * BALANCE.fertilityPerHouse + apartments * BALANCE.fertilityPerApartment + schools * BALANCE.fertilityPerSchool) / 100;
     const mortality = Math.min(BALANCE.maxMortality, Math.max(BALANCE.minMortality, BALANCE.baseMortality + hospitals * BALANCE.mortalityPerHospital + factories * BALANCE.mortalityPerFactory)) / 100;
     const newPopulation = Math.min(BALANCE.maxPopulation, Math.max(1, Math.floor(population + population * fertility - population * mortality)));
     if (newPopulation > population) {
