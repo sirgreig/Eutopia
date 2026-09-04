@@ -24,6 +24,7 @@ export type SoundEffect =
     | 'thunderCrack'
     | 'tripleBeep'
     | 'boatCrash'
+    | 'cannonFire'
     | 'boatFishing'
     | 'boatLaunch'
     | 'populationBoost'
@@ -48,6 +49,7 @@ const SOUND_FILES: Partial<Record<SoundEffect, AudioSource>> = {
     thunderCrack: require('../../assets/audio/thunderCrack.mp3'),
     tripleBeep: require('../../assets/audio/tripleBeep.mp3'),
     boatCrash: require('../../assets/audio/boatCrash.mp3'),
+    cannonFire: require('../../assets/audio/cannon_fire.mp3'),
     boatFishing: require('../../assets/audio/boatFishing.mp3'),
     boatLaunch: require('../../assets/audio/boatLaunch.mp3'),
     populationBoost: require('../../assets/audio/populationBoost.mp3'),
@@ -93,6 +95,7 @@ const SOUND_VOLUMES: Partial<Record<SoundEffect, number>> = {
     thunderCrack: 0.9,
     tripleBeep: 0.8,
     boatCrash: 1.0,
+    cannonFire: 0.85,
     boatFishing: 0.7,
     boatLaunch: 0.9,
     populationBoost: 0.8,
@@ -145,6 +148,8 @@ export async function initializeSounds(): Promise<void> {
             'stabilityAchieved',
             'boatFishing',
             'boatLaunch',
+            'boatCrash',
+            'cannonFire',
             'thunderCrack',
             'menuOpen',
             'populationBoost',
@@ -607,6 +612,7 @@ export const Sounds = {
     boatMove: () => playSound('boatMove'),
     boatFishing: () => playSound('boatFishing'),
     boatCrash: () => playSound('boatCrash'),
+    cannonFire: () => playSound('cannonFire'),
     boatLaunch: () => playSound('boatLaunch'),
 
     // Building

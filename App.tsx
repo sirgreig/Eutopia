@@ -75,6 +75,7 @@ import {
 } from './src/services/fortProtection';
 import { SinkingBoat, SinkableType, SINK_ANIMATION_MS } from './src/components/game/SinkingBoat';
 import { RoundSummaryPanel, RoundSummaryData } from './src/components/game/RoundSummaryPanel';
+import { BattleOverlay, BattlePlan, buildBattlePlan, BATTLE_TOTAL_MS } from './src/components/game/BattleOverlay';
 
 // Audio imports - simple system adapted from IJBA
 import { initializeSounds, Sounds } from './src/services/soundManager';
@@ -292,6 +293,43 @@ export default function App() {
     setSinkingBoats((prev) => prev.filter((b) => b.id !== id));
   }, []);
 
+  // PT boat vs pirate battle. Both combatants are pulled OUT of play for the
+  // duration so they cannot move or collide again; the winner is returned when it
+  // resolves. Only one battle runs at a time — a second collision during a battle
+  // is ignored rather than queued.
+  const [battlePlan, setBattlePlan] = useState<BattlePlan | null>(null);
+  const battleRef = useRef<{
+    ptBoat: FreeRoamBoatType;
+    pirate: PirateShipType;
+    ptWins: boolean;
+  } | null>(null);
+
+  const resolveBattle = useCallback(() => {
+    const battle = battleRef.current;
+    battleRef.current = null;
+    setBattlePlan(null);
+    if (!battle) return;
+
+    if (battle.ptWins) {
+      // Pirate goes down; PT boat returns to play where it was
+      addSinking([
+        { id: battle.pirate.id, type: 'pirate' as SinkableType, position: battle.pirate.position },
+      ]);
+      freeRoamBoatsRef.current = [...freeRoamBoatsRef.current, battle.ptBoat];
+      setFreeRoamBoats([...freeRoamBoatsRef.current]);
+      showToast('PT boat sank the pirates!', 'stability');
+    } else {
+      // PT boat goes down; pirate sails on
+      addSinking([
+        { id: battle.ptBoat.id, type: battle.ptBoat.type as SinkableType, position: battle.ptBoat.position },
+      ]);
+      piratesRef.current = [...piratesRef.current, battle.pirate];
+      setPirates([...piratesRef.current]);
+      showToast('Pirates sank your PT boat!', 'rebel');
+    }
+    Sounds.boatCrash();
+  }, [addSinking]);
+
   // Sabotage — one per round per player
   const [sabotageUsedRound, setSabotageUsedRound] = useState<number>(-1);
 
@@ -480,6 +518,8 @@ export default function App() {
     setSabotageUsedRound(-1);
     setRoundSummary(null);
     pendingAdRef.current = false;
+    battleRef.current = null;
+    setBattlePlan(null);
   }, [roundDuration]);
 
   // Start game with config from setup screen
@@ -519,6 +559,8 @@ export default function App() {
     setSabotageUsedRound(-1);
     setRoundSummary(null);
     pendingAdRef.current = false;
+    battleRef.current = null;
+    setBattlePlan(null);
     
     // Initialize AI opponent
     setTimeout(() => initializeAI(), 100);
@@ -1542,6 +1584,20 @@ export default function App() {
   useEffect(() => { selectedBoatRef.current = selectedBoat; }, [selectedBoat]);
   useEffect(() => { destinationMarkerRef.current = destinationMarker; }, [destinationMarker]);
   useEffect(() => { isRoundActiveRef.current = isRoundActive; }, [isRoundActive]);
+
+  // Clear the selection if the selected boat no longer exists.
+  //
+  // Without this the player is soft-locked: tapping land is blocked because a boat
+  // is "selected", tapping water does nothing because the boat can't be found, and
+  // the boat itself is gone so it can't be tapped to deselect. Happens whenever a
+  // selected boat is sunk by pirates, a storm, a hurricane, or loses a battle.
+  useEffect(() => {
+    if (!selectedBoat) return;
+    if (!freeRoamBoats.some(b => b.id === selectedBoat)) {
+      setSelectedBoat(null);
+      setDestinationMarker(null);
+    }
+  }, [freeRoamBoats, selectedBoat]);
   
   useEffect(() => {
     if (!coastline || !island || freeRoamBoats.length === 0) {
@@ -1822,25 +1878,29 @@ export default function App() {
       
       let piratesSunk: string[] = [];
       let boatsSunk: string[] = [];
-      let ptBoatsLost: string[] = [];
       let casualties = 0;
+      let battleStarted = false;
       
       // Update each pirate
       piratesRef.current = piratesRef.current.map(pirate => {
-        // Contact with a PT boat — resolve the fight. The PT boat usually wins, but
-        // BALANCE.ptBoatLossChance of the time the pirate does, so hunting pirates
-        // is a real gamble rather than a guaranteed kill.
-        for (const boat of currentBoats) {
-          if (boat.type !== 'pt') continue;
-          if (ptBoatsLost.includes(boat.id)) continue; // Already lost this tick
-          const dist = waterDistance(pirate.position, boat.position);
-          if (dist < sinkRadius) {
-            if (Math.random() < BALANCE.ptBoatLossChance) {
-              ptBoatsLost.push(boat.id);
-              return pirate; // Pirate survives and sails on
+        // Contact with a PT boat — start a battle. The outcome is rolled HERE, before
+        // any animation, so the odds are unaffected by the presentation. Both ships
+        // are removed from play for the duration and the winner is restored when the
+        // overlay finishes (see resolveBattle).
+        if (!battleRef.current && !battleStarted) {
+          for (const boat of currentBoats) {
+            if (boat.type !== 'pt') continue;
+            const dist = waterDistance(pirate.position, boat.position);
+            if (dist < sinkRadius) {
+              const ptWins = Math.random() >= BALANCE.ptBoatLossChance;
+              battleRef.current = { ptBoat: boat, pirate, ptWins };
+              battleStarted = true;
+              // Pull the PT boat out of play for the fight
+              freeRoamBoatsRef.current = freeRoamBoatsRef.current.filter(b => b.id !== boat.id);
+              setFreeRoamBoats([...freeRoamBoatsRef.current]);
+              setBattlePlan(buildBattlePlan(ptWins));
+              return null as any; // Pirate removed from play too; filtered below
             }
-            piratesSunk.push(pirate.id);
-            return pirate; // Will be filtered out below
           }
         }
         
@@ -1942,7 +2002,7 @@ export default function App() {
           stuckTicks: stuck,
           wanderTarget: stuck > 8 ? pickWanderTarget(island) : wanderTarget,
         };
-      });
+      }).filter(Boolean) as PirateShipType[];
       
       // Remove sunk pirates — capture their positions first so the animation can
       // play where they actually went down
@@ -1967,16 +2027,9 @@ export default function App() {
         showToast(`Pirates sank your fishing boat!${casualties > 0 ? ` -${casualties} people` : ''}`, 'rebel');
       }
       
-      // PT boats that lost their fight
-      if (ptBoatsLost.length > 0) {
-        sinkBoats(ptBoatsLost);
-        Sounds.boatCrash();
-        showToast('Pirates sank your PT boat!', 'rebel');
-      }
-      
       // Sync to React state periodically
       pirateRenderSyncRef.current++;
-      if (pirateRenderSyncRef.current >= 5 || piratesSunk.length > 0 || boatsSunk.length > 0 || ptBoatsLost.length > 0) {
+      if (pirateRenderSyncRef.current >= 5 || piratesSunk.length > 0 || boatsSunk.length > 0 || battleStarted) {
         pirateRenderSyncRef.current = 0;
         setPirates([...piratesRef.current]);
       }
@@ -2222,7 +2275,9 @@ export default function App() {
   };
 
   const handleTilePress = (position: Position, tile: Tile) => {
-    if (selectedBoat) { 
+    // Only block if the selected boat actually still exists — a stale id must never
+    // lock the player out of building
+    if (selectedBoat && freeRoamBoats.some(b => b.id === selectedBoat)) { 
       Sounds.tileClick();
       showToast('Tap water to move, or tap the boat to deselect', 'error');
       return; 
@@ -2290,8 +2345,12 @@ export default function App() {
     // If a boat is selected, set its destination
     if (selectedBoat) {
       const boat = freeRoamBoats.find(b => b.id === selectedBoat);
-      if (!boat) return;
-      
+      if (!boat) {
+        // Selected boat is gone (sunk). Drop the stale selection and treat this tap
+        // as a normal water tap rather than silently doing nothing.
+        setSelectedBoat(null);
+        setDestinationMarker(null);
+      } else {
       // Try to set the destination (will use pathfinding)
       const updatedBoat = setBoatDestination(boat, waterPosition, island);
       
@@ -2309,6 +2368,7 @@ export default function App() {
       setDestinationMarker(waterPosition);
       setSelectedBoat(null);
       return;
+      }
     }
 
     // No boat selected — offer to build one here
@@ -2885,6 +2945,10 @@ export default function App() {
         primaryLabel={!isMultiplayer && round < maxRounds ? '▶ NEXT ROUND' : undefined}
         onPrimaryAction={!isMultiplayer && round < maxRounds ? advanceFromSummary : undefined}
       />
+
+      {/* PT boat vs pirate battle. Outcome was decided before this rendered — the
+          overlay only presents it. Non-blocking: the round timer runs underneath. */}
+      <BattleOverlay plan={battlePlan} onComplete={resolveBattle} />
 
       {/* Round Transition Animation */}
       {showRoundTransition && (

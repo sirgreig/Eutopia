@@ -51,6 +51,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
       'Forts are far more useful: buildings around them take half damage, and boats sheltering nearby are completely safe from weather and pirates.',
       'Storms are less frequent, and no two hurricanes do the same amount of damage.',
       'Pirates no longer get stuck against the shoreline where you cannot reach them.',
+      'Fixed being unable to build after your selected boat was sunk.',
       'Boats and pirate ships now go down with a proper sinking animation.',
     ],
   },

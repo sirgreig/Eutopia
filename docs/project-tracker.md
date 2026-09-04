@@ -565,6 +565,23 @@ C:\Dev\Eutopia\
 
 ## Critical Implementation Rules
 
+### Working agreement — check this list before finishing any change
+These rules are not reference material to consult when something goes wrong. They
+are a checklist to run through on every change, because each one exists because it
+already cost time or a release.
+
+1. **What's New entry** — does this change alter what a player experiences? If yes,
+   add one before shipping. See "When a What's New entry is required" below. This is
+   part of finishing a change, not an optional extra.
+2. **No React Native `<Modal>`** — it aborts the process on iOS under landscape lock.
+3. **No hardcoded UI coordinates** for tutorial spotlights — measure them.
+4. **Config plugin options passed explicitly** — defaults have caused an App Store
+   rejection.
+5. **State the build command** — and say whether the change ships OTA or needs a new
+   binary.
+6. **Docs updated** if the change affects architecture, adds a file, or establishes a
+   new rule.
+
 ### Pass config plugin options explicitly — defaults can get you rejected
 `expo-audio` defaults `enableBackgroundPlayback: true`, which injects `'audio'` into
 `UIBackgroundModes` and caused a **Guideline 2.5.4 App Store rejection** (build 5).
