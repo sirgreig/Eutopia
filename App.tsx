@@ -2219,10 +2219,6 @@ export default function App() {
 
     if (foodEconomy.marketplaceGold > 0) {
       setGold(g => g + foodEconomy.marketplaceGold);
-      showToast(`+${foodEconomy.marketplaceGold}g from marketplace`, 'gold');
-    }
-    if (foodEconomy.granaryUsed > 0) {
-      showToast(`Granary covered ${foodEconomy.granaryUsed} food`, 'stability');
     }
 
     const welfareScore = Math.max(
@@ -2328,10 +2324,19 @@ export default function App() {
         productivityBonus: productivity,
         fishingGold: roundFishingGoldRef.current,
         rainGold: roundRainGoldRef.current,
+        marketplaceGold: foodEconomy.marketplaceGold,
+        granaryFood: foodEconomy.granaryUsed,
         populationBefore: population,
         populationAfter: newPopulation,
         scoreBefore: score,
         scoreAfter: totalScore,
+        scorePartsBefore: scoreBreakdown,
+        scorePartsAfter: {
+          housing: housingScore,
+          food: foodScore,
+          welfare: welfareScore,
+          gdp: gdpScore,
+        },
       });
     }
   };

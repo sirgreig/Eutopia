@@ -6,8 +6,12 @@
 // IMPORTANT: not a React Native <Modal> — see the project's Critical Implementation
 // Rules. Modal aborts the process on iOS under landscape lock.
 //
+// Two-column layout, deliberately: gold on the left, score and population on the
+// right. It must fit a landscape phone WITHOUT scrolling, so nothing here may grow
+// unbounded — rows with a zero value are omitted rather than shown as "+0".
+//
 // Positioned below the header so the host can still reach NEXT in multiplayer, and
-// non-blocking: it auto-dismisses on a timer, and any tap dismisses it early.
+// non-blocking: any tap dismisses it.
 
 import React, { useEffect, useRef } from 'react';
 import {
@@ -21,6 +25,13 @@ import {
   useWindowDimensions,
 } from 'react-native';
 
+export interface ScoreParts {
+  housing: number;
+  food: number;
+  welfare: number;
+  gdp: number;
+}
+
 export interface RoundSummaryData {
   round: number;
   /** Gold earned at round end */
@@ -30,47 +41,59 @@ export interface RoundSummaryData {
   /** Gold earned live during the round */
   fishingGold: number;
   rainGold: number;
+  /** Enhanced Mode: gold from marketplaces selling surplus food */
+  marketplaceGold?: number;
+  /** Enhanced Mode: food score points drawn from granary storage */
+  granaryFood?: number;
   /** Population and score before/after this round's calculation */
   populationBefore: number;
   populationAfter: number;
   scoreBefore: number;
   scoreAfter: number;
+  scorePartsBefore: ScoreParts;
+  scorePartsAfter: ScoreParts;
 }
 
 interface RoundSummaryPanelProps {
   summary: RoundSummaryData | null;
   onDismiss: () => void;
   reduceMotion?: boolean;
-  /**
-   * How long before it dismisses itself. Pass null to require an explicit action —
-   * used in solo, where the panel carries the Next Round button and there is nobody
-   * waiting on the player.
-   */
   autoDismissMs?: number | null;
-  /** Optional primary action rendered as a button (e.g. "Next Round"). */
   primaryLabel?: string;
   onPrimaryAction?: () => void;
 }
 
-const Row: React.FC<{ label: string; value: string; muted?: boolean; accent?: string }> = ({
-  label,
-  value,
-  muted,
-  accent,
-}) => (
+const signed = (n: number): string => (n > 0 ? `+${n}` : `${n}`);
+
+const GAIN = '#7fd6a0';
+const LOSS = '#ff8a80';
+
+const Row: React.FC<{
+  label: string;
+  value: string;
+  delta?: number;
+  muted?: boolean;
+}> = ({ label, value, delta, muted }) => (
   <View style={styles.row}>
-    <Text style={[styles.rowLabel, muted && styles.rowLabelMuted]}>{label}</Text>
-    <Text style={[styles.rowValue, accent ? { color: accent } : null]}>{value}</Text>
+    <Text style={[styles.rowLabel, muted && styles.rowLabelMuted]} numberOfLines={1}>
+      {label}
+    </Text>
+    <View style={styles.rowValueGroup}>
+      <Text style={styles.rowValue}>{value}</Text>
+      {delta !== undefined && delta !== 0 && (
+        <Text style={[styles.rowDelta, { color: delta > 0 ? GAIN : LOSS }]}>
+          {signed(delta)}
+        </Text>
+      )}
+    </View>
   </View>
 );
-
-const signed = (n: number): string => (n > 0 ? `+${n}` : `${n}`);
 
 export const RoundSummaryPanel: React.FC<RoundSummaryPanelProps> = ({
   summary,
   onDismiss,
   reduceMotion = false,
-  autoDismissMs = 5000,
+  autoDismissMs = null,
   primaryLabel,
   onPrimaryAction,
 }) => {
@@ -114,14 +137,22 @@ export const RoundSummaryPanel: React.FC<RoundSummaryPanelProps> = ({
 
   if (!summary) return null;
 
-  const liveGold = summary.fishingGold + summary.rainGold;
-  const endGold = summary.baseIncome + summary.factoryIncome + summary.productivityBonus;
-  const totalGold = liveGold + endGold;
+  const marketplaceGold = summary.marketplaceGold ?? 0;
+  const totalGold =
+    summary.fishingGold +
+    summary.rainGold +
+    summary.baseIncome +
+    summary.factoryIncome +
+    summary.productivityBonus +
+    marketplaceGold;
 
   const popDelta = summary.populationAfter - summary.populationBefore;
   const scoreDelta = summary.scoreAfter - summary.scoreBefore;
 
-  const cardWidth = Math.min(screenWidth * 0.6, 340);
+  const before = summary.scorePartsBefore;
+  const after = summary.scorePartsAfter;
+
+  const cardWidth = Math.min(screenWidth * 0.82, 520);
 
   return (
     <View
@@ -139,46 +170,72 @@ export const RoundSummaryPanel: React.FC<RoundSummaryPanelProps> = ({
         <Text style={styles.title}>Round {summary.round} Complete</Text>
         <View style={styles.rule} />
 
-        <Text style={styles.sectionLabel}>Gold Earned</Text>
-        {summary.factoryIncome > 0 && (
-          <Row label="Factories" value={`+${summary.factoryIncome}`} />
-        )}
-        {summary.productivityBonus > 0 && (
-          <Row label="Productivity" value={`+${summary.productivityBonus}`} />
-        )}
-        {summary.fishingGold > 0 && <Row label="Fishing" value={`+${summary.fishingGold}`} />}
-        {summary.rainGold > 0 && <Row label="Rain on crops" value={`+${summary.rainGold}`} />}
-        <Row label="Base income" value={`+${summary.baseIncome}`} muted />
+        <View style={styles.columns}>
+          {/* Gold */}
+          <View style={styles.column}>
+            <Text style={styles.sectionLabel}>Gold Earned</Text>
+            {summary.factoryIncome > 0 && (
+              <Row label="Factories" value={`+${summary.factoryIncome}`} />
+            )}
+            {summary.productivityBonus > 0 && (
+              <Row label="Productivity" value={`+${summary.productivityBonus}`} />
+            )}
+            {summary.fishingGold > 0 && (
+              <Row label="Fishing" value={`+${summary.fishingGold}`} />
+            )}
+            {summary.rainGold > 0 && <Row label="Rain on crops" value={`+${summary.rainGold}`} />}
+            {marketplaceGold > 0 && <Row label="Marketplace" value={`+${marketplaceGold}`} />}
+            <Row label="Base income" value={`+${summary.baseIncome}`} muted />
 
-        <View style={styles.totalRow}>
-          <Text style={styles.totalLabel}>Total</Text>
-          <Text style={styles.totalValue}>+{totalGold}g</Text>
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Total</Text>
+              <Text style={styles.totalValue}>+{totalGold}g</Text>
+            </View>
+          </View>
+
+          <View style={styles.divider} />
+
+          {/* Score */}
+          <View style={styles.column}>
+            <Text style={styles.sectionLabel}>Score</Text>
+            <Row label="Housing" value={`${after.housing}`} delta={after.housing - before.housing} />
+            <Row label="Food" value={`${after.food}`} delta={after.food - before.food} />
+            <Row label="Welfare" value={`${after.welfare}`} delta={after.welfare - before.welfare} />
+            <Row label="Wealth" value={`${after.gdp}`} delta={after.gdp - before.gdp} />
+
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Total</Text>
+              <View style={styles.rowValueGroup}>
+                <Text style={styles.totalValue}>{summary.scoreAfter}</Text>
+                {scoreDelta !== 0 && (
+                  <Text style={[styles.rowDelta, { color: scoreDelta > 0 ? GAIN : LOSS }]}>
+                    {signed(scoreDelta)}
+                  </Text>
+                )}
+              </View>
+            </View>
+
+            <View style={styles.popRow}>
+              <Row
+                label="Population"
+                value={summary.populationAfter.toLocaleString()}
+                delta={popDelta}
+              />
+              {(summary.granaryFood ?? 0) > 0 && (
+                <Row label="Granary used" value={`${summary.granaryFood}`} />
+              )}
+            </View>
+          </View>
         </View>
 
-        <View style={styles.divider} />
-
-        <Row
-          label="Population"
-          value={`${summary.populationAfter.toLocaleString()} (${signed(popDelta)})`}
-          accent={popDelta >= 0 ? '#7fd6a0' : '#ff8a80'}
-        />
-        <Row
-          label="Score"
-          value={`${summary.scoreAfter} (${signed(scoreDelta)})`}
-          accent={scoreDelta >= 0 ? '#7fd6a0' : '#ff8a80'}
-        />
-
         {onPrimaryAction && primaryLabel ? (
-          <>
-            <TouchableOpacity
-              style={styles.primaryButton}
-              onPress={onPrimaryAction}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.primaryButtonText}>{primaryLabel}</Text>
-            </TouchableOpacity>
-            <Text style={styles.hint}>Tap outside to review the board</Text>
-          </>
+          <TouchableOpacity
+            style={styles.primaryButton}
+            onPress={onPrimaryAction}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.primaryButtonText}>{primaryLabel}</Text>
+          </TouchableOpacity>
         ) : (
           <Text style={styles.hint}>Tap to continue</Text>
         )}
@@ -196,7 +253,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     zIndex: 900,
   },
-  // Covers the map area only, leaving the header reachable (NEXT in multiplayer)
   tapCatcher: {
     position: 'absolute',
     top: 56,
@@ -205,14 +261,14 @@ const styles = StyleSheet.create({
     bottom: 0,
   },
   card: {
-    backgroundColor: 'rgba(18, 30, 40, 0.96)',
+    backgroundColor: 'rgba(18, 30, 40, 0.97)',
     borderRadius: 14,
     borderWidth: 1,
     borderColor: '#2f4d5f',
     paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingTop: 10,
     paddingBottom: 10,
-    marginTop: 40,
+    marginTop: 30,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.4,
@@ -220,19 +276,32 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   title: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: 'bold',
     color: '#ffffff',
     textAlign: 'center',
   },
   rule: {
     height: 2,
-    width: 36,
+    width: 32,
     alignSelf: 'center',
     backgroundColor: '#ffc107',
     borderRadius: 1,
-    marginTop: 5,
-    marginBottom: 9,
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  columns: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  column: {
+    flex: 1,
+  },
+  divider: {
+    width: 1,
+    alignSelf: 'stretch',
+    backgroundColor: '#25384a',
+    marginHorizontal: 12,
   },
   sectionLabel: {
     fontSize: 9,
@@ -240,20 +309,26 @@ const styles = StyleSheet.create({
     letterSpacing: 1.2,
     textTransform: 'uppercase',
     fontWeight: '600',
-    marginBottom: 4,
+    marginBottom: 3,
   },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 3,
+    marginBottom: 2,
   },
   rowLabel: {
     fontSize: 12,
     color: '#c3d3de',
+    flexShrink: 1,
   },
   rowLabelMuted: {
     color: '#7d97a8',
+  },
+  rowValueGroup: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 5,
   },
   rowValue: {
     fontSize: 12,
@@ -261,30 +336,38 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
   },
+  rowDelta: {
+    fontSize: 11,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+    minWidth: 26,
+    textAlign: 'right',
+  },
   totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 6,
-    paddingTop: 6,
+    marginTop: 4,
+    paddingTop: 4,
     borderTopWidth: 1,
     borderTopColor: '#25384a',
   },
   totalLabel: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: 'bold',
     color: '#ffffff',
   },
   totalValue: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: 'bold',
     color: '#ffc107',
     fontVariant: ['tabular-nums'],
   },
-  divider: {
-    height: 1,
-    backgroundColor: '#25384a',
-    marginVertical: 8,
+  popRow: {
+    marginTop: 6,
+    paddingTop: 5,
+    borderTopWidth: 1,
+    borderTopColor: '#25384a',
   },
   hint: {
     fontSize: 9,
@@ -294,14 +377,14 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     backgroundColor: '#4caf50',
-    paddingVertical: 10,
+    paddingVertical: 9,
     borderRadius: 8,
     alignItems: 'center',
-    marginTop: 12,
+    marginTop: 10,
   },
   primaryButtonText: {
     color: '#ffffff',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: 'bold',
     letterSpacing: 1.5,
   },
