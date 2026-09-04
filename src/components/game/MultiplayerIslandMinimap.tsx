@@ -40,6 +40,10 @@ interface MultiplayerIslandMinimapProps {
   visible: boolean;
   /** Room code, shown in the expanded view so a player can rejoin if needed */
   roomCode?: string;
+  /** Enhanced Mode: hide unscouted tiles */
+  fogEnabled?: boolean;
+  /** Tile keys ("x,y") this player has revealed */
+  revealedTiles?: Set<string>;
   /** Phase 8E — true when the opponent's heartbeat has gone stale */
   isStale?: boolean;
   /** Phase 8E — ms since the opponent's last state write */
@@ -51,6 +55,7 @@ const EMPTY_LAND_COLOR = '#c2b280';  // bare land
 const BUILT_TILE_COLOR = '#7a6a52';  // occupied, type unknown
 const BUILT_MARKER_COLOR = '#4a3f30'; // small centred block on built tiles
 const WATER_COLOR = '#1a5276';
+const FOG_COLOR = '#22303a';
 
 export const MultiplayerIslandMinimap: React.FC<MultiplayerIslandMinimapProps> = ({
   island,
@@ -61,6 +66,8 @@ export const MultiplayerIslandMinimap: React.FC<MultiplayerIslandMinimapProps> =
   opponentName,
   visible,
   roomCode,
+  fogEnabled = false,
+  revealedTiles,
   isStale = false,
   msSinceSeen = 0,
 }) => {
@@ -89,7 +96,8 @@ export const MultiplayerIslandMinimap: React.FC<MultiplayerIslandMinimapProps> =
         {island.tiles.map((tile) => {
           const x = tile.position.x * tileSize;
           const y = tile.position.y * tileSize;
-          const isBuilt = !!tile.building;
+          const hidden = fogEnabled && !(revealedTiles?.has(`${tile.position.x},${tile.position.y}`) ?? false);
+          const isBuilt = !hidden && !!tile.building;
 
           return (
             <G key={tile.id}>
@@ -98,7 +106,7 @@ export const MultiplayerIslandMinimap: React.FC<MultiplayerIslandMinimapProps> =
                 y={y}
                 width={tileSize}
                 height={tileSize}
-                fill={isBuilt ? BUILT_TILE_COLOR : EMPTY_LAND_COLOR}
+                fill={hidden ? FOG_COLOR : isBuilt ? BUILT_TILE_COLOR : EMPTY_LAND_COLOR}
                 stroke={WATER_COLOR}
                 strokeWidth={0.5}
               />
@@ -113,7 +121,7 @@ export const MultiplayerIslandMinimap: React.FC<MultiplayerIslandMinimapProps> =
                   rx={markerSize * 0.15}
                 />
               )}
-              {tile.hasRebel && (
+              {!hidden && tile.hasRebel && (
                 <Circle
                   cx={x + tileSize / 2}
                   cy={y + tileSize / 2}
@@ -266,6 +274,12 @@ export const MultiplayerIslandMinimap: React.FC<MultiplayerIslandMinimapProps> =
         </View>
       )}
 
+      {fogEnabled && (
+        <Text style={styles.fogHint}>
+          {revealedTiles?.size ?? 0}/{island.tiles.length} scouted
+        </Text>
+      )}
+
       <Text style={styles.tapHint}>Tap to expand</Text>
     </TouchableOpacity>
   );
@@ -337,6 +351,12 @@ const styles = StyleSheet.create({
     color: '#556677',
     textAlign: 'center',
     marginTop: 2,
+  },
+  fogHint: {
+    fontSize: 9,
+    color: '#8fb8d4',
+    textAlign: 'center',
+    fontWeight: '600',
   },
 
   // Full-screen overlay styles

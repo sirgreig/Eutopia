@@ -33,6 +33,7 @@ import { Sounds } from '../../services/soundManager';
 interface TitleScreenProps {
   onPlay: () => void;
   onSettings?: () => void;
+  onHowToPlay?: () => void;
   /** Optional full-bleed background artwork (JPEG recommended — large PNGs are heavy). */
   backgroundSource?: ImageSourcePropType;
   /** Optional transparent cloud band that drifts horizontally for parallax (PNG with alpha). */
@@ -46,6 +47,7 @@ interface TitleScreenProps {
 export const TitleScreen: React.FC<TitleScreenProps> = ({
   onPlay,
   onSettings,
+  onHowToPlay,
   backgroundSource,
   cloudSource,
   reduceMotion = false,
@@ -207,6 +209,11 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({
     onSettings?.();
   };
 
+  const handleHowToPlay = () => {
+    Sounds.buttonClick();
+    onHowToPlay?.();
+  };
+
   const isCompact = screenHeight < 420;
 
   return (
@@ -303,11 +310,18 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({
             </Text>
           </TouchableOpacity>
 
-          {onSettings && (
-            <TouchableOpacity style={styles.settingsButton} onPress={handleSettings}>
-              <Text style={styles.settingsButtonText}>Settings</Text>
-            </TouchableOpacity>
-          )}
+          <View style={styles.secondaryRow}>
+            {onHowToPlay && (
+              <TouchableOpacity style={styles.settingsButton} onPress={handleHowToPlay}>
+                <Text style={styles.settingsButtonText}>How to Play</Text>
+              </TouchableOpacity>
+            )}
+            {onSettings && (
+              <TouchableOpacity style={styles.settingsButton} onPress={handleSettings}>
+                <Text style={styles.settingsButtonText}>Settings</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </Animated.View>
       </View>
 
@@ -418,6 +432,11 @@ const styles = StyleSheet.create({
     marginTop: 14,
     paddingVertical: 8,
     paddingHorizontal: 20,
+  },
+  secondaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   settingsButtonText: {
     color: '#c8d8e4',

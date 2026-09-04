@@ -67,6 +67,14 @@ import {
 import { BUILDINGS, BOAT_COSTS, BALANCE, PIRATE_DIFFICULTY, STORM_DIFFICULTY, HURRICANE_DIFFICULTY, GRID_WIDTH, GRID_HEIGHT, REBEL_SPAWN_COST, getAvailableBuildings } from './src/constants/game';
 import { inflictRebel } from './src/services/rebels';
 import {
+  buildingPositions,
+  dockMultiplierFor,
+  lighthouseSinkMultiplier,
+  resolveFoodEconomy,
+} from './src/services/enhancedBuildings';
+import { computeRevealCount, revealTiles } from './src/services/fogOfWar';
+import { isDebugEnabled, subscribeDebug } from './src/services/debugMode';
+import {
   getFortPositions,
   isTileFortProtected,
   isBoatFortProtected as isBoatNearFort,
@@ -83,6 +91,7 @@ import { loadAudioSettings, useAudioSettings } from './src/hooks/useAudioSetting
 import { SettingsScreen } from './src/components/settings/SettingsScreen';
 import { SetupScreen, GameConfig } from './src/components/setup/SetupScreen';
 import { TitleScreen } from './src/components/title/TitleScreen';
+import { QuickStartPanel } from './src/components/title/QuickStartPanel';
 import { WhatsNewPanel } from './src/components/common/WhatsNewPanel';
 import { getUnseenReleaseNotes, markReleaseNotesSeen } from './src/services/whatsNewService';
 import { ReleaseNote, RELEASE_NOTES } from './src/constants/whatsNew';
@@ -203,6 +212,8 @@ export default function App() {
   const [whatsNewNotes, setWhatsNewNotes] = useState<ReleaseNote[]>([]);
   // True when the player opened release notes deliberately from Settings
   const [browsingReleaseNotes, setBrowsingReleaseNotes] = useState(false);
+  // Quick "How to Play" overview, opened from the title screen
+  const [showQuickStart, setShowQuickStart] = useState(false);
   const [showQuitConfirm, setShowQuitConfirm] = useState(false);
   const [animationsEnabled, setAnimationsEnabled] = useState(true);
 
@@ -337,6 +348,17 @@ export default function App() {
   // happens, so it has to be accumulated separately to be reportable.
   const roundFishingGoldRef = useRef(0);
   const roundRainGoldRef = useRef(0);
+  // Enhanced Mode: food score banked by granaries, carried between rounds
+  const granaryBankRef = useRef(0);
+  // Enhanced Mode: which opponent tiles this player has scouted. Local only —
+  // knowledge of their island is never synced.
+  const [revealedTiles, setRevealedTiles] = useState<Set<string>>(new Set());
+  const fogEnabled = mode === 'enhanced';
+
+  // Hidden debug aid — unlocked by tapping the Settings build footer five times.
+  // Not persisted; resets every launch. See src/services/debugMode.ts.
+  const [debugOn, setDebugOn] = useState(isDebugEnabled());
+  useEffect(() => subscribeDebug(() => setDebugOn(isDebugEnabled())), []);
   const [roundSummary, setRoundSummary] = useState<RoundSummaryData | null>(null);
   // Whether an interstitial is owed once the summary is dismissed
   const pendingAdRef = useRef(false);
@@ -520,6 +542,8 @@ export default function App() {
     pendingAdRef.current = false;
     battleRef.current = null;
     setBattlePlan(null);
+    granaryBankRef.current = 0;
+    setRevealedTiles(new Set());
   }, [roundDuration]);
 
   // Start game with config from setup screen
@@ -561,6 +585,8 @@ export default function App() {
     pendingAdRef.current = false;
     battleRef.current = null;
     setBattlePlan(null);
+    granaryBankRef.current = 0;
+    setRevealedTiles(new Set());
     
     // Initialize AI opponent
     setTimeout(() => initializeAI(), 100);
@@ -1365,9 +1391,11 @@ export default function App() {
         }
       }
       
-      // Check boat damage — boats within a fort's radius are fully immune
+      // Check boat damage — boats within a fort's radius are fully immune, and
+      // lighthouses halve the odds for boats sheltering near them
       const currentBoats = freeRoamBoatsRef.current;
       const boatsToSink: string[] = [];
+      const lighthousePositions = buildingPositions(island, 'lighthouse');
       
       for (const boat of currentBoats) {
         if (stormBoatsSunkRef.current + boatsToSink.length >= BALANCE.stormMaxBoatsSunk) break;
@@ -1380,7 +1408,8 @@ export default function App() {
           // 100% fort protection for boats
           if (isBoatNearFort(boat.position, fortPositions)) continue;
           
-          if (Math.random() < stormDiff.boatSink) {
+          const sinkChance = stormDiff.boatSink * lighthouseSinkMultiplier(boat.position, lighthousePositions);
+          if (Math.random() < sinkChance) {
             boatsToSink.push(boat.id);
           }
         }
@@ -1536,6 +1565,7 @@ export default function App() {
       const currentBoats = freeRoamBoatsRef.current;
       const boatsToSink: string[] = [];
       const boatFortPositions = getFortPositions(island);
+      const hurLighthousePositions = buildingPositions(island, 'lighthouse');
       
       for (const boat of currentBoats) {
         if (hurricaneBoatsSunkRef.current + boatsToSink.length >= hurricaneBoatBudgetRef.current) break;
@@ -1545,7 +1575,8 @@ export default function App() {
         if (cloudX < boatScreenX + tileSize && cloudX + cloudSize > boatScreenX &&
             cloudY < boatScreenY + tileSize && cloudY + cloudSize > boatScreenY) {
           if (isBoatNearFort(boat.position, boatFortPositions)) continue;
-          if (Math.random() < hurDiff.boatSink) {
+          const sinkChance = hurDiff.boatSink * lighthouseSinkMultiplier(boat.position, hurLighthousePositions);
+          if (Math.random() < sinkChance) {
             boatsToSink.push(boat.id);
           }
         }
@@ -1784,6 +1815,8 @@ export default function App() {
       const fishingBoats = currentBoats.filter(b => b.type === 'fishing');
       if (fishingBoats.length === 0 || currentFish.length === 0) return;
       
+      // Enhanced Mode: docks boost boats fishing nearby
+      const dockPositions = island ? buildingPositions(island, 'dock') : [];
       let totalGold = 0;
       
       for (const boat of fishingBoats) {
@@ -1791,11 +1824,13 @@ export default function App() {
           const dist = waterDistance(boat.position, school.position);
           // Boat must be directly over the fish school to earn gold
           if (dist < school.size) {
-            totalGold += BALANCE.fishingGoldPerTick;
+            totalGold += BALANCE.fishingGoldPerTick * dockMultiplierFor(boat.position, dockPositions);
             break; // One boat can only fish from one school per tick
           }
         }
       }
+      
+      totalGold = Math.round(totalGold);
       
       if (totalGold > 0) {
         setGold(g => g + totalGold);
@@ -2142,6 +2177,10 @@ export default function App() {
     const crops = tiles.filter(t => t.building === 'farm').length;
     const houses = tiles.filter(t => t.building === 'house').length;
     const forts = tiles.filter(t => t.building === 'fort').length;
+    // Enhanced Mode buildings
+    const apartments = tiles.filter(t => t.building === 'apartment').length;
+    const granaries = tiles.filter(t => t.building === 'granary').length;
+    const marketplaces = tiles.filter(t => t.building === 'marketplace').length;
     
     // Income calculation
     const productivity = Math.min(BALANCE.maxProductivityBonus, (schools + hospitals) * factories + hospitals);
@@ -2160,9 +2199,36 @@ export default function App() {
     setPopulation(newPopulation);
     
     // Score breakdown calculation
-    const housingScore = Math.min(30, Math.floor((houses * 500) / Math.max(1, newPopulation / 100) / 3));
-    const foodScore = Math.min(30, Math.floor(((fishingBoats + crops) * 500) / Math.max(1, newPopulation / 100) / 3));
-    const welfareScore = Math.min(30, (schools + hospitals) * 5);
+    //
+    // Apartments count as several houses for housing but cost welfare — density
+    // without quality of life.
+    const housingUnits = houses + apartments * BALANCE.apartmentHousingUnits;
+    const housingScore = Math.min(30, Math.floor((housingUnits * 500) / Math.max(1, newPopulation / 100) / 3));
+
+    // Food is computed UNCAPPED first so granaries and marketplaces have a surplus
+    // to work with. resolveFoodEconomy applies the cap.
+    const rawFoodScore = Math.floor(((fishingBoats + crops) * 500) / Math.max(1, newPopulation / 100) / 3);
+    const foodEconomy = resolveFoodEconomy(
+      rawFoodScore,
+      granaries,
+      marketplaces,
+      granaryBankRef.current
+    );
+    const foodScore = foodEconomy.foodScore;
+    granaryBankRef.current = foodEconomy.granaryBank;
+
+    if (foodEconomy.marketplaceGold > 0) {
+      setGold(g => g + foodEconomy.marketplaceGold);
+      showToast(`+${foodEconomy.marketplaceGold}g from marketplace`, 'gold');
+    }
+    if (foodEconomy.granaryUsed > 0) {
+      showToast(`Granary covered ${foodEconomy.granaryUsed} food`, 'stability');
+    }
+
+    const welfareScore = Math.max(
+      0,
+      Math.min(30, (schools + hospitals) * 5 - apartments * BALANCE.apartmentWelfarePenalty)
+    );
     const gdpScore = Math.min(30, Math.floor(income / 4));
     const totalScore = Math.min(100, housingScore + foodScore + welfareScore + gdpScore);
     
@@ -2216,6 +2282,25 @@ export default function App() {
     
     setIsland({ ...island, tiles: updatedTiles });
     
+    // Enhanced Mode: PT boats scout the opponent's island between rounds.
+    // Lighthouses extend their reach; watchtowers report a fixed area.
+    if (fogEnabled) {
+      const ptBoats = freeRoamBoats.filter(b => b.type === 'pt').length;
+      const lighthouses = tiles.filter(t => t.building === 'lighthouse').length;
+      const watchtowers = tiles.filter(t => t.building === 'watchtower').length;
+      const count = computeRevealCount(ptBoats, lighthouses, watchtowers);
+      if (count > 0) {
+        const target = isMultiplayer ? opponentIsland : aiIsland;
+        setRevealedTiles(prev => {
+          const next = revealTiles(target, prev, count);
+          if (next.size > prev.size) {
+            showToast(`Scouts revealed ${next.size - prev.size} tiles`, 'stability');
+          }
+          return next;
+        });
+      }
+    }
+
     // Process AI round end
     processAIRoundEnd();
     
@@ -2579,6 +2664,7 @@ export default function App() {
         <TitleScreen
           onPlay={() => setShowTitle(false)}
           onSettings={() => setShowSettings(true)}
+          onHowToPlay={() => setShowQuickStart(true)}
           reduceMotion={!animationsEnabled}
           versionLabel="v1.0.0"
           backgroundSource={require('./assets/images/title-bg.jpg')}
@@ -2598,6 +2684,11 @@ export default function App() {
         {/* What's New — shown over the title screen, but never on top of the
             name prompt, which a first-time player must answer first. */}
         {releaseNotesPanel}
+        <QuickStartPanel
+          visible={showQuickStart}
+          onClose={() => setShowQuickStart(false)}
+          reduceMotion={!animationsEnabled}
+        />
       </View>
     );
   }
@@ -2683,6 +2774,14 @@ export default function App() {
         </View>
         
         <View style={styles.headerRight}>
+          {debugOn && (
+            <TouchableOpacity
+              onPress={() => { setGold(g => g + 500); showToast('+500g (debug)', 'gold'); }}
+              style={styles.debugButton}
+            >
+              <Text style={styles.debugButtonText}>+500g</Text>
+            </TouchableOpacity>
+          )}
           {round > 0 && !showGameOver && (
             <TouchableOpacity
               onPress={handleSabotage}
@@ -2887,6 +2986,8 @@ export default function App() {
           boats={opponentState?.boats ?? []}
           opponentName={mpOpponentName}
           roomCode={mpRoomCode ?? undefined}
+          fogEnabled={fogEnabled}
+          revealedTiles={revealedTiles}
           isStale={isOpponentStale}
           msSinceSeen={mpMsSinceOpponentSeen ?? 0}
           visible={round > 0 && !showBuildMenu && !showGameOver}
@@ -2900,6 +3001,8 @@ export default function App() {
           difficulty={difficulty}
           visible={round > 0 && !showBuildMenu && !showGameOver}
           lastAction={lastAIAction}
+          fogEnabled={fogEnabled}
+          revealedTiles={revealedTiles}
         />
       )}
       
@@ -3122,6 +3225,19 @@ const styles = StyleSheet.create({
   },
   sabotageButtonDisabled: {
     opacity: 0.35,
+  },
+  debugButton: {
+    backgroundColor: 'rgba(140, 90, 200, 0.25)',
+    borderWidth: 1,
+    borderColor: '#8c5ac8',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  debugButtonText: {
+    color: '#c9a6f0',
+    fontSize: 11,
+    fontWeight: 'bold',
   },
   sabotageCost: {
     color: '#ff8a80',

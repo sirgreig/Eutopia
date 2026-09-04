@@ -40,10 +40,24 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    id: '2026.09.03.2',
+    date: 'September 2026',
+    headline: 'Enhanced Mode is here',
+    items: [
+      'Enhanced Mode now works. Six new buildings, each with a real effect.',
+      'Apartment houses three times as many people as a house, at the cost of welfare.',
+      'Dock pays nearby fishing boats half as much again. Lighthouse shelters boats from storms.',
+      'Granary banks surplus food for a bad round; Marketplace sells what it cannot store.',
+      'New: fog of war hides your opponent\'s island. PT boats scout it between rounds, and a Watchtower uncovers a patch permanently.',
+    ],
+  },
+  {
     id: '2026.09.03',
     date: 'September 2026',
     headline: 'Sabotage, summaries and smarter storms',
     items: [
+      'Build menu tiles now show what each building actually does before you spend the gold.',
+      'New: a How to Play summary on the title screen, so you can see what the game is about before starting.',
       'New: send rebels to your opponent for 30 gold, once per round. The AI can do it to you too.',
       'A summary now appears at the end of each round showing exactly where your gold came from.',
       'Build boats by tapping open water — you can now add to your fleet even with a fully built island.',

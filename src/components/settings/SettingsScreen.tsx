@@ -19,6 +19,7 @@ import { setPlayerName as persistPlayerName } from '../../services/playerService
 import { validateDisplayName } from '../../services/nameFilter';
 import { getUpdateInfo, updateLine } from '../../services/updateInfo';
 import { AdService } from '../../services/adService';
+import { isDebugEnabled, registerUnlockTap } from '../../services/debugMode';
 import { LATEST_RELEASE_ID } from '../../constants/whatsNew';
 import { Sounds } from '../../services/soundManager';
 
@@ -125,6 +126,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     } = useAudioSettings();
     
     const [showHowToPlay, setShowHowToPlay] = useState(false);
+    // Re-render when the hidden debug toggle flips
+    const [, forceDebugRender] = useState(0);
 
     // Player name editing
     const [editingName, setEditingName] = useState(false);
@@ -171,10 +174,17 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                         <Text style={styles.releaseNotesText}>What's New</Text>
                     </TouchableOpacity>
                 )}
-                <Text style={styles.buildFooter}>
-                    Eutopia 1.0.0  ·  {updateLine(info)}  ·  notes {LATEST_RELEASE_ID}
-                    {'\n'}ads: {AdService.getAdStatus()}
-                </Text>
+                <TouchableOpacity
+                    activeOpacity={1}
+                    onPress={() => {
+                        if (registerUnlockTap()) forceDebugRender(n => n + 1);
+                    }}
+                >
+                    <Text style={styles.buildFooter}>
+                        Eutopia 1.0.0  ·  {updateLine(info)}  ·  notes {LATEST_RELEASE_ID}
+                        {'\n'}ads: {AdService.getAdStatus()}{isDebugEnabled() ? '  ·  debug on' : ''}
+                    </Text>
+                </TouchableOpacity>
             </>
         );
     };
@@ -524,6 +534,16 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                                 Choose Multiplayer from the main menu to host a game or join one. The host shares a six-character room code; there is no public matchmaking, so you only play with people you invite.{'\n\n'}The host controls when each round starts. Both islands run on the same clock, and weather strikes both players at the same time — though it takes a different path across each island.{'\n\n'}The panel on the right shows your opponent's island as it fills up, along with their score, gold, population and boats. You can see <Text style={styles.htpEmphasis}>where</Text> they are building, but not <Text style={styles.htpEmphasis}>what</Text> they are building.{'\n\n'}If a player disconnects, the round pauses and they have three minutes to return before forfeiting.
                             </Text>
                             
+                            <Text style={styles.htpHeading}>🏗️ Enhanced Mode Buildings</Text>
+                            <Text style={styles.htpBody}>
+                                Choosing Enhanced Mode at setup adds six more buildings and puts fog of war over your opponent's island.{'\n\n'}<Text style={styles.htpEmphasis}>Apartment</Text> houses three times as many people as a house, but crowding costs you a point of welfare.{'\n\n'}<Text style={styles.htpEmphasis}>Dock</Text> pays fishing boats working close to it half as much again.{'\n\n'}<Text style={styles.htpEmphasis}>Lighthouse</Text> halves the chance that boats sheltering nearby are sunk by storms or hurricanes, and helps your PT boats scout further.{'\n\n'}<Text style={styles.htpEmphasis}>Granary</Text> banks food you produce beyond what your score can use, and spends it to prop you up in a bad round.{'\n\n'}<Text style={styles.htpEmphasis}>Marketplace</Text> sells food that granaries cannot store, turning waste into gold.{'\n\n'}<Text style={styles.htpEmphasis}>Watchtower</Text> permanently reveals a stretch of your opponent's island through the fog.{'\n\n'}Granaries fill before marketplaces sell, so building one of each is worth more than two of either.
+                            </Text>
+
+                            <Text style={styles.htpHeading}>🌫️ Fog of War</Text>
+                            <Text style={styles.htpBody}>
+                                In Enhanced Mode you cannot see your opponent's island at first — it is covered in fog.{'\n\n'}Every PT boat you own scouts a few tiles at the end of each round, so PT boats earn their keep twice over: they fight pirates and they gather intelligence. Lighthouses extend their reach, and a watchtower uncovers a larger patch on its own.{'\n\n'}Once a tile is revealed it stays revealed, even if the boats that found it are lost.
+                            </Text>
+
                             <Text style={styles.htpHeading}>⭐ Scoring</Text>
                             <Text style={styles.htpBody}>
                                 Your score is calculated from four categories: housing capacity, food production, welfare services, and GDP (gold and factories). Balance all four for the best score. The game ends after the final round — highest score wins!

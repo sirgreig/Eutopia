@@ -124,6 +124,19 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onStartGame, onOpenSet
     const [roundDuration, setRoundDuration] = useState(45);
     const [difficulty, setDifficulty] = useState<'easy' | 'normal' | 'hard'>('normal');
 
+    // Enhanced Mode: all six enhanced buildings are now implemented (Phase 9).
+    // Apartment (housing/welfare), Dock (fishing bonus), Lighthouse (weather
+    // shelter + scouting), Granary (food banking), Marketplace (surplus to gold),
+    // Watchtower (fog reveal). Set to false again if any of them regress.
+    const ENHANCED_MODE_AVAILABLE = true;
+
+    const modeOptions = ENHANCED_MODE_AVAILABLE
+        ? [
+            { value: 'original' as GameMode, label: 'Original' },
+            { value: 'enhanced' as GameMode, label: 'Enhanced' },
+          ]
+        : [{ value: 'original' as GameMode, label: 'Original' }];
+
     const handleStartGame = () => { Sounds.buttonClick(); onStartGame({ mode, rounds, roundDuration, difficulty }); };
     const handleOpenSettings = () => { Sounds.buttonClick(); onOpenSettings(); };
     const handleMultiplayer = () => { Sounds.buttonClick(); onMultiplayer(); };
@@ -143,12 +156,11 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onStartGame, onOpenSet
                     <View style={styles.landscapeColumns}>
                         <View style={styles.landscapeCol}>
                             <View style={styles.sectionCompact}>
-                                <Selector label="Game Mode" value={mode} options={[
-                                    { value: 'original', label: 'Original' },
-                                    { value: 'enhanced', label: 'Enhanced' },
-                                ]} onChange={setMode} compact />
+                                <Selector label="Game Mode" value={mode} options={modeOptions} onChange={setMode} compact />
                                 <Text style={styles.hintCompact}>
-                                    {mode === 'original' ? 'Classic gameplay with original buildings' : 'Expanded buildings and features'}
+                                    {mode === 'original'
+                                        ? 'Classic gameplay with original buildings'
+                                        : 'Six extra buildings, plus fog of war over your opponent'}
                                 </Text>
                             </View>
                             <View style={styles.sectionCompact}>
@@ -191,12 +203,11 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onStartGame, onOpenSet
                 <Text style={styles.title}>Eutopia</Text>
                 <Text style={styles.subtitle}>Build Your Island Paradise</Text>
                 <View style={styles.section}>
-                    <Selector label="Game Mode" value={mode} options={[
-                        { value: 'original', label: 'Original' },
-                        { value: 'enhanced', label: 'Enhanced' },
-                    ]} onChange={setMode} />
+                    <Selector label="Game Mode" value={mode} options={modeOptions} onChange={setMode} />
                     <Text style={styles.modeDescription}>
-                        {mode === 'original' ? 'Classic gameplay with original buildings' : 'Expanded buildings and features'}
+                        {mode === 'original'
+                            ? 'Classic gameplay with original buildings'
+                            : 'Six extra buildings, plus fog of war over your opponent'}
                     </Text>
                 </View>
                 <View style={styles.section}>
@@ -212,7 +223,7 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ onStartGame, onOpenSet
                         { value: 'normal', label: 'Normal' },
                         { value: 'hard', label: 'Hard' },
                     ]} onChange={setDifficulty} />
-                    <Text style={styles.hint}>(Affects AI opponent in future update)</Text>
+                    <Text style={styles.hint}>(Affects AI opponent)</Text>
                 </View>
                 <View style={styles.buttonContainer}>
                     <TouchableOpacity style={styles.startButton} onPress={handleStartGame}>

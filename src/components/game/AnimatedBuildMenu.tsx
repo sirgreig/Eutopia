@@ -15,7 +15,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { BuildingType, BoatType, GameMode } from '../../types';
-import { BUILDINGS, BOAT_COSTS, getAvailableBuildings } from '../../constants/game';
+import { BUILDINGS, BOAT_COSTS, BUILD_STATS, getAvailableBuildings } from '../../constants/game';
 import {
   HouseIcon,
   FarmIcon,
@@ -171,18 +171,24 @@ export const AnimatedBuildMenu: React.FC<AnimatedBuildMenuProps> = ({
       ]
     : buildings.map(b => ({ key: b.type, kind: 'building' as const, type: b.type, name: b.name, cost: b.cost }));
 
-  // Boats: only two items, so give them more room than the 7-per-row building grid
+  // Six per row matches the icon size the art was drawn for. Boats get two.
   const gridPadding = 8;
   const itemMargin = 3;
-  const itemsPerRow = context === 'water' ? 2 : 7;
+  const itemsPerRow = context === 'water' ? 2 : 6;
   const availableWidth = screenWidth - (gridPadding * 2);
   const rawItemWidth = Math.floor(availableWidth / itemsPerRow) - (itemMargin * 2);
   // Cap boat tiles so they don't stretch absurdly wide on a tablet
-  const itemWidth = context === 'water' ? Math.min(rawItemWidth, 180) : rawItemWidth;
+  const itemWidth = context === 'water' ? Math.min(rawItemWidth, 220) : rawItemWidth;
   
-  // Scale icon and text to item width (icon ~30% larger than before)
-  const iconSize = Math.min(Math.floor(itemWidth * 0.72), 56);
-  const labelSize = Math.max(Math.floor(itemWidth * 0.11), 9);
+  // Icons shrink slightly to make room for the stat lines beneath each tile.
+  //
+  // Font sizes are CLAMPED rather than scaled freely: boat tiles are far wider than
+  // building tiles (two per row vs six), so scaling purely by width made the boat
+  // menu's text roughly 60% larger than the land menu's, and the stat lines were
+  // clipped by their line height. Both menus should read identically.
+  const iconSize = Math.min(Math.floor(itemWidth * 0.58), 52);
+  const labelSize = Math.min(Math.max(Math.floor(itemWidth * 0.10), 10), 14);
+  const statSize = Math.min(Math.max(Math.floor(itemWidth * 0.075), 9), 11);
 
   return (
     <View style={styles.overlay}>
@@ -257,6 +263,24 @@ export const AnimatedBuildMenu: React.FC<AnimatedBuildMenuProps> = ({
                     {item.cost}g
                   </Text>
                 </View>
+                {BUILD_STATS[item.key] && (
+                  <View style={styles.statBlock}>
+                    <Text
+                      style={[styles.statGain, { fontSize: statSize, lineHeight: statSize + 3 }]}
+                      numberOfLines={2}
+                    >
+                      {BUILD_STATS[item.key].gain}
+                    </Text>
+                    {BUILD_STATS[item.key].cost && (
+                      <Text
+                        style={[styles.statCost, { fontSize: statSize, lineHeight: statSize + 3 }]}
+                        numberOfLines={1}
+                      >
+                        {BUILD_STATS[item.key].cost}
+                      </Text>
+                    )}
+                  </View>
+                )}
               </TouchableOpacity>
             );
           })}
@@ -285,7 +309,9 @@ const styles = StyleSheet.create({
     borderRightWidth: 1,
     borderColor: '#3a5a6a',
     paddingBottom: 8,
-    maxHeight: '60%',
+    // Enhanced Mode is twelve tiles over two rows, each now carrying stat lines.
+    // The sheet takes most of the screen when it needs to; the grid scrolls if not.
+    maxHeight: '92%',
   },
   header: {
     flexDirection: 'row',
@@ -359,6 +385,19 @@ const styles = StyleSheet.create({
   },
   costDisabled: {
     color: '#666',
+  },
+  statBlock: {
+    marginTop: 2,
+    paddingHorizontal: 2,
+    paddingBottom: 2,
+  },
+  statGain: {
+    color: '#7fd6a0',
+    textAlign: 'center',
+  },
+  statCost: {
+    color: '#ff8a80',
+    textAlign: 'center',
   },
 });
 

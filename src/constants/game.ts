@@ -103,6 +103,39 @@ export function getAvailableBuildings(mode: GameMode): BuildingConfig[] {
   return BUILDINGS.filter(b => !b.enhanced); // Only original buildings
 }
 
+/**
+ * One-line effect summaries shown under each build menu tile.
+ *
+ * Players previously had to build something and then tap it to learn what it did,
+ * which is a poor way to spend gold you cannot get back.
+ *
+ * Keep these SHORT — they render at ~9px on a landscape phone and must not wrap
+ * past two lines. `gain` is shown in green, `cost` in red. Buildings with no real
+ * downside simply omit `cost`.
+ *
+ * These numbers mirror BUILDINGS descriptions and the BALANCE constants below.
+ * If you change a value there, change it here too.
+ */
+export const BUILD_STATS: Record<string, { gain: string; cost?: string }> = {
+  // Original mode
+  farm:        { gain: '1g/sec in rain' },
+  house:       { gain: '+0.1% growth' },
+  school:      { gain: '+welfare, +output', cost: '-0.3% growth' },
+  factory:     { gain: '+4g/round',         cost: '+0.1% deaths' },
+  fort:        { gain: 'shields 1 tile' },
+  hospital:    { gain: '+welfare, +growth' },
+  // Enhanced mode
+  apartment:   { gain: '3x housing',        cost: '-1 welfare' },
+  dock:        { gain: '+50% fishing' },
+  lighthouse:  { gain: 'storm shelter' },
+  granary:     { gain: 'stores food' },
+  marketplace: { gain: 'food to gold' },
+  watchtower:  { gain: 'reveals fog' },
+  // Boats
+  fishing:     { gain: '1g/sec on fish' },
+  pt:          { gain: 'hunts pirates',     cost: 'can be sunk' },
+};
+
 // Boat configurations
 export const BOAT_COSTS = {
   fishing: 15,
@@ -206,6 +239,33 @@ export const BALANCE = {
   hurricaneMinBoatsSunk: 1,
   hurricaneMaxBoatsSunk: 2,
   // Difficulty-specific values set in HURRICANE_DIFFICULTY below
+
+  // ==========================================================
+  // ENHANCED MODE BUILDINGS (Phase 9)
+  // ==========================================================
+
+  // Apartment — dense housing at the cost of quality of life
+  apartmentHousingUnits: 3,      // Counts as this many houses for housing score
+  apartmentWelfarePenalty: 1,    // Welfare points lost per apartment
+
+  // Dock — boosts fishing boats working nearby
+  dockRadius: 1.5,               // World units from the dock tile centre
+  dockFishingMultiplier: 1.5,    // Income multiplier for boats in range
+
+  // Lighthouse — shelters boats from weather (not from pirates; that is the fort)
+  lighthouseRadius: 2.5,         // World units from the lighthouse tile centre
+  lighthouseStormProtection: 0.5,// Multiplies a boat's sink chance in range
+  lighthouseScoutBonus: 2,       // Extra tiles of fog reveal for PT boats
+
+  // Granary — banks surplus food and spends it on bad rounds
+  granaryCapacityEach: 5,        // Food score points each granary can hold
+
+  // Marketplace — sells food the island cannot use
+  marketplacePointsEach: 10,     // Overflow food points each marketplace can convert
+  marketplaceGoldPerPoint: 2,    // Gold per converted point
+
+  // Watchtower — permanent fog reveal around a fixed point
+  watchtowerRevealRadius: 2,     // Tiles revealed on the opponent island
 } as const;
 
 // Pirate difficulty scaling

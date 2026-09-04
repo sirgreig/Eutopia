@@ -24,6 +24,10 @@ interface AIIslandMinimapProps {
   difficulty: 'easy' | 'normal' | 'hard';
   visible: boolean;
   lastAction?: string | null;
+  /** Enhanced Mode: hide unscouted tiles */
+  fogEnabled?: boolean;
+  /** Tile keys ("x,y") this player has revealed */
+  revealedTiles?: Set<string>;
 }
 
 // Mini building colors
@@ -62,6 +66,8 @@ export const AIIslandMinimap: React.FC<AIIslandMinimapProps> = ({
   difficulty,
   visible,
   lastAction,
+  fogEnabled = false,
+  revealedTiles,
 }) => {
   const [expanded, setExpanded] = useState(false);
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
@@ -85,7 +91,10 @@ export const AIIslandMinimap: React.FC<AIIslandMinimapProps> = ({
         {island.tiles.map((tile) => {
           const x = tile.position.x * tileSize;
           const y = tile.position.y * tileSize;
-          const buildingColor = tile.building ? BUILDING_COLORS[tile.building] || '#666' : '#c2b280';
+          const hidden = fogEnabled && !(revealedTiles?.has(`${tile.position.x},${tile.position.y}`) ?? false);
+          const buildingColor = hidden
+            ? '#22303a'
+            : tile.building ? BUILDING_COLORS[tile.building] || '#666' : '#c2b280';
           
           return (
             <G key={tile.id}>
@@ -98,7 +107,7 @@ export const AIIslandMinimap: React.FC<AIIslandMinimapProps> = ({
                 stroke="#1a5276"
                 strokeWidth={0.5}
               />
-              {tile.hasRebel && (
+              {!hidden && tile.hasRebel && (
                 <Circle
                   cx={x + tileSize / 2}
                   cy={y + tileSize / 2}
@@ -231,9 +240,15 @@ export const AIIslandMinimap: React.FC<AIIslandMinimapProps> = ({
         {renderIsland(MINI_TILE_SIZE)}
       </View>
       
-      {lastAction && (
+      {lastAction && !fogEnabled && (
         <Text style={styles.lastAction} numberOfLines={1}>
           {lastAction}
+        </Text>
+      )}
+
+      {fogEnabled && (
+        <Text style={styles.fogHint}>
+          {revealedTiles?.size ?? 0}/{island.tiles.length} scouted
         </Text>
       )}
       
@@ -302,6 +317,13 @@ const styles = StyleSheet.create({
     fontSize: 8,
     color: '#556677',
     textAlign: 'center',
+    marginTop: 2,
+  },
+  fogHint: {
+    fontSize: 9,
+    color: '#8fb8d4',
+    textAlign: 'center',
+    fontWeight: '600',
     marginTop: 2,
   },
   
